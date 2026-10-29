@@ -86,6 +86,21 @@ export const SHOOTER_MOVE = {
   allyGap: 0.25
 } as const
 
+/**
+ * Enemies have solid bodies: they never overlap, and a brute steers round an
+ * ally in its way. Brutes also walk at different paces, picked at spawn from
+ * `paces` in turn, so two of them do not arrive in step.
+ */
+export const CROWD = {
+  /** Extra room a brute keeps from other enemies, in metres, and how hard it steers away. */
+  space: 0.7,
+  push: 2,
+  /** How far ahead a brute looks for an ally on its path, and how hard it steers round. */
+  look: 2.5,
+  round: 1.4,
+  paces: [1, 0.82, 0.92]
+} as const
+
 export const radiusOf = (kind: EnemyKind): number => (kind === "brute" ? BRUTE.radius : SHOOTERS[kind].radius)
 
 export type ShotKind = "bullet" | "arrow" | "knife"

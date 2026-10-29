@@ -26,8 +26,8 @@ export const Post = Descriptor.Component<{ readonly hx: number; readonly hy: num
 
 export type BrutePhase = "idle" | "chase" | "windup" | "swing" | "recover"
 
-/** A brute's blade: where it faces, its phase, world seconds left in it, and where it last saw you. */
-export const Melee = Descriptor.Component<{ readonly facing: number; readonly phase: BrutePhase; readonly t: number; readonly tx: number; readonly ty: number }>()("Slap/Melee")
+/** A brute's blade: where it faces, its phase, world seconds left in it, where it last saw you, and its walking pace (share of top speed). */
+export const Melee = Descriptor.Component<{ readonly facing: number; readonly phase: BrutePhase; readonly t: number; readonly tx: number; readonly ty: number; readonly pace: number }>()("Slap/Melee")
 
 /** Something flying: its kind and velocity in metres per real second. */
 export const Shot = Descriptor.Component<{ readonly kind: ShotKind; readonly vx: number; readonly vy: number }>()("Slap/Shot")

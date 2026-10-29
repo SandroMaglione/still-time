@@ -5,7 +5,7 @@
 import { canSee, insidePillar, pushOut, segmentDistance } from "./geometry.ts"
 import { ROOMS } from "./rooms.ts"
 import { Body, Enemy, Flow, Melee, Post, Game, IntentEvent, Pace, Player, RoomScope, Run, Shot, Slashes, Stick, Time } from "./schema.ts"
-import { BRUTE, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, VARIANTS, VARIANT_IDS, radiusOf } from "./tuning.ts"
+import { BRUTE, CROWD, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, VARIANTS, VARIANT_IDS, radiusOf } from "./tuning.ts"
 
 const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
 const ShooterQuery = Game.Query({ selection: { body: Game.Query.write(Body), enemy: Game.Query.write(Enemy), post: Game.Query.write(Post) }, without: [Player, Shot, Melee] })
@@ -74,10 +74,12 @@ export const BuildRoomSystem = Game.System(
     if (room === undefined) return
     commands.despawnScope(RoomScope)
     commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: room.start.x, y: room.start.y }], [Player, { vx: 0, vy: 0 }]))
+    let brutes = 0
     for (const e of room.enemies) {
       if (e.kind === "brute") {
+        const pace = CROWD.paces[brutes++ % CROWD.paces.length] ?? 1
         const facing = Math.atan2(room.start.y - e.y, room.start.x - e.x)
-        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: 0 }], [Melee, { facing, phase: "idle", t: 0, tx: e.x, ty: e.y }]))
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: 0 }], [Melee, { facing, phase: "idle", t: 0, tx: e.x, ty: e.y, pace }]))
       } else commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: e.delay }], [Post, { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1 }]))
     }
     resources.run.set({ room: run.room, deaths: run.deaths, rebuild: false })
@@ -241,22 +243,41 @@ export const FightSystem = Game.System(
           if (m.phase === "idle" && !sees) break
           const tx = sees ? x : m.tx, ty = sees ? y : m.ty
           if (sees && dist <= BRUTE.trigger) {
-            data.melee.set({ facing: m.facing, phase: "windup", t: BRUTE.windup, tx, ty })
+            data.melee.set({ facing: m.facing, phase: "windup", t: BRUTE.windup, tx, ty, pace: m.pace })
             break
           }
-          // Turn toward you at a limited rate, walk where it faces.
+          // Face you at a limited rate; walk toward you, keeping room from allies and steering round any in the way.
           const want = Math.atan2(ty - at.y, tx - at.x)
           const turn = Math.max(-BRUTE.turn * dt, Math.min(BRUTE.turn * dt, angleDiff(want, m.facing)))
           const facing = m.facing + turn
-          const step = Math.hypot(tx - at.x, ty - at.y) > 0.3 ? BRUTE.speed * dt : 0
-          let bx = Math.max(BRUTE.radius, Math.min(w - BRUTE.radius, at.x + Math.cos(facing) * step))
-          let by = Math.max(BRUTE.radius, Math.min(h - BRUTE.radius, at.y + Math.sin(facing) * step))
+          const ux = Math.cos(want), uy = Math.sin(want)
+          let mx = ux, my = uy
+          for (const a of allies) {
+            if (a.entity === entity || killed.has(a.entity)) continue
+            const ox = at.x - a.at.x, oy = at.y - a.at.y
+            const od = Math.hypot(ox, oy)
+            if (od === 0) { mx += Math.cos(m.facing + Math.PI / 2); my += Math.sin(m.facing + Math.PI / 2); continue }
+            const space = BRUTE.radius + a.radius + CROWD.space
+            if (od < space) { mx += (ox / od) * ((space - od) / space) * CROWD.push; my += (oy / od) * ((space - od) / space) * CROWD.push }
+            // An ally ahead on the path: step to whichever side it is not on.
+            const ahead = -(ox * ux + oy * uy)
+            const lateral = -(ox * -uy + oy * ux)
+            if (ahead > 0 && ahead < CROWD.look && Math.abs(lateral) < BRUTE.radius + a.radius + 0.3) {
+              const side = lateral > 0 ? -1 : 1
+              const k = CROWD.round * (1 - ahead / CROWD.look)
+              mx += -uy * side * k; my += ux * side * k
+            }
+          }
+          const ml = Math.hypot(mx, my) || 1
+          const step = Math.hypot(tx - at.x, ty - at.y) > 0.3 ? BRUTE.speed * m.pace * dt : 0
+          let bx = Math.max(BRUTE.radius, Math.min(w - BRUTE.radius, at.x + (mx / ml) * step))
+          let by = Math.max(BRUTE.radius, Math.min(h - BRUTE.radius, at.y + (my / ml) * step))
           for (const p of room.pillars) {
             const out = pushOut(bx, by, BRUTE.radius, p)
             if (out !== null) { bx = out.x; by = out.y }
           }
           data.body.set({ x: bx, y: by })
-          data.melee.set({ facing, phase: "chase", t: 0, tx, ty })
+          data.melee.set({ facing, phase: "chase", t: 0, tx, ty, pace: m.pace })
           break
         }
         case "windup": {
@@ -282,6 +303,37 @@ export const FightSystem = Game.System(
         case "recover":
           data.melee.set(t > 0 ? { ...m, t } : { ...m, phase: "chase", t: 0 })
           break
+      }
+    }
+
+    // Solid bodies: push overlapping enemies apart (shooters give way less), then out of walls.
+    const bodies = [
+      ...queries.enemies.each().filter((m) => !killed.has(m.entity)).map((m) => ({ cell: m.data.body, radius: radiusOf(m.data.enemy.get().kind), give: 0.25 })),
+      ...queries.brutes.each().filter((m) => !killed.has(m.entity)).map((m) => ({ cell: m.data.body, radius: BRUTE.radius, give: 1 }))
+    ]
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < bodies.length; i++) {
+        for (let j = i + 1; j < bodies.length; j++) {
+          const a = bodies[i], b = bodies[j]
+          if (a === undefined || b === undefined) continue
+          const pa = a.cell.get(), pb = b.cell.get()
+          let dx = pb.x - pa.x, dy = pb.y - pa.y
+          let d = Math.hypot(dx, dy)
+          const overlap = a.radius + b.radius - d
+          if (overlap <= 0) continue
+          if (d === 0) { dx = 1; dy = 0; d = 1 }
+          const share = a.give / (a.give + b.give)
+          const fix = (cx: number, cy: number, r: number): { x: number; y: number } => {
+            let nx = Math.max(r, Math.min(w - r, cx)), ny = Math.max(r, Math.min(h - r, cy))
+            for (const p of room.pillars) {
+              const out = pushOut(nx, ny, r, p)
+              if (out !== null) { nx = out.x; ny = out.y }
+            }
+            return { x: nx, y: ny }
+          }
+          a.cell.set(fix(pa.x - (dx / d) * overlap * share, pa.y - (dy / d) * overlap * share, a.radius))
+          b.cell.set(fix(pb.x + (dx / d) * overlap * (1 - share), pb.y + (dy / d) * overlap * (1 - share), b.radius))
+        }
       }
     }
 
