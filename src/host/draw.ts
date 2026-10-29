@@ -103,7 +103,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   const sx = corners.map(([x, y, z]) => proj.at(x, y, z, u).x), sy = corners.map(([x, y, z]) => proj.at(x, y, z, u).y)
   const margin = u * 0.6
   const fit = (want: number, lo: number, hi: number, min: number, max: number): number => {
-    const from = hi - max + margin, to = lo - min - margin
+    const from = hi - max - margin, to = lo - min + margin
     return from > to ? (from + to) / 2 : Math.max(from, Math.min(to, want))
   }
   const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx))
