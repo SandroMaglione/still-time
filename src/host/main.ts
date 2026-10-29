@@ -6,8 +6,7 @@ import { BrowserTickSource } from "@typeonce/ritmo-browser"
 import { FixedLoop } from "@typeonce/ritmo"
 
 import { STEP, createFight, updateSchedule, type Intent } from "../sim/simulation.ts"
-import { VARIANT_IDS, type VariantId } from "../sim/tuning.ts"
-import { Camera, draw, type Stick } from "./draw.ts"
+import { Camera, PROJECTIONS, PROJECTION_IDS, draw, type ProjectionId, type Stick } from "./draw.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
 const ctx = canvas?.getContext("2d")
@@ -19,11 +18,22 @@ const el = (id: string): HTMLElement => {
 if (canvas === null || canvas === undefined || ctx === null || ctx === undefined) throw new Error("Slap: no canvas")
 
 const params = new URLSearchParams(window.location.search)
-const variant: VariantId = VARIANT_IDS.find((id) => id === params.get("variant")) ?? "glide"
-const fight = createFight(Math.max(0, Number(params.get("room") ?? "1") - 1), variant)
+// The view is page state: switching it never touches the fight.
+let projection: ProjectionId = PROJECTION_IDS.find((id) => id === params.get("view")) ?? "iso"
+const nextProjection = (): void => {
+  projection = PROJECTION_IDS[(PROJECTION_IDS.indexOf(projection) + 1) % PROJECTION_IDS.length] ?? "iso"
+}
+const fight = createFight(Math.max(0, Number(params.get("room") ?? "1") - 1))
 const send = (intent: Intent): void => fight.send(intent)
+/** A push on screen (direction and 0..1 strength) sent as the world direction that looks the same. */
+const sendScreenPush = (dx: number, dy: number, push: number): void => {
+  if (push === 0) return send({ kind: "stick", x: 0, y: 0 })
+  const world = PROJECTIONS[projection].toWorld(dx, dy)
+  const len = Math.hypot(world.x, world.y) || 1
+  send({ kind: "stick", x: (world.x / len) * push, y: (world.y / len) * push })
+}
 
-el("variant").addEventListener("click", () => send({ kind: "nextVariant" }))
+el("variant").addEventListener("click", nextProjection)
 el("restart").addEventListener("click", () => send({ kind: "restart" }))
 
 // The thumb: a floating stick that starts wherever the finger lands.
@@ -59,7 +69,7 @@ canvas.addEventListener("pointermove", (e) => {
   stick.x = e.clientX
   stick.y = e.clientY
   const push = Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE)))
-  send(push === 0 ? { kind: "stick", x: 0, y: 0 } : { kind: "stick", x: (dx / len) * push, y: (dy / len) * push })
+  sendScreenPush(dx, dy, push)
 })
 const lift = (): void => {
   stick = null
@@ -77,9 +87,7 @@ const DIRS: Record<string, readonly [number, number]> = {
 const keyStick = (): void => {
   let x = 0, y = 0
   for (const k of held) { const dir = DIRS[k]; if (dir !== undefined) { x += dir[0]; y += dir[1] } }
-  const len = Math.hypot(x, y)
-  send({ kind: "stick", x: len === 0 ? 0 : x / len, y: len === 0 ? 0 : y / len })
-  return
+  sendScreenPush(x, y, x === 0 && y === 0 ? 0 : 1)
 }
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
@@ -90,7 +98,7 @@ window.addEventListener("keydown", (e) => {
     if (view.flow !== "playing") send({ kind: "tap" })
     else keyStick()
   } else if (key === " " || key === "Enter") send({ kind: "tap" })
-  else if (key === "v") send({ kind: "nextVariant" })
+  else if (key === "v") nextProjection()
   else if (key === "r") send({ kind: "restart" })
   else if (/^[1-9]$/.test(key)) send({ kind: "goToRoom", room: Number(key) - 1 })
   else return
@@ -128,10 +136,10 @@ FixedLoop.start({
     lastDeaths = view.deaths
     roomEl.textContent = `${view.room.index + 1}/${view.room.count} ${view.room.name} · ✕${view.deaths}`
     paceEl.textContent = `time ×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`
-    variantEl.textContent = `variant: ${view.variant.label} (V)`
-    hintEl.textContent = view.variant.hint
-    if (view.flow === "playing") camera.follow(view, window.innerWidth, window.innerHeight, frame.elapsedSeconds)
-    draw(ctx, window.innerWidth, window.innerHeight, view, stick, camera)
+    variantEl.textContent = `view: ${projection} (V)`
+    hintEl.textContent = "drag further = faster · lift to freeze time"
+    if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
+    draw(ctx, window.innerWidth, window.innerHeight, view, stick, camera, projection)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

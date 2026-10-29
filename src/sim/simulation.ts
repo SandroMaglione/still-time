@@ -3,7 +3,6 @@ import { Clock, type HostClock } from "@typeonce/ritmo"
 
 import { Flow, Game, IntentEvent, STEP, Time, type Intent } from "./schema.ts"
 import { ApplyIntentSystem, BuildRoomSystem, DeadLockSystem, FightSystem } from "./systems.ts"
-import type { VariantId } from "./tuning.ts"
 import { FightViewInspector, type FightView } from "./view.ts"
 
 const AdvanceTime = Clock.system(Game, { name: "Slap/AdvanceTime", resource: Time })
@@ -22,13 +21,13 @@ export const updateSchedule = Game.Schedule(
 
 type DebugOption = { readonly hostClock: HostClock.HostClock } | undefined
 
-const makeRuntime = <const Debug extends DebugOption>(room: number, variant: VariantId, debug: Debug) => {
+const makeRuntime = <const Debug extends DebugOption>(room: number, debug: Debug) => {
   const made = Game.Runtime.make({
     services: Game.Runtime.services(),
     resources: {
       Time: Clock.start(STEP),
       Run: { room, deaths: 0, rebuild: true },
-      Pace: { scale: 1, variant },
+      Pace: { scale: 1 },
       Stick: { x: 0, y: 0 },
       Slashes: []
     },
@@ -42,8 +41,8 @@ const makeRuntime = <const Debug extends DebugOption>(room: number, variant: Var
 export class Fight<const Debug extends DebugOption = undefined> {
   readonly runtime: ReturnType<typeof makeRuntime<Debug>>
 
-  constructor(room: number, variant: VariantId, debug: Debug) {
-    this.runtime = makeRuntime(room, variant, debug)
+  constructor(room: number, debug: Debug) {
+    this.runtime = makeRuntime(room, debug)
   }
 
   view(): FightView {
@@ -55,11 +54,11 @@ export class Fight<const Debug extends DebugOption = undefined> {
   }
 }
 
-export const createFight = (room: number, variant: VariantId): Fight => new Fight(room, variant, undefined)
+export const createFight = (room: number): Fight => new Fight(room, undefined)
 
 export const lintTarget = async () => {
   const { HostClock } = await import("@typeonce/ritmo")
-  const fight = new Fight(0, "glide", { hostClock: HostClock.test() })
+  const fight = new Fight(0, { hostClock: HostClock.test() })
   return { runtime: fight.runtime, schedules: { update: updateSchedule }, hostEvents: [IntentEvent] }
 }
 

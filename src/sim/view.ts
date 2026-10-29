@@ -2,7 +2,7 @@
 import { canSee } from "./geometry.ts"
 import { ROOMS, type Pillar } from "./rooms.ts"
 import { Body, Enemy, Flow, Game, Melee, Pace, Player, Run, Shot, Slashes, type BrutePhase } from "./schema.ts"
-import { BRUTE, SHOOTERS, SHOTS, TUNING, VARIANTS, type EnemyKind, type ShotKind, type Variant, type VariantId } from "./tuning.ts"
+import { BRUTE, SHOOTERS, SHOTS, TUNING, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 /** A brute's blade: facing, phase, how far through it (0 to 1), and the shapes to draw. */
 export interface MeleeView {
@@ -23,8 +23,8 @@ export interface FightView {
   readonly flow: "playing" | "dead" | "cleared" | "won"
   readonly canRetry: boolean
   readonly scale: number
-  readonly variantId: VariantId
-  readonly variant: Variant
+  /** World speed while you are still, for drawing how frozen time is. */
+  readonly slow: number
   readonly player: { readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number; readonly attackRange: number } | null
   readonly enemies: ReadonlyArray<{ readonly kind: EnemyKind; readonly x: number; readonly y: number; readonly radius: number; readonly charge: number; readonly aim: number; readonly sees: boolean; readonly melee: MeleeView | null }>
   readonly shots: ReadonlyArray<{ readonly kind: ShotKind; readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number }>
@@ -56,8 +56,7 @@ export const FightViewInspector = Game.Inspector(
       flow: flow._tag === "Playing" ? "playing" : flow._tag === "Dead" ? "dead" : flow._tag === "Cleared" ? "cleared" : "won",
       canRetry: flow._tag !== "Dead" || flow.wait <= 0,
       scale: pace.scale,
-      variantId: pace.variant,
-      variant: VARIANTS[pace.variant],
+      slow: TUNING.slow,
       player,
       enemies: queries.enemies.each().map(({ data }) => {
         const at = data.body.get()

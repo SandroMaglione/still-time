@@ -5,7 +5,7 @@
 import { canSee, insidePillar, pushOut, segmentDistance } from "./geometry.ts"
 import { ROOMS } from "./rooms.ts"
 import { Body, Enemy, Flow, Melee, Post, Game, IntentEvent, Pace, Player, RoomScope, Run, Shot, Slashes, Stick, Time } from "./schema.ts"
-import { BRUTE, CROWD, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, VARIANTS, VARIANT_IDS, radiusOf } from "./tuning.ts"
+import { BRUTE, CROWD, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, radiusOf } from "./tuning.ts"
 
 const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
 const ShooterQuery = Game.Query({ selection: { body: Game.Query.write(Body), enemy: Game.Query.write(Enemy), post: Game.Query.write(Post) }, without: [Player, Shot, Melee] })
@@ -48,14 +48,6 @@ export const ApplyIntentSystem = Game.System(
         case "goToRoom":
           if (intent.room >= 0 && intent.room < ROOMS.length) rebuild(intent.room)
           break
-        case "nextVariant": {
-          const pace = resources.pace.get()
-          const next = VARIANT_IDS[(VARIANT_IDS.indexOf(pace.variant) + 1) % VARIANT_IDS.length] ?? "glide"
-          resources.pace.set({ scale: pace.scale, variant: next })
-          resources.stick.set({ x: 0, y: 0 })
-          rebuild(resources.run.get().room)
-          break
-        }
       }
     }
   }
@@ -83,7 +75,7 @@ export const BuildRoomSystem = Game.System(
       } else commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: e.delay }], [Post, { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1 }]))
     }
     resources.run.set({ room: run.room, deaths: run.deaths, rebuild: false })
-    resources.pace.set({ scale: VARIANTS[resources.pace.get().variant].slow, variant: resources.pace.get().variant })
+    resources.pace.set({ scale: TUNING.slow })
     resources.stick.set({ x: 0, y: 0 })
     resources.slashes.set([])
   }
@@ -111,7 +103,6 @@ export const FightSystem = Game.System(
     if (room === undefined || run.rebuild) return
     const { w, h } = room
     const pace = resources.pace.get()
-    const variant = VARIANTS[pace.variant]
     const stick = resources.stick.get()
 
     const player = queries.players.each()[0]
@@ -121,11 +112,11 @@ export const FightSystem = Game.System(
     const push = Math.pow(Math.min(1, Math.hypot(stick.x, stick.y)), TUNING.player.curve)
     const dir = Math.hypot(stick.x, stick.y)
 
-    // World speed: follows your speed (or snaps to real time once you move), slow while you are still.
-    const target = push === 0 ? variant.slow : variant.time === "follow" ? variant.slow + (1 - variant.slow) * push : 1
+    // World speed follows your speed: frozen while you are still, real time at full push.
+    const target = TUNING.slow + (1 - TUNING.slow) * push
     const ease = Math.min(1, TUNING.timeEase * realDt)
     const scale = pace.scale + (target - pace.scale) * ease
-    resources.pace.set({ scale, variant: pace.variant })
+    resources.pace.set({ scale })
     const dt = realDt * scale
 
     // Move the player, in real time: the world is what slows down, not you.

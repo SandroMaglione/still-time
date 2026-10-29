@@ -1,26 +1,7 @@
-/**
- * Every number and rule the prototype compares, in one place. A variant is a
- * named set of settings switched with V (or the button at the bottom).
- */
-export interface Variant {
-  readonly label: string
-  readonly hint: string
-  /** follow: time runs as fast as you move (a slow push = slow time). snap: full speed as soon as you move. */
-  readonly time: "follow" | "snap"
-  /** World speed while you are still: 1 switches the slow-motion off. */
-  readonly slow: number
-}
-
-export const VARIANTS = {
-  glide: { label: "Glide", hint: "drag further = faster · time follows your speed", time: "follow", slow: 0.04 },
-  snap: { label: "Glide·snap", hint: "drag further = faster · time full once you move", time: "snap", slow: 0.04 },
-  realtime: { label: "Realtime", hint: "drag to move · no slow-motion (control)", time: "snap", slow: 1 }
-} as const satisfies Record<string, Variant>
-
-export type VariantId = keyof typeof VARIANTS
-export const VARIANT_IDS = Object.keys(VARIANTS) as ReadonlyArray<VariantId>
-
+/** Every number and rule of the fight, in one place. */
 export const TUNING = {
+  /** World speed while you are still; moving brings it up with your push, to 1 at full push. */
+  slow: 0.04,
   /** Enemies see you up to this far, and only with nothing in the way. */
   sight: 13,
   /** World seconds an enemy needs to fire once it sees you again, if its reload is already done. */

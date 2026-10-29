@@ -5,7 +5,7 @@
 import { Clock, Descriptor, Schema } from "@typeonce/ritmo"
 import { z } from "zod"
 
-import type { EnemyKind, ShotKind, VariantId } from "./tuning.ts"
+import type { EnemyKind, ShotKind } from "./tuning.ts"
 
 export const Root = Schema.defineRoot("Slap")
 
@@ -35,8 +35,8 @@ export const Shot = Descriptor.Component<{ readonly kind: ShotKind; readonly vx:
 /** Which room, how many deaths, and whether the room must be (re)built this tick. */
 export const Run = Descriptor.Resource<{ readonly room: number; readonly deaths: number; readonly rebuild: boolean }>()("Slap/Run")
 
-/** World speed (1 real time, small when still) and the variant being tried. */
-export const Pace = Descriptor.Resource<{ readonly scale: number; readonly variant: VariantId }>()("Slap/Pace")
+/** World speed: 1 is real time, small when you are still. */
+export const Pace = Descriptor.Resource<{ readonly scale: number }>()("Slap/Pace")
 
 /** The thumb: direction times push (0 at the press point, 1 at full reach), zero when lifted. */
 export const Stick = Descriptor.Resource<{ readonly x: number; readonly y: number }>()("Slap/Stick")
@@ -48,7 +48,6 @@ export type Intent =
   | { readonly kind: "stick"; readonly x: number; readonly y: number }
   | { readonly kind: "tap" }
   | { readonly kind: "restart" }
-  | { readonly kind: "nextVariant" }
   | { readonly kind: "goToRoom"; readonly room: number }
 
 export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
