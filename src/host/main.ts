@@ -27,12 +27,11 @@ el("variant").addEventListener("click", () => send({ kind: "nextVariant" }))
 el("restart").addEventListener("click", () => send({ kind: "restart" }))
 
 // The thumb: a floating stick that starts wherever the finger lands.
-const DEAD_ZONE = 10
-const FLICK = 26
-const LEASH = 70
+// Within DEAD_ZONE px of the press point you stand still; at REACH px you run at top speed.
+const DEAD_ZONE = 8
+const REACH = 72
 let stick: Stick | null = null
 let consumed = false
-let flicked = false
 
 canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId)
@@ -42,31 +41,25 @@ canvas.addEventListener("pointerdown", (e) => {
     consumed = true
     return
   }
-  stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY }
-  flicked = false
+  stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, reach: REACH }
 })
 canvas.addEventListener("pointermove", (e) => {
   if (stick === null || consumed) return
   let dx = e.clientX - stick.ox
   let dy = e.clientY - stick.oy
   let len = Math.hypot(dx, dy)
-  // The origin follows the thumb past the leash, so turning stays quick.
-  if (len > LEASH) {
-    stick.ox = e.clientX - (dx / len) * LEASH
-    stick.oy = e.clientY - (dy / len) * LEASH
+  // The press point follows the thumb past full reach, so turning stays quick.
+  if (len > REACH) {
+    stick.ox = e.clientX - (dx / len) * REACH
+    stick.oy = e.clientY - (dy / len) * REACH
     dx = e.clientX - stick.ox
     dy = e.clientY - stick.oy
-    len = LEASH
+    len = REACH
   }
   stick.x = e.clientX
   stick.y = e.clientY
-  if (fight.view().variant.control === "flick") {
-    if (!flicked && len > FLICK) {
-      send({ kind: "dash", x: dx, y: dy })
-      flicked = true
-    }
-  } else if (len > DEAD_ZONE) send({ kind: "stick", x: dx / len, y: dy / len })
-  else send({ kind: "stick", x: 0, y: 0 })
+  const push = Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE)))
+  send(push === 0 ? { kind: "stick", x: 0, y: 0 } : { kind: "stick", x: (dx / len) * push, y: (dy / len) * push })
 })
 const lift = (): void => {
   stick = null
@@ -95,7 +88,6 @@ window.addEventListener("keydown", (e) => {
     held.add(key)
     const view = fight.view()
     if (view.flow !== "playing") send({ kind: "tap" })
-    else if (view.variant.control === "flick") { const dir = DIRS[key]; send({ kind: "dash", x: dir[0], y: dir[1] }) }
     else keyStick()
   } else if (key === " " || key === "Enter") send({ kind: "tap" })
   else if (key === "v") send({ kind: "nextVariant" })

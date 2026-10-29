@@ -5,16 +5,16 @@
 export interface Variant {
   readonly label: string
   readonly hint: string
-  /** glide: drag to move, time runs while you move. flick: swipe to dash a set distance. */
-  readonly control: "glide" | "flick"
+  /** follow: time runs as fast as you move (a slow push = slow time). snap: full speed as soon as you move. */
+  readonly time: "follow" | "snap"
   /** World speed while you are still: 1 switches the slow-motion off. */
   readonly slow: number
 }
 
 export const VARIANTS = {
-  glide: { label: "Glide", hint: "drag to move · lift to freeze time", control: "glide", slow: 0.04 },
-  flick: { label: "Flick", hint: "swipe to dash · time runs only while dashing", control: "flick", slow: 0.04 },
-  realtime: { label: "Realtime", hint: "drag to move · no slow-motion (control)", control: "glide", slow: 1 }
+  glide: { label: "Glide", hint: "drag further = faster · time follows your speed", time: "follow", slow: 0.04 },
+  snap: { label: "Glide·snap", hint: "drag further = faster · time full once you move", time: "snap", slow: 0.04 },
+  realtime: { label: "Realtime", hint: "drag to move · no slow-motion (control)", time: "snap", slow: 1 }
 } as const satisfies Record<string, Variant>
 
 export type VariantId = keyof typeof VARIANTS
@@ -23,8 +23,8 @@ export const VARIANT_IDS = Object.keys(VARIANTS) as ReadonlyArray<VariantId>
 export const TUNING = {
   /** Room size in metres: portrait. */
   room: { w: 9, h: 16 },
-  player: { radius: 0.32, speed: 6.5 },
-  dash: { speed: 18, seconds: 0.17 },
+  /** speed is the top speed, at full stick; curve > 1 gives finer control near the press point. */
+  player: { radius: 0.32, speed: 5, curve: 1.4 },
   /** Centre distance at which you cut an enemy down. */
   attackRange: 1.15,
   /** How fast the world speed eases toward its target, per real second. */

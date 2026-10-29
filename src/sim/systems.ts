@@ -13,15 +13,13 @@ const ShotQuery = Game.Query({ selection: { body: Game.Query.write(Body), shot: 
 export const ApplyIntentSystem = Game.System(
   "Slap/ApplyIntent",
   {
-    queries: { players: PlayerQuery },
     resources: { run: Game.System.writeResource(Run), pace: Game.System.writeResource(Pace), stick: Game.System.writeResource(Stick) },
     machines: { flow: Game.System.machine(Flow) },
     nextMachines: { flow: Game.System.nextState(Flow) },
     events: { intents: Game.System.readEvent(IntentEvent) }
   },
-  ({ queries, resources, machines, nextMachines, events }) => {
+  ({ resources, machines, nextMachines, events }) => {
     const flow = machines.flow.get()
-    const variant = VARIANTS[resources.pace.get().variant]
     const rebuild = (room: number): void => {
       const run = resources.run.get()
       resources.run.set({ room, deaths: run.deaths, rebuild: true })
@@ -29,19 +27,11 @@ export const ApplyIntentSystem = Game.System(
     }
     for (const intent of events.intents.all()) {
       switch (intent.kind) {
-        case "stick":
-          if (variant.control === "glide") resources.stick.set({ x: intent.x, y: intent.y })
+        case "stick": {
+          const len = Math.hypot(intent.x, intent.y)
+          resources.stick.set(len > 1 ? { x: intent.x / len, y: intent.y / len } : { x: intent.x, y: intent.y })
           break
-        case "dash":
-          if (variant.control !== "flick" || flow._tag !== "Playing") break
-          for (const { data } of queries.players.each()) {
-            if (data.player.get().dash > 0) continue
-            const len = Math.hypot(intent.x, intent.y)
-            if (len === 0) continue
-            const speed = TUNING.dash.speed
-            data.player.set({ vx: (intent.x / len) * speed, vy: (intent.y / len) * speed, dash: TUNING.dash.seconds })
-          }
-          break
+        }
         case "tap":
           if (flow._tag === "Dead" && flow.wait <= 0) rebuild(resources.run.get().room)
           else if (flow._tag === "Cleared") rebuild(resources.run.get().room + 1)
@@ -78,7 +68,7 @@ export const BuildRoomSystem = Game.System(
     const room = ROOMS[run.room]
     if (room === undefined) return
     commands.despawnScope(RoomScope)
-    commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: room.start.x, y: room.start.y }], [Player, { vx: 0, vy: 0, dash: 0 }]))
+    commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: room.start.x, y: room.start.y }], [Player, { vx: 0, vy: 0 }]))
     for (const e of room.enemies) {
       commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: e.delay }]))
     }
@@ -139,35 +129,32 @@ export const FightSystem = Game.System(
 
     const player = queries.players.each()[0]
     if (player === undefined) return
-    const me = player.data.player.get()
 
-    // World speed: real time while you move, slow while you are still.
-    const moving = variant.control === "glide" ? stick.x !== 0 || stick.y !== 0 : me.dash > 0
-    const target = moving ? 1 : variant.slow
+    // How hard the thumb pushes, 0 to 1, shaped for finer control near the press point.
+    const push = Math.pow(Math.min(1, Math.hypot(stick.x, stick.y)), TUNING.player.curve)
+    const dir = Math.hypot(stick.x, stick.y)
+
+    // World speed: follows your speed (or snaps to real time once you move), slow while you are still.
+    const target = push === 0 ? variant.slow : variant.time === "follow" ? variant.slow + (1 - variant.slow) * push : 1
     const ease = Math.min(1, TUNING.timeEase * realDt)
     const scale = pace.scale + (target - pace.scale) * ease
     resources.pace.set({ scale, variant: pace.variant })
     const dt = realDt * scale
 
-    // Move the player.
-    let vx = me.vx, vy = me.vy, dash = me.dash
-    if (variant.control === "glide") {
-      vx = stick.x * TUNING.player.speed
-      vy = stick.y * TUNING.player.speed
-    } else {
-      dash = Math.max(0, dash - dt)
-      if (dash === 0) { vx = 0; vy = 0 }
-    }
+    // Move the player, in real time: the world is what slows down, not you.
+    const speed = TUNING.player.speed * push
+    const vx = dir === 0 ? 0 : (stick.x / dir) * speed
+    const vy = dir === 0 ? 0 : (stick.y / dir) * speed
     const r = TUNING.player.radius
     let { x, y } = player.data.body.get()
-    x = Math.max(r, Math.min(w - r, x + vx * dt))
-    y = Math.max(r, Math.min(h - r, y + vy * dt))
+    x = Math.max(r, Math.min(w - r, x + vx * realDt))
+    y = Math.max(r, Math.min(h - r, y + vy * realDt))
     for (const p of room.pillars) {
       const out = pushOut(x, y, r, p)
       if (out !== null) { x = out.x; y = out.y }
     }
     player.data.body.set({ x, y })
-    player.data.player.set({ vx, vy, dash })
+    player.data.player.set({ vx, vy })
 
     // Enemies: cut down the close ones, the rest count down and shoot.
     const killed = new Set<unknown>()

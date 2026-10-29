@@ -15,13 +15,13 @@ export const Time = Clock.resource("Slap/Time", STEP)
 /** Where something is, in room metres. */
 export const Body = Descriptor.Component<{ readonly x: number; readonly y: number }>()("Slap/Body")
 
-/** The player: current velocity and seconds of dash left (flick only). */
-export const Player = Descriptor.Component<{ readonly vx: number; readonly vy: number; readonly dash: number }>()("Slap/Player")
+/** The player: current velocity in metres per real second. */
+export const Player = Descriptor.Component<{ readonly vx: number; readonly vy: number }>()("Slap/Player")
 
 /** An enemy: its kind and world seconds until it shoots. */
 export const Enemy = Descriptor.Component<{ readonly kind: EnemyKind; readonly cooldown: number }>()("Slap/Enemy")
 
-/** Something flying: its kind and velocity in metres per world second. */
+/** Something flying: its kind and velocity in metres per real second. */
 export const Shot = Descriptor.Component<{ readonly kind: ShotKind; readonly vx: number; readonly vy: number }>()("Slap/Shot")
 
 /** Which room, how many deaths, and whether the room must be (re)built this tick. */
@@ -30,7 +30,7 @@ export const Run = Descriptor.Resource<{ readonly room: number; readonly deaths:
 /** World speed (1 real time, small when still) and the variant being tried. */
 export const Pace = Descriptor.Resource<{ readonly scale: number; readonly variant: VariantId }>()("Slap/Pace")
 
-/** The thumb: a unit direction while dragging (glide), zero when lifted. */
+/** The thumb: direction times push (0 at the press point, 1 at full reach), zero when lifted. */
 export const Stick = Descriptor.Resource<{ readonly x: number; readonly y: number }>()("Slap/Stick")
 
 /** Short-lived cut marks for the page to draw, aged in real seconds. */
@@ -38,7 +38,6 @@ export const Slashes = Descriptor.Resource<ReadonlyArray<{ readonly x: number; r
 
 export type Intent =
   | { readonly kind: "stick"; readonly x: number; readonly y: number }
-  | { readonly kind: "dash"; readonly x: number; readonly y: number }
   | { readonly kind: "tap" }
   | { readonly kind: "restart" }
   | { readonly kind: "nextVariant" }

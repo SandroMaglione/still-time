@@ -1,7 +1,7 @@
 /** Drawing the fight view onto a 2D canvas: shapes only, until there is a look. */
 import type { FightView } from "../sim/view.ts"
 
-export interface Stick { ox: number; oy: number; x: number; y: number }
+export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
 const TOP = 44, BOTTOM = 64
 
@@ -142,7 +142,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // The thumb-stick, faint.
   if (stick !== null) {
     ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = 2
-    ctx.beginPath(); ctx.arc(stick.ox, stick.oy, 70, 0, Math.PI * 2); ctx.stroke()
+    ctx.beginPath(); ctx.arc(stick.ox, stick.oy, stick.reach, 0, Math.PI * 2); ctx.stroke()
     ctx.fillStyle = "#ffffff30"
     ctx.beginPath(); ctx.arc(stick.x, stick.y, 18, 0, Math.PI * 2); ctx.fill()
   }
