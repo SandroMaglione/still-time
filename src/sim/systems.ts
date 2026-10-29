@@ -2,7 +2,8 @@
  * The rules: intents from the page, building a room, and one step of the
  * fight (world speed, moving, shooting, cutting, getting hit).
  */
-import { ROOMS, type Pillar } from "./rooms.ts"
+import { canSee, insidePillar, pushOut } from "./geometry.ts"
+import { ROOMS } from "./rooms.ts"
 import { Body, Enemy, Flow, Game, IntentEvent, Pace, Player, RoomScope, Run, Shot, Slashes, Stick, Time } from "./schema.ts"
 import { ENEMIES, SHOTS, TUNING, VARIANTS, VARIANT_IDS } from "./tuning.ts"
 
@@ -79,29 +80,6 @@ export const BuildRoomSystem = Game.System(
   }
 )
 
-/** Pushes a circle out of a rectangle; returns the corrected centre, or null when apart. */
-const pushOut = (x: number, y: number, r: number, p: Pillar): { x: number; y: number } | null => {
-  const cx = Math.max(p.x, Math.min(x, p.x + p.w))
-  const cy = Math.max(p.y, Math.min(y, p.y + p.h))
-  const dx = x - cx
-  const dy = y - cy
-  const d = Math.hypot(dx, dy)
-  if (d >= r) return null
-  if (d === 0) {
-    // Centre inside: leave by the nearest side.
-    const left = x - p.x, right = p.x + p.w - x, top = y - p.y, bottom = p.y + p.h - y
-    const m = Math.min(left, right, top, bottom)
-    if (m === left) return { x: p.x - r, y }
-    if (m === right) return { x: p.x + p.w + r, y }
-    if (m === top) return { x, y: p.y - r }
-    return { x, y: p.y + p.h + r }
-  }
-  return { x: cx + (dx / d) * r, y: cy + (dy / d) * r }
-}
-
-const insidePillar = (x: number, y: number, r: number, pillars: ReadonlyArray<Pillar>): boolean =>
-  pillars.some((p) => pushOut(x, y, r, p) !== null)
-
 export const FightSystem = Game.System(
   "Slap/Fight",
   {
@@ -122,7 +100,7 @@ export const FightSystem = Game.System(
     const run = resources.run.get()
     const room = ROOMS[run.room]
     if (room === undefined || run.rebuild) return
-    const { w, h } = TUNING.room
+    const { w, h } = room
     const pace = resources.pace.get()
     const variant = VARIANTS[pace.variant]
     const stick = resources.stick.get()
@@ -171,7 +149,9 @@ export const FightSystem = Game.System(
       }
       alive++
       const spec = ENEMIES[enemy.kind]
-      const cooldown = enemy.cooldown - dt
+      // Reload runs always; a shot needs sight, and a short reaction after you step out of cover.
+      const sees = canSee(at.x, at.y, x, y, TUNING.sight, room.pillars)
+      const cooldown = sees ? enemy.cooldown - dt : Math.max(TUNING.reaction, enemy.cooldown - dt)
       if (cooldown > 0) {
         data.enemy.set({ kind: enemy.kind, cooldown })
         continue

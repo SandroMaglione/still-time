@@ -7,7 +7,7 @@ import { FixedLoop } from "@typeonce/ritmo"
 
 import { STEP, createFight, updateSchedule, type Intent } from "../sim/simulation.ts"
 import { VARIANT_IDS, type VariantId } from "../sim/tuning.ts"
-import { draw, type Stick } from "./draw.ts"
+import { Camera, draw, type Stick } from "./draw.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
 const ctx = canvas?.getContext("2d")
@@ -110,6 +110,9 @@ const resize = (): void => {
 window.addEventListener("resize", resize)
 resize()
 
+const camera = new Camera()
+let lastRoom = -1
+let lastDeaths = 0
 const roomEl = el("room"), paceEl = el("pace"), variantEl = el("variant"), hintEl = el("hint")
 FixedLoop.start({
   source: BrowserTickSource.make(window),
@@ -117,13 +120,18 @@ FixedLoop.start({
   maxFrameSeconds: 0.25,
   maxStepsPerFrame: 5,
   update: () => fight.runtime.tick(updateSchedule),
-  render: () => {
+  render: (frame) => {
     const view = fight.view()
+    // A new room, or the same one restarted (the player is back at the start), snaps the camera.
+    if (view.room.index !== lastRoom || view.deaths !== lastDeaths) camera.reset()
+    lastRoom = view.room.index
+    lastDeaths = view.deaths
     roomEl.textContent = `${view.room.index + 1}/${view.room.count} ${view.room.name} · ✕${view.deaths}`
     paceEl.textContent = `time ×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`
     variantEl.textContent = `variant: ${view.variant.label} (V)`
     hintEl.textContent = view.variant.hint
-    draw(ctx, window.innerWidth, window.innerHeight, view, stick)
+    if (view.flow === "playing") camera.follow(view, window.innerWidth, window.innerHeight, frame.elapsedSeconds)
+    draw(ctx, window.innerWidth, window.innerHeight, view, stick, camera)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

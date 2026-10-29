@@ -1,4 +1,5 @@
 /** The projection: plain data for the page to draw. */
+import { canSee } from "./geometry.ts"
 import { ROOMS, type Pillar } from "./rooms.ts"
 import { Body, Enemy, Flow, Game, Pace, Player, Run, Shot, Slashes } from "./schema.ts"
 import { ENEMIES, SHOTS, TUNING, VARIANTS, type EnemyKind, type ShotKind, type Variant, type VariantId } from "./tuning.ts"
@@ -12,7 +13,7 @@ export interface FightView {
   readonly variantId: VariantId
   readonly variant: Variant
   readonly player: { readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number; readonly attackRange: number } | null
-  readonly enemies: ReadonlyArray<{ readonly kind: EnemyKind; readonly x: number; readonly y: number; readonly radius: number; readonly charge: number; readonly aim: number }>
+  readonly enemies: ReadonlyArray<{ readonly kind: EnemyKind; readonly x: number; readonly y: number; readonly radius: number; readonly charge: number; readonly aim: number; readonly sees: boolean }>
   readonly shots: ReadonlyArray<{ readonly kind: ShotKind; readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number }>
   readonly slashes: ReadonlyArray<{ readonly x: number; readonly y: number; readonly angle: number; readonly age: number }>
 }
@@ -37,7 +38,7 @@ export const FightViewInspector = Game.Inspector(
     const player = p === undefined ? null : { ...p.data.body.get(), radius: TUNING.player.radius, vx: p.data.player.get().vx, vy: p.data.player.get().vy, attackRange: TUNING.attackRange }
     const flow = machines.flow.get()
     return {
-      room: { index: run.room, count: ROOMS.length, name: room.name, w: TUNING.room.w, h: TUNING.room.h, pillars: room.pillars },
+      room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars },
       deaths: run.deaths,
       flow: flow._tag === "Playing" ? "playing" : flow._tag === "Dead" ? "dead" : flow._tag === "Cleared" ? "cleared" : "won",
       canRetry: flow._tag !== "Dead" || flow.wait <= 0,
@@ -55,7 +56,8 @@ export const FightViewInspector = Game.Inspector(
           y: at.y,
           radius: spec.radius,
           charge: Math.max(0, Math.min(1, 1 - enemy.cooldown / spec.period)),
-          aim: player === null ? Math.PI / 2 : Math.atan2(player.y - at.y, player.x - at.x)
+          aim: player === null ? Math.PI / 2 : Math.atan2(player.y - at.y, player.x - at.x),
+          sees: player !== null && canSee(at.x, at.y, player.x, player.y, TUNING.sight, room.pillars)
         }
       }),
       shots: queries.shots.each().map(({ data }) => {

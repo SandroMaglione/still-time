@@ -4,21 +4,63 @@ import type { FightView } from "../sim/view.ts"
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
 const TOP = 44, BOTTOM = 64
+/** Metres across the screen's width (fewer on a short screen). */
+const VIEW_W = 10, VIEW_H = 17
+
+/** Where the camera looks, eased toward the player: page state, not world state. */
+export class Camera {
+  x = 0
+  y = 0
+  private placed = false
+
+  /** Pixels per metre and the visible size in metres for this canvas. */
+  frame(cw: number, ch: number): { readonly s: number; readonly vw: number; readonly vh: number } {
+    const s = Math.min(cw / VIEW_W, (ch - TOP - BOTTOM) / VIEW_H)
+    return { s, vw: cw / s, vh: (ch - TOP - BOTTOM) / s }
+  }
+
+  follow(view: FightView, cw: number, ch: number, dt: number): void {
+    const p = view.player
+    if (p === null) return
+    const { vw, vh } = this.frame(cw, ch)
+    // A little lead in the direction you move, so you see where you are going.
+    const tx = clampAxis(p.x + p.vx * 0.25, vw, view.room.w)
+    const ty = clampAxis(p.y + p.vy * 0.25, vh, view.room.h)
+    if (!this.placed) {
+      this.x = tx
+      this.y = ty
+      this.placed = true
+      return
+    }
+    const k = 1 - Math.exp(-dt * 8)
+    this.x += (tx - this.x) * k
+    this.y += (ty - this.y) * k
+  }
+
+  /** Snaps to the player next frame: on a new room. */
+  reset(): void {
+    this.placed = false
+  }
+}
+
+/** Keeps the camera's centre so the view stays inside the room, or centred when the room is smaller. */
+const clampAxis = (c: number, view: number, size: number): number =>
+  view >= size ? size / 2 : Math.max(view / 2 - 1, Math.min(size - view / 2 + 1, c))
 
 const mix = (a: readonly [number, number, number], b: readonly [number, number, number], t: number, alpha = 1): string =>
   `rgba(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)},${alpha})`
 
-export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null): void => {
+export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera): void => {
   const { w, h } = view.room
-  const s = Math.min((cw - 16) / w, (ch - TOP - BOTTOM) / h)
-  const ox = (cw - w * s) / 2
-  const oy = TOP + (ch - TOP - BOTTOM - h * s) / 2
+  const { s } = camera.frame(cw, ch)
+  const ox = cw / 2 - camera.x * s
+  const oy = TOP + (ch - TOP - BOTTOM) / 2 - camera.y * s
   const X = (x: number): number => ox + x * s
   const Y = (y: number): number => oy + y * s
   // 0 when time is frozen, 1 at real time.
   const live = Math.max(0, Math.min(1, (view.scale - 0.04) / 0.96))
 
-  ctx.fillStyle = "#0b0d12"
+  ctx.fillStyle = "#06070a"
   ctx.fillRect(0, 0, cw, ch)
 
   // Floor and grid: cold when frozen, warm when moving.
@@ -31,7 +73,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   for (let j = 1; j < h; j++) { ctx.moveTo(X(0), Y(j)); ctx.lineTo(X(w), Y(j)) }
   ctx.stroke()
   ctx.strokeStyle = mix([120, 160, 220], [240, 150, 110], live, 0.7)
-  ctx.lineWidth = 2
+  ctx.lineWidth = 4
   ctx.strokeRect(X(0), Y(0), w * s, h * s)
 
   for (const p of view.room.pillars) {
@@ -45,7 +87,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   ctx.lineWidth = 1.5
   ctx.setLineDash([4, 6])
   for (const shot of view.shots) {
-    const ahead = 1.4
+    const ahead = 1
     ctx.strokeStyle = `rgba(255,90,90,${0.45 * (1 - live) + 0.08})`
     ctx.beginPath()
     ctx.moveTo(X(shot.x), Y(shot.y))
@@ -93,7 +135,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     else if (e.kind === "archer") { ctx.moveTo(r * 1.2, 0); ctx.lineTo(-r, -r); ctx.lineTo(-r, r); ctx.closePath() }
     else { ctx.moveTo(r * 1.2, 0); ctx.lineTo(0, -r); ctx.lineTo(-r * 1.2, 0); ctx.lineTo(0, r); ctx.closePath() }
     ctx.fill()
-    ctx.fillStyle = "#ffffffaa"
+    ctx.fillStyle = e.sees ? "#ffffffdd" : "#ffffff40"
     ctx.fillRect(r * 0.6, -2, r * 0.9, 4)
     ctx.restore()
   }
@@ -128,6 +170,23 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.moveTo(X(c.x) - Math.cos(c.angle + 0.8) * len, Y(c.y) - Math.sin(c.angle + 0.8) * len)
     ctx.lineTo(X(c.x) + Math.cos(c.angle + 0.8) * len, Y(c.y) + Math.sin(c.angle + 0.8) * len)
     ctx.stroke()
+  }
+
+  // Enemies off screen: a marker at the edge, bright when it can see you.
+  const pad = 14
+  for (const e of view.enemies) {
+    const sx = X(e.x), sy = Y(e.y)
+    if (sx >= 0 && sx <= cw && sy >= TOP && sy <= ch - BOTTOM) continue
+    const cx = cw / 2, cy = TOP + (ch - TOP - BOTTOM) / 2
+    const dx = sx - cx, dy = sy - cy
+    const k = Math.min((cw / 2 - pad) / Math.abs(dx || 1e-6), ((ch - TOP - BOTTOM) / 2 - pad) / Math.abs(dy || 1e-6))
+    const mx = cx + dx * k, my = cy + dy * k
+    ctx.save()
+    ctx.translate(mx, my)
+    ctx.rotate(Math.atan2(dy, dx))
+    ctx.fillStyle = e.sees ? `rgba(255,70,70,${0.55 + e.charge * 0.45})` : "rgba(255,120,120,0.3)"
+    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -7); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill()
+    ctx.restore()
   }
 
   // Frozen-time vignette.
