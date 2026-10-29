@@ -4,7 +4,7 @@
  * as small cylinders, all painted back to front. The simulation stays flat
  * 2D; only this file knows about height.
  */
-import type { Pillar } from "../sim/rooms.ts"
+import type { Lock, Pillar } from "../sim/rooms.ts"
 import type { FightView } from "../sim/view.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
@@ -66,7 +66,58 @@ export class Camera {
 const mix = (a: readonly [number, number, number], b: readonly [number, number, number], t: number, alpha = 1): string =>
   `rgba(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)},${alpha})`
 
-const SHOOTER_COLOURS = { gunner: "#e8484a", archer: "#ff7a3d", thrower: "#d24a9a", brute: "#b8323a" } as const
+const ENEMY_COLOURS = { gunner: "#e8484a", archer: "#ff7a3d", thrower: "#d24a9a", brute: "#b8323a", runner: "#f2c14e" } as const
+
+/** Each key and its door share a colour. */
+const KEY_COLOURS = ["#5fd4ff", "#c18cff", "#7dff9a"] as const
+export const keyColour = (key: number): string => KEY_COLOURS[key % KEY_COLOURS.length] ?? "#5fd4ff"
+
+/** What a door looks like by its lock: steel for a chamber, gold for a captain, the key's colour for a key. */
+const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : lock.kind === "captain" ? "#ffd25a" : keyColour(lock.key))
+
+const GOLD = "#ffd25a"
+const EXIT = "#7dff9a"
+
+/** A star of radius r centred on (x, y), filled or as an outline. */
+export const star = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, filled: boolean): void => {
+  ctx.beginPath()
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5
+    const k = i % 2 === 0 ? r : r * 0.45
+    if (i === 0) ctx.moveTo(x + Math.cos(a) * k, y + Math.sin(a) * k)
+    else ctx.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k)
+  }
+  ctx.closePath()
+  if (filled) { ctx.fillStyle = GOLD; ctx.fill() }
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke()
+}
+
+/** A key glyph in screen pixels: a ring, a shaft, two teeth. */
+const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number, colour: string): void => {
+  ctx.strokeStyle = "#000000a0"; ctx.lineWidth = s * 0.55; ctx.lineCap = "round"
+  const path = (): void => {
+    ctx.beginPath(); ctx.arc(x - s * 0.55, y, s * 0.42, 0, Math.PI * 2)
+    ctx.moveTo(x - s * 0.13, y); ctx.lineTo(x + s, y)
+    ctx.moveTo(x + s * 0.55, y); ctx.lineTo(x + s * 0.55, y + s * 0.4)
+    ctx.moveTo(x + s * 0.9, y); ctx.lineTo(x + s * 0.9, y + s * 0.45)
+  }
+  path(); ctx.stroke()
+  ctx.strokeStyle = colour; ctx.lineWidth = s * 0.26
+  path(); ctx.stroke()
+  ctx.lineCap = "butt"
+}
+
+/** A crown glyph in screen pixels, its base centred on (x, y). */
+const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void => {
+  ctx.beginPath()
+  ctx.moveTo(x - s, y)
+  ctx.lineTo(x - s, y - s * 0.9); ctx.lineTo(x - s * 0.5, y - s * 0.4)
+  ctx.lineTo(x, y - s * 1.15); ctx.lineTo(x + s * 0.5, y - s * 0.4)
+  ctx.lineTo(x + s, y - s * 0.9); ctx.lineTo(x + s, y)
+  ctx.closePath()
+  ctx.fillStyle = GOLD; ctx.fill()
+  ctx.strokeStyle = "#5a3a00"; ctx.lineWidth = 1.5; ctx.stroke()
+}
 
 export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera): void => {
   const u = unitFor(cw)
@@ -126,6 +177,40 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   ctx.lineWidth = 3
   ctx.beginPath(); moveTo(0, 0); lineTo(w, 0); lineTo(w, h); lineTo(0, h); ctx.closePath(); ctx.stroke()
 
+  // The exit: a glowing pad with arrows, dim until you can reach it.
+  const goal = view.room.goal
+  if (goal.kind === "exit") {
+    const pulse = 0.5 + 0.5 * Math.sin(view.world * 6)
+    ctx.beginPath(); moveTo(goal.x, goal.y); lineTo(goal.x + goal.w, goal.y); lineTo(goal.x + goal.w, goal.y + goal.h); lineTo(goal.x, goal.y + goal.h); ctx.closePath()
+    ctx.fillStyle = `rgba(125,255,154,${0.16 + 0.12 * pulse})`; ctx.fill()
+    ctx.strokeStyle = EXIT; ctx.lineWidth = 2; ctx.stroke()
+    ctx.strokeStyle = "rgba(125,255,154,0.75)"; ctx.lineWidth = 3
+    const mx = goal.x + goal.w / 2
+    for (let k = 0; k < 2; k++) {
+      const yy = goal.y + goal.h * (0.42 + k * 0.32)
+      ctx.beginPath(); moveTo(mx - 0.5, yy + 0.3); lineTo(mx, yy - 0.2); lineTo(mx + 0.5, yy + 0.3); ctx.stroke()
+    }
+    const label = P(mx, goal.y + goal.h * 0.18)
+    ctx.fillStyle = EXIT; ctx.textAlign = "center"; ctx.font = "bold 11px ui-monospace, Menlo, monospace"
+    ctx.fillText("EXIT", label.x, label.y + 4)
+  }
+  // Open doors: a threshold in the lock's colour.
+  for (const d of view.doors) {
+    if (!d.open) continue
+    ctx.beginPath(); moveTo(d.x, d.y); lineTo(d.x + d.w, d.y); lineTo(d.x + d.w, d.y + d.h); lineTo(d.x, d.y + d.h); ctx.closePath()
+    ctx.fillStyle = "#ffffff10"; ctx.fill()
+    ctx.strokeStyle = lockColour(d.lock); ctx.globalAlpha = 0.6; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke()
+    ctx.setLineDash([]); ctx.globalAlpha = 1
+  }
+  // Keys on the floor: a ring that pulls the eye.
+  for (const k of view.keys) {
+    if (k.state !== "floor") continue
+    const pulse = 0.5 + 0.5 * Math.sin(view.world * 8)
+    ctx.strokeStyle = keyColour(k.key); ctx.globalAlpha = 0.4 + 0.4 * pulse; ctx.lineWidth = 2
+    arcPath(k.x, k.y, 0.45 + 0.1 * pulse, 0, Math.PI * 2, false); ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+
   // Ground decals: where shots will pass, what each enemy covers, your reach.
   ctx.lineWidth = 1.5
   ctx.setLineDash([4, 6])
@@ -141,6 +226,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   for (const e of view.enemies) {
     const m = e.melee
+    if (e.kind === "runner") {
+      // Harmless: a soft ring, bright while it sees you (and runs).
+      ctx.strokeStyle = e.sees ? "rgba(242,193,78,0.7)" : "rgba(242,193,78,0.3)"
+      ctx.lineWidth = 2; ctx.setLineDash([3, 4])
+      arcPath(e.x, e.y, e.radius + 0.18, 0, Math.PI * 2, false); ctx.stroke(); ctx.setLineDash([])
+      continue
+    }
     if (m === null) {
       // The reload ring on the floor.
       ctx.strokeStyle = `rgba(255,80,80,${0.25 + e.charge * 0.6})`
@@ -220,9 +312,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     actors.push({
       x: e.x, y: e.y, paint: () => {
         const m = e.melee
-        const height = m === null ? 0.95 : 1.15
-        const colour = SHOOTER_COLOURS[e.kind]
+        const height = e.kind === "runner" ? 0.8 : m === null ? 0.95 : 1.15
+        const colour = ENEMY_COLOURS[e.kind]
         cylinder(e.x, e.y, e.radius, height, colour, "#ffffff30")
+        if (e.captain) {
+          const c = P(e.x, e.y, height)
+          crownGlyph(ctx, c.x, c.y - 2, e.radius * erx * 0.75)
+        }
+        if (e.kind === "runner") {
+          // A hood that points the way it runs.
+          held(e.x, e.y, e.aim, 0, e.radius + 0.12, height * 0.85, "#7a5a10", 4)
+          return
+        }
         // What each kind wears on top: gunner a flat cap, archer a point, thrower a band.
         const t = P(e.x, e.y, height)
         if (e.kind === "archer") {
@@ -272,7 +373,38 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  const boxes = [...view.room.pillars].sort((a, b) => a.y + a.h - (b.y + b.h))
+  for (const k of view.keys) {
+    // Carried over a runner's head, held over yours, or lying on the floor.
+    const z = k.state === "floor" ? 0.35 : k.state === "carried" ? 1.35 : 1.5
+    actors.push({
+      x: k.x, y: k.y + 0.01, paint: () => {
+        const p = P(k.x, k.y, z + (k.state === "floor" ? 0.08 * Math.sin(view.world * 5) : 0))
+        keyGlyph(ctx, p.x - u * 0.12, p.y, u * 0.22, keyColour(k.key))
+      }
+    })
+  }
+  type Box = Pillar & { readonly front: string; readonly top: string; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null }
+  const doorBoxes = view.doors.flatMap((d): Array<Box> => {
+    if (d.open) return []
+    const colour = lockColour(d.lock)
+    const emblem = (x: number, y: number): void => {
+      if (d.lock.kind === "key") keyGlyph(ctx, x - u * 0.14, y, u * 0.26, colour)
+      else if (d.lock.kind === "captain") crownGlyph(ctx, x, y + u * 0.14, u * 0.22)
+      else {
+        // One pip per enemy the door still waits on.
+        const n = d.waiting, gap = u * 0.24
+        for (let i = 0; i < n; i++) {
+          ctx.fillStyle = "#ff6a6a"; ctx.strokeStyle = "#00000080"; ctx.lineWidth = 1
+          ctx.beginPath(); ctx.arc(x + (i - (n - 1) / 2) * gap, y, u * 0.075, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+        }
+      }
+    }
+    return [{ x: d.x, y: d.y, w: d.w, h: d.h, front: "#232838", top: "#363d52", edge: colour, emblem }]
+  })
+  const boxes: Array<Box> = [
+    ...view.room.pillars.map((p): Box => ({ ...p, front: "#1b1e28", top: "#2c3140", edge: "#ffffff28", emblem: null })),
+    ...doorBoxes
+  ].sort((a, b) => a.y + a.h - (b.y + b.h))
   // Each actor goes right after the last box it stands in front of.
   const slots: Array<Array<Thing>> = boxes.map(() => [])
   const first: Array<Thing> = []
@@ -288,11 +420,16 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   boxes.forEach((b, i) => {
     // The front face, then the top.
     ctx.beginPath(); moveTo(b.x, b.y + b.h); lineTo(b.x + b.w, b.y + b.h); lineTo(b.x + b.w, b.y + b.h, PILLAR_HEIGHT); lineTo(b.x, b.y + b.h, PILLAR_HEIGHT); ctx.closePath()
-    ctx.fillStyle = "#1b1e28"
+    ctx.fillStyle = b.front
     ctx.fill()
+    if (b.emblem !== null) { ctx.strokeStyle = b.edge; ctx.lineWidth = 2; ctx.stroke() }
     ctx.beginPath(); moveTo(b.x, b.y, PILLAR_HEIGHT); lineTo(b.x + b.w, b.y, PILLAR_HEIGHT); lineTo(b.x + b.w, b.y + b.h, PILLAR_HEIGHT); lineTo(b.x, b.y + b.h, PILLAR_HEIGHT); ctx.closePath()
-    ctx.fillStyle = "#2c3140"; ctx.fill()
-    ctx.strokeStyle = "#ffffff28"; ctx.lineWidth = 1; ctx.stroke()
+    ctx.fillStyle = b.top; ctx.fill()
+    ctx.strokeStyle = b.edge; ctx.lineWidth = b.emblem === null ? 1 : 2; ctx.stroke()
+    if (b.emblem !== null) {
+      const c = P(b.x + b.w / 2, b.y + b.h / 2, PILLAR_HEIGHT)
+      b.emblem(c.x, c.y)
+    }
     paintAll(slots[i] ?? [])
   })
 
@@ -317,10 +454,11 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.beginPath(); moveTo(c.x - Math.cos(a) * len, c.y - Math.sin(a) * len, 0.6); lineTo(c.x + Math.cos(a) * len, c.y + Math.sin(a) * len, 0.6); ctx.stroke()
   }
 
-  // Enemies off screen: a marker at the edge, bright when it can see you.
+  // Enemies off screen (and not shut away behind a door): a marker at the edge, bright when it can see you.
   const pad = 14
   const midX = cw / 2, midY = TOP + (ch - TOP - BOTTOM) / 2
   for (const e of view.enemies) {
+    if (e.sealed) continue
     const sp = P(e.x, e.y, 0.6)
     if (sp.x >= 0 && sp.x <= cw && sp.y >= TOP && sp.y <= ch - BOTTOM) continue
     const dx = sp.x - midX, dy = sp.y - midY
@@ -328,7 +466,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.save()
     ctx.translate(midX + dx * k, midY + dy * k)
     ctx.rotate(Math.atan2(dy, dx))
-    ctx.fillStyle = e.sees ? `rgba(255,70,70,${0.55 + e.charge * 0.45})` : "rgba(255,120,120,0.3)"
+    ctx.fillStyle = e.kind === "runner" ? (e.sees ? "rgba(242,193,78,0.85)" : "rgba(242,193,78,0.35)")
+      : e.sees ? `rgba(255,70,70,${0.55 + e.charge * 0.45})` : "rgba(255,120,120,0.3)"
     ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -7); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill()
     ctx.restore()
   }
@@ -350,20 +489,41 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.beginPath(); ctx.arc(stick.x, stick.y, 18, 0, Math.PI * 2); ctx.fill()
   }
 
-  // Messages.
-  const message = view.flow === "dead" ? ["HIT", view.canRetry ? "tap to retry the room" : ""]
-    : view.flow === "cleared" ? ["CLEAR", "tap for the next room"]
-    : view.flow === "won" ? ["ALL ROOMS CLEAR", `${view.deaths} deaths · tap to go again`]
-    : null
-  if (message !== null) {
-    ctx.fillStyle = "#000000a0"
-    ctx.fillRect(0, ch / 2 - 60, cw, 120)
-    ctx.fillStyle = view.flow === "dead" ? "#ff6060" : "#9effa8"
-    ctx.textAlign = "center"
-    ctx.font = "bold 34px ui-monospace, Menlo, monospace"
-    ctx.fillText(message[0] ?? "", cw / 2, ch / 2)
-    ctx.fillStyle = "#e8ecf4"
-    ctx.font = "14px ui-monospace, Menlo, monospace"
-    ctx.fillText(message[1] ?? "", cw / 2, ch / 2 + 30)
+  // Messages: a hit, or a clear with its stars.
+  if (view.flow === "dead") {
+    banner(ctx, cw, ch, 120)
+    title(ctx, "HIT", "#ff6060", cw / 2, ch / 2)
+    caption(ctx, view.canRetry ? "tap to retry the room" : "", cw / 2, ch / 2 + 30)
+  } else if (view.result !== null) {
+    const won = view.flow === "won"
+    banner(ctx, cw, ch, won ? 190 : 170)
+    const top = ch / 2 - (won ? 55 : 45)
+    title(ctx, won ? "ALL ROOMS CLEAR" : "CLEAR", "#9effa8", cw / 2, top)
+    for (let i = 0; i < 3; i++) star(ctx, cw / 2 + (i - 1) * 40, top + 38, 15, i < view.result.stars)
+    caption(ctx, `${view.result.world.toFixed(1)} s · par ${view.room.par} s${view.hits === 0 ? " · no hits" : ""}`, cw / 2, top + 76)
+    if (won) {
+      const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)
+      caption(ctx, `run: ${stars}/${view.best.length * 3} stars · ${view.deaths} deaths`, cw / 2, top + 98)
+      caption(ctx, "tap to go again", cw / 2, top + 120)
+    } else caption(ctx, "tap for the next room", cw / 2, top + 100)
   }
+}
+
+const banner = (ctx: CanvasRenderingContext2D, cw: number, ch: number, height: number): void => {
+  ctx.fillStyle = "#000000c8"
+  ctx.fillRect(0, ch / 2 - height / 2, cw, height)
+}
+
+const title = (ctx: CanvasRenderingContext2D, text: string, colour: string, x: number, y: number): void => {
+  ctx.fillStyle = colour
+  ctx.textAlign = "center"
+  ctx.font = "bold 30px ui-monospace, Menlo, monospace"
+  ctx.fillText(text, x, y)
+}
+
+const caption = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void => {
+  ctx.fillStyle = "#e8ecf4"
+  ctx.textAlign = "center"
+  ctx.font = "14px ui-monospace, Menlo, monospace"
+  ctx.fillText(text, x, y)
 }

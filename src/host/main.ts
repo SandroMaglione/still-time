@@ -94,7 +94,7 @@ const lift = (): void => {
 canvas.addEventListener("pointerup", lift)
 canvas.addEventListener("pointercancel", lift)
 
-// Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 jump to a room.
+// Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 and 0 jump to rooms 1-10.
 const held = new Set<string>()
 const DIRS: Record<string, readonly [number, number]> = {
   ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0]
@@ -116,7 +116,7 @@ window.addEventListener("keydown", (e) => {
     else keyPush()
   } else if (key === " " || key === "Enter") thumb.tap()
   else if (key === "r") fight.send({ kind: "restart" })
-  else if (/^[1-9]$/.test(key)) fight.send({ kind: "goToRoom", room: Number(key) - 1 })
+  else if (/^[0-9]$/.test(key)) fight.send({ kind: "goToRoom", room: key === "0" ? 9 : Number(key) - 1 })
   else return
   e.preventDefault()
 })
@@ -137,7 +137,7 @@ resize()
 const camera = new Camera()
 let lastRoom = -1
 let lastDeaths = 0
-const roomEl = el("room"), paceEl = el("pace")
+const roomEl = el("room"), paceEl = el("pace"), tipEl = el("tip")
 FixedLoop.start({
   source: BrowserTickSource.make(window),
   step: STEP,
@@ -150,8 +150,12 @@ FixedLoop.start({
     if (view.room.index !== lastRoom || view.deaths !== lastDeaths) camera.reset()
     lastRoom = view.room.index
     lastDeaths = view.deaths
-    roomEl.textContent = `${view.room.index + 1}/${view.room.count} ${view.room.name} · ✕${view.deaths}`
-    paceEl.textContent = `time ×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`
+    roomEl.textContent = `${view.room.index + 1}/${view.room.count} ${view.room.name} · ✕${view.hits}`
+    // The attempt's clock in world seconds against par: it only runs while you move.
+    paceEl.textContent = `${view.world.toFixed(1)}s / par ${view.room.par}s · ×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`
+    paceEl.style.color = view.world > view.room.par ? "#ff8a8a" : ""
+    const goal = view.room.goal.kind === "exit" ? "reach the exit" : "down every enemy"
+    tipEl.textContent = view.room.tip === null ? goal : `${goal} · ${view.room.tip}`
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     draw(ctx, window.innerWidth, window.innerHeight, view, stick, camera)
   },

@@ -15,12 +15,13 @@
       button { pointer-events: auto; font: inherit; color: inherit; background: #ffffff14; border: 1px solid #ffffff30; border-radius: 999px; padding: 6px 14px; }
       .hint { opacity: 0.6; font-size: 11px; text-align: center; }
       .dim { opacity: 0.6; }
+      .tip { font-size: 12px; color: #9effa8; text-align: center; }
     </style>
   </head>
   <body>
     <canvas id="view"></canvas>
     <div class="bar top"><span id="room"></span><span id="pace" class="dim"></span><button id="restart" type="button">↺</button></div>
-    <div class="bar bottom"><span class="hint">drag further = faster · lift to freeze time</span></div>
+    <div class="bar bottom"><span id="tip" class="tip"></span><span class="hint">drag further = faster · lift to freeze time</span></div>
     <script type="module" src="/src/host/main.ts"></script>
   </body>
 </html>

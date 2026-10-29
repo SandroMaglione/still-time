@@ -7,7 +7,8 @@ import { Ops } from "@typeonce/ritmo"
 
 import { pushOut } from "../src/sim/geometry.ts"
 import { ROOMS } from "../src/sim/rooms.ts"
-import { Body, Enemy, Game, Pace, Player, Run } from "../src/sim/schema.ts"
+import { Body, Doors, Enemy, Game, Pace, Player, Run } from "../src/sim/schema.ts"
+import { wallsOf } from "../src/sim/systems/queries.ts"
 import { TUNING, radiusOf } from "../src/sim/tuning.ts"
 
 /** How far two solid bodies may overlap before it counts (pushes settle over a step or two). */
@@ -33,18 +34,36 @@ export const EnemiesDoNotOverlap = Invariant.fromInspector(Game.Inspector("Slap/
 
 export const PlayerStaysOnTheFloor = Invariant.fromInspector(Game.Inspector("Slap/PlayerStaysOnTheFloor", {
   queries: bodies,
-  resources: { run: Game.System.readResource(Run) }
+  resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors) }
 }, ({ queries, resources }) => {
   const room = ROOMS[resources.run.get().room]
   const me = queries.players.each()[0]?.data.body.get()
   if (room === undefined || me === undefined) return undefined
   const r = TUNING.player.radius
   if (me.x < r - SLACK || me.y < r - SLACK || me.x > room.w - r + SLACK || me.y > room.h - r + SLACK) return `player outside the room at ${me.x.toFixed(2)},${me.y.toFixed(2)}`
-  if (room.pillars.some((p) => pushOut(me.x, me.y, r - SLACK, p) !== null)) return `player inside a pillar at ${me.x.toFixed(2)},${me.y.toFixed(2)}`
+  if (wallsOf(room, resources.doors.get()).some((p) => pushOut(me.x, me.y, r - SLACK, p) !== null)) return `player inside a wall or shut door at ${me.x.toFixed(2)},${me.y.toFixed(2)}`
   for (const { data } of queries.enemies.each()) {
     const at = data.body.get()
     const overlap = r + radiusOf(data.enemy.get().kind) - Ops.hypot(me.x - at.x, me.y - at.y)
     if (overlap > SLACK) return `player overlaps a ${data.enemy.get().kind} by ${overlap.toFixed(2)} m`
+  }
+  return undefined
+}))
+
+/** Enemies stay inside the room and out of its walls and shut doors: a chamber holds its enemies. */
+export const EnemiesStayOnTheFloor = Invariant.fromInspector(Game.Inspector("Slap/EnemiesStayOnTheFloor", {
+  queries: bodies,
+  resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors) }
+}, ({ queries, resources }) => {
+  const room = ROOMS[resources.run.get().room]
+  if (room === undefined) return undefined
+  const walls = wallsOf(room, resources.doors.get())
+  for (const { data } of queries.enemies.each()) {
+    const at = data.body.get()
+    const { kind } = data.enemy.get()
+    const r = radiusOf(kind)
+    if (at.x < r - SLACK || at.y < r - SLACK || at.x > room.w - r + SLACK || at.y > room.h - r + SLACK) return `${kind} outside the room at ${at.x.toFixed(2)},${at.y.toFixed(2)}`
+    if (walls.some((p) => pushOut(at.x, at.y, r - SLACK, p) !== null)) return `${kind} inside a wall or shut door at ${at.x.toFixed(2)},${at.y.toFixed(2)}`
   }
   return undefined
 }))
@@ -56,4 +75,4 @@ export const PaceStaysInRange = Invariant.fromInspector(Game.Inspector("Slap/Pac
   return scale < TUNING.slow - 1e-9 || scale > 1 + 1e-9 ? `world speed ${scale} outside ${TUNING.slow}..1` : undefined
 }))
 
-export const INVARIANTS = [EnemiesDoNotOverlap, PlayerStaysOnTheFloor, PaceStaysInRange] as const
+export const INVARIANTS = [EnemiesDoNotOverlap, PlayerStaysOnTheFloor, EnemiesStayOnTheFloor, PaceStaysInRange] as const

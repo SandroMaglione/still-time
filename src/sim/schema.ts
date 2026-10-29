@@ -31,8 +31,11 @@ export const Player = Descriptor.ConstructedComponent(z.object({ vx: z.number(),
   }
 })
 
-/** What an enemy is: fixed for its life. */
-export const Enemy = Descriptor.ConstructedComponent(z.object({ kind: z.enum(ENEMY_KINDS) }))("Slap/Enemy", { immutable: true })
+/** What an enemy is, which chamber of the room it guards, and whether it wears a crown: fixed for its life. */
+export const Enemy = Descriptor.ConstructedComponent(z.object({ kind: z.enum(ENEMY_KINDS), chamber: z.int().nonnegative(), captain: z.boolean() }))("Slap/Enemy", { immutable: true })
+
+/** A runner's key, which it drops wherever it falls. */
+export const Carry = Descriptor.ConstructedComponent(z.object({ key: z.int().nonnegative() }))("Slap/Carry", { immutable: true })
 
 /** A shooter's reload: world seconds until it may fire. */
 export const Reload = Descriptor.ConstructedComponent(z.object({ left: z.number() }))("Slap/Reload", {
@@ -72,8 +75,38 @@ export const Shot = Descriptor.ConstructedComponent(z.object({ kind: z.enum(SHOT
   meta: { vx: { unit: "m/s" }, vy: { unit: "m/s" } }
 })
 
-/** Which room, and how many times you were hit this run. */
-export const Run = Descriptor.ConstructedResource(z.object({ room: z.int().nonnegative(), deaths: z.int().nonnegative() }))("Slap/Run")
+/** A room's best result this run: stars (1 to 3) and its fastest clear in world seconds. */
+const result = z.object({ stars: z.int().min(1).max(3), world: z.number().nonnegative() })
+export type RoomResult = z.infer<typeof result>
+
+/**
+ * Which room; how many times you were hit this run (`deaths`) and in this
+ * room since you came into it (`hits`); the world seconds of this attempt;
+ * and each room's best result, by room index.
+ */
+export const Run = Descriptor.ConstructedResource(z.object({
+  room: z.int().nonnegative(),
+  deaths: z.int().nonnegative(),
+  hits: z.int().nonnegative(),
+  world: z.number().nonnegative(),
+  best: z.array(result.nullable())
+}))("Slap/Run", { meta: { world: { unit: "s", hint: "World seconds (slowed with the world) of this attempt." } } })
+
+/** Which of the room's doors are open, by door index. Doors only open; a new attempt shuts them. */
+export const Doors = Descriptor.ConstructedResource(z.array(z.boolean()))("Slap/Doors")
+
+/**
+ * The room's keys: carried by their runner (at its last place), dropped on
+ * the floor, held by you, or used on their door.
+ */
+const key = z.discriminatedUnion("state", [
+  z.object({ key: z.int().nonnegative(), state: z.literal("carried"), x: z.number(), y: z.number() }),
+  z.object({ key: z.int().nonnegative(), state: z.literal("floor"), x: z.number(), y: z.number() }),
+  z.object({ key: z.int().nonnegative(), state: z.literal("held") }),
+  z.object({ key: z.int().nonnegative(), state: z.literal("used") })
+])
+export type Key = z.infer<typeof key>
+export const Keys = Descriptor.ConstructedResource(z.array(key))("Slap/Keys")
 
 /** World speed: 1 is real time, `TUNING.slow` when you are still. */
 export const Pace = Descriptor.ConstructedResource(z.object({ scale: z.number() }))("Slap/Pace", {
@@ -104,26 +137,26 @@ export type Intent =
   | { readonly kind: "goToRoom"; readonly room: number }
 
 export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
-/** A room to (re)build this step. */
-export const EnterRoom = Descriptor.Event<{ readonly room: number }>()("Slap/EnterRoom")
+/** A room to (re)build this step; `fresh` when you come into it anew (not a retry), which resets its hit count. */
+export const EnterRoom = Descriptor.Event<{ readonly room: number; readonly fresh: boolean }>()("Slap/EnterRoom")
 /** Something touched you: a shot or a swing. */
 export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" }>()("Slap/PlayerHit")
 
 export const Game = Schema.bind(
   Schema.fragment({
-    components: { Body, Player, Enemy, Reload, Post, Melee, Blade, Shot },
-    resources: { Time, Run, Pace, Slashes, Input },
+    components: { Body, Player, Enemy, Carry, Reload, Post, Melee, Blade, Shot },
+    resources: { Time, Run, Pace, Slashes, Doors, Keys, Input },
     events: { IntentEvent, EnterRoom, PlayerHit }
   }),
   Root
 )
 
-/** Fighting, hit (a tap retries once `retryAt` is reached), room cleared, or all rooms done. */
+/** Fighting, hit (a tap retries once `retryAt` is reached), room cleared, or all rooms done; a clear carries its result. */
 export const Flow = Game.StateMachine("Slap/Flow", {
   Playing: {},
   Dead: z.object({ retryAt: deadline }),
-  Cleared: {},
-  Won: {}
+  Cleared: result,
+  Won: result
 })
 
 /** Everything in the current room: cleared together when a room is (re)built. */

@@ -6,9 +6,10 @@ import { InputCapture } from "@typeonce/ritmo-browser"
 import { Clock, type HostClock } from "@typeonce/ritmo"
 
 import { Flow, Game, Input, IntentEvent, STEP, ThumbInput, Time, type Intent, type Thumb } from "./schema.ts"
-import { BrutesSystem, CrowdSystem, ShootersSystem } from "./systems/enemies.ts"
+import { ROOMS } from "./rooms.ts"
+import { BrutesSystem, CrowdSystem, RunnersSystem, ShootersSystem } from "./systems/enemies.ts"
 import { CutSystem, MovePlayerSystem, PaceSystem } from "./systems/player.ts"
-import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
+import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, LocksSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
 import { ShotsSystem } from "./systems/shots.ts"
 import { FightViewInspector, type FightView } from "./view.ts"
 
@@ -18,7 +19,7 @@ const CaptureThumb = InputCapture.system(Game, { name: "Slap/CaptureThumb", sour
 /** Builds the first room. */
 export const setupSchedule = Game.Schedule(OpenRunSystem, BuildRoomSystem, Game.Schedule.applyDeferred(), Game.Schedule.applyStateTransitions())
 
-/** One step: input, the run, you, the enemies, the shots, the outcome. */
+/** One step: input, the run, you, the enemies, the shots, the locks, the outcome. */
 export const updateSchedule = Game.Schedule(
   AdvanceTime,
   CaptureThumb,
@@ -32,10 +33,12 @@ export const updateSchedule = Game.Schedule(
   Game.Schedule.applyDeferred(),
   ShootersSystem,
   BrutesSystem,
+  RunnersSystem,
   CrowdSystem,
   ShotsSystem,
   FadeSlashesSystem,
   Game.Schedule.applyDeferred(),
+  LocksSystem,
   OutcomeSystem,
   Game.Schedule.applyStateTransitions()
 )
@@ -51,9 +54,11 @@ export const makeRuntime = <const Debug extends DebugOption>(options: { readonly
     services: Game.Runtime.services(Game.Runtime.service(ThumbInput, options.thumb)),
     resources: {
       Time: Clock.start(STEP),
-      Run: { room: options.room, deaths: 0 },
+      Run: { room: options.room, deaths: 0, hits: 0, world: 0, best: ROOMS.map(() => null) },
       Pace: { scale: 1 },
       Slashes: [],
+      Doors: [],
+      Keys: [],
       Input: IDLE_THUMB
     },
     machines: Game.Runtime.machines(Game.Runtime.machine(Flow, { _tag: "Playing" })),

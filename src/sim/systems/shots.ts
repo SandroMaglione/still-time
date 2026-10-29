@@ -2,29 +2,33 @@
 import { Ops } from "@typeonce/ritmo"
 
 import { insidePillar } from "../geometry.ts"
-import { Flow, Game, Melee, Pace, PlayerHit, Reload, Run, Shot, Slashes, Time } from "../schema.ts"
-import { BRUTE, SHOTS, TUNING, radiusOf } from "../tuning.ts"
-import { BruteRead, PlayerRead, ShooterRead, ShotQuery, roomOf } from "./queries.ts"
+import { Doors, Enemy, Flow, Game, Pace, PlayerHit, Run, Shot, Slashes, Time } from "../schema.ts"
+import { SHOTS, TUNING, radiusOf } from "../tuning.ts"
+import { EnemyRead, PlayerRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
 
 export const ShotsSystem = Game.System(
   "Slap/Shots",
   {
     when: [Game.Condition.inState(Flow, "Playing")],
-    queries: { players: PlayerRead, shooters: ShooterRead, brutes: BruteRead, shots: ShotQuery },
-    resources: { time: Game.System.readResource(Time), pace: Game.System.readResource(Pace), run: Game.System.readResource(Run), slashes: Game.System.writeResource(Slashes) },
+    queries: { players: PlayerRead, enemies: EnemyRead, shots: ShotQuery },
+    resources: {
+      time: Game.System.readResource(Time),
+      pace: Game.System.readResource(Pace),
+      run: Game.System.readResource(Run),
+      doors: Game.System.readResource(Doors),
+      slashes: Game.System.writeResource(Slashes)
+    },
     events: { hit: Game.System.writeEvent(PlayerHit) },
-    commands: Game.System.commands(Game.System.despawns(Shot, Reload, Melee))
+    commands: Game.System.commands(Game.System.despawns(Shot, Enemy))
   },
   ({ queries, resources, events, commands }) => {
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
     const room = roomOf(resources.run.get().room)
+    const walls = wallsOf(room, resources.doors.get())
     const time = resources.time.get()
     const dt = time.dt * resources.pace.get().scale
-    const targets = [
-      ...queries.shooters.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind), down: () => commands.despawn(m.entity) })),
-      ...queries.brutes.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: BRUTE.radius, down: () => commands.despawn(m.entity) }))
-    ]
+    const targets = queries.enemies.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind), down: () => commands.despawn(m.entity) }))
     const downed = new Set<number>()
     const cuts: Array<{ x: number; y: number; angle: number; born: number }> = []
     let hit = false
@@ -33,7 +37,7 @@ export const ShotsSystem = Game.System(
       const at = data.body.get()
       const nx = at.x + s.vx * dt, ny = at.y + s.vy * dt
       const sr = SHOTS[s.kind].radius
-      if (nx < 0 || ny < 0 || nx > room.w || ny > room.h || insidePillar(nx, ny, sr, room.pillars)) {
+      if (nx < 0 || ny < 0 || nx > room.w || ny > room.h || insidePillar(nx, ny, sr, walls)) {
         commands.despawn(entity)
         continue
       }

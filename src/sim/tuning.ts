@@ -24,8 +24,10 @@ export const TUNING = {
 
 export const SHOOTER_KINDS = ["gunner", "archer", "thrower"] as const
 export type ShooterKind = (typeof SHOOTER_KINDS)[number]
-export const ENEMY_KINDS = [...SHOOTER_KINDS, "brute"] as const
+export const ENEMY_KINDS = [...SHOOTER_KINDS, "brute", "runner"] as const
 export type EnemyKind = (typeof ENEMY_KINDS)[number]
+
+export const isShooter = (kind: EnemyKind): kind is ShooterKind => kind !== "brute" && kind !== "runner"
 
 /** Per shooter: body radius, reload `period` (world s), what it fires, and the fan of angle offsets. */
 export const SHOOTERS = {
@@ -93,7 +95,33 @@ export const CROWD = {
   paces: [1, 0.82, 0.92]
 } as const
 
-export const radiusOf = (kind: EnemyKind): number => (kind === "brute" ? BRUTE.radius : SHOOTERS[kind].radius)
+/** How much each kind gives way when two enemies are pushed apart: shooters hold their ground, brutes are shoved. */
+export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, brute: 1, runner: 0.6 } as const satisfies Record<EnemyKind, number>
+
+/**
+ * The runner (a thief): it never attacks, carries a key, and runs from you
+ * while it can see you. Out of sight it stands still, so you can sneak up
+ * behind cover. Wherever it falls (your cut or a stray shot), it drops its key.
+ */
+export const RUNNER = {
+  radius: 0.34,
+  /** Metres per world second: slower than you, so you catch it in the open, but it reaches corners first. */
+  speed: 3.6,
+  /** How far ahead it weighs each way out, in metres. */
+  look: 1.6,
+  /** How many ways out it weighs. */
+  ways: 16
+} as const
+
+/** Keys and doors. */
+export const LOCKS = {
+  /** You pick up a key within this distance of it. */
+  pickup: 0.7,
+  /** A key door opens when you come within this distance of it holding its key. */
+  reach: 0.9
+} as const
+
+export const radiusOf = (kind: EnemyKind): number => (kind === "brute" ? BRUTE.radius : kind === "runner" ? RUNNER.radius : SHOOTERS[kind].radius)
 
 export const SHOT_KINDS = ["bullet", "arrow", "knife"] as const
 export type ShotKind = (typeof SHOT_KINDS)[number]
