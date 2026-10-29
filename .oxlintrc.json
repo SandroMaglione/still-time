@@ -1,0 +1,61 @@
+{
+  "jsPlugins": [
+    "@typeonce/oxlint-plugin-ritmo"
+  ],
+  "rules": {
+    "ritmo/handle-runtime-result": "error",
+    "ritmo/prefix-descriptor-and-system-names": "error",
+    "ritmo/no-state-spread": "error"
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/sim/**"
+      ],
+      "rules": {
+        "ritmo/use-clock-for-time": "error",
+        "ritmo/use-random-for-randomness": "error",
+        "ritmo/use-ops-for-math": "error",
+        "ritmo/keep-simulation-headless": "error",
+        "ritmo/no-infinity-in-simulation-data": "error",
+        "ritmo/no-float-timers": "error",
+        "ritmo/no-brand-cast": "error",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "../host/*",
+                  "**/host/**"
+                ],
+                "message": "The simulation never imports host code: the page and renderer read the world through src/sim/view.ts and send intents with runtime.send."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/host/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/sim/systems*",
+                  "**/sim/schema*"
+                ],
+                "message": "Host code reads the world through src/sim/view.ts and the simulation entry; it never touches systems or the schema directly."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d12" />
+    <title>Slapjam prototype · still time</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0b0d12; overflow: hidden; overscroll-behavior: none; }
+      body { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; font-family: ui-monospace, "SF Mono", Menlo, monospace; color: #e8ecf4; }
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      .bar { position: fixed; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; font-size: 13px; pointer-events: none; }
+      .top { top: env(safe-area-inset-top); }
+      .bottom { bottom: env(safe-area-inset-bottom); flex-direction: column; align-items: center; gap: 4px; }
+      button { pointer-events: auto; font: inherit; color: inherit; background: #ffffff14; border: 1px solid #ffffff30; border-radius: 999px; padding: 6px 14px; }
+      .hint { opacity: 0.6; font-size: 11px; text-align: center; }
+      .dim { opacity: 0.6; }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div class="bar top"><span id="room"></span><span id="pace" class="dim"></span><button id="restart" type="button">↺</button></div>
+    <div class="bar bottom"><button id="variant" type="button"></button><span id="hint" class="hint"></span></div>
+    <script type="module" src="/src/host/main.ts"></script>
+  </body>
+</html>
