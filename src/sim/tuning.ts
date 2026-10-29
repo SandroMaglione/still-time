@@ -35,16 +35,42 @@ export const TUNING = {
   deadLock: 0.35
 } as const
 
-export type EnemyKind = "gunner" | "archer" | "thrower"
+export type ShooterKind = "gunner" | "archer" | "thrower"
+export type EnemyKind = ShooterKind | "brute"
 
-export const ENEMIES = {
+export const SHOOTERS = {
   /** Steady bullets. */
   gunner: { radius: 0.38, period: 0.85, shot: "bullet", spread: [0] },
   /** Fast arrows, slower reload. */
   archer: { radius: 0.36, period: 1.3, shot: "arrow", spread: [0] },
   /** A fan of three knives. */
   thrower: { radius: 0.38, period: 1.1, shot: "knife", spread: [-0.3, 0, 0.3] }
-} as const satisfies Record<EnemyKind, { radius: number; period: number; shot: ShotKind; spread: ReadonlyArray<number> }>
+} as const satisfies Record<ShooterKind, { radius: number; period: number; shot: ShotKind; spread: ReadonlyArray<number> }>
+
+/**
+ * The brute: walks at you with a blade held in front. Close enough, it stops,
+ * winds up, and swings a wedge in front of it; its front is guarded, so you
+ * cut it only from the side or behind (more than `guard` radians off its facing).
+ */
+export const BRUTE = {
+  radius: 0.48,
+  /** Metres and radians per world second while chasing. */
+  speed: 2.8,
+  turn: 2.6,
+  /** Starts the wind-up when you are this close and in sight. */
+  trigger: 2.2,
+  /** The swing: reach in metres and half-angle in radians. */
+  reach: 2.0,
+  arc: 1.0,
+  /** Half-angle of the guarded front. */
+  guard: 1.2,
+  /** World seconds of each phase. */
+  windup: 0.5,
+  swing: 0.12,
+  recover: 0.9
+} as const
+
+export const radiusOf = (kind: EnemyKind): number => (kind === "brute" ? BRUTE.radius : SHOOTERS[kind].radius)
 
 export type ShotKind = "bullet" | "arrow" | "knife"
 

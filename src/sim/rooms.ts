@@ -21,6 +21,26 @@ const crate = (x: number, y: number, size = 1.2): Pillar => ({ x: x - size / 2, 
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
+    name: "Duel",
+    w: 12,
+    h: 18,
+    start: { x: 6, y: 16 },
+    pillars: [crate(3, 9), crate(9, 9)],
+    enemies: [{ kind: "brute", x: 6, y: 4, delay: 0 }]
+  },
+  {
+    name: "Two Blades",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [crate(4, 14), crate(10, 14), { x: 5, y: 7, w: 4, h: 0.8 }],
+    enemies: [
+      { kind: "brute", x: 3, y: 9, delay: 0 },
+      { kind: "brute", x: 11, y: 9, delay: 0 },
+      { kind: "gunner", x: 7, y: 2.5, delay: 0.5 }
+    ]
+  },
+  {
     name: "Courtyard",
     w: 14,
     h: 24,
@@ -48,6 +68,7 @@ export const ROOMS: ReadonlyArray<Room> = [
       { kind: "gunner", x: 3, y: 16, delay: 0.3 },
       { kind: "gunner", x: 15, y: 16, delay: 0.6 },
       { kind: "thrower", x: 9, y: 9, delay: 0.8 },
+      { kind: "brute", x: 9, y: 16, delay: 0 },
       { kind: "archer", x: 2, y: 3, delay: 0.5 },
       { kind: "archer", x: 16, y: 3, delay: 0.9 },
       { kind: "gunner", x: 9, y: 1.5, delay: 0.4 }
@@ -71,6 +92,8 @@ export const ROOMS: ReadonlyArray<Room> = [
       { kind: "gunner", x: 6, y: 14, delay: 0.3 },
       { kind: "gunner", x: 14, y: 14, delay: 0.5 },
       { kind: "thrower", x: 10, y: 14, delay: 0.7 },
+      { kind: "brute", x: 6, y: 20, delay: 0 },
+      { kind: "brute", x: 14, y: 8, delay: 0 },
       { kind: "gunner", x: 1.5, y: 24, delay: 0.9 }
     ]
   },
@@ -104,6 +127,8 @@ export const ROOMS: ReadonlyArray<Room> = [
       { kind: "gunner", x: 3, y: 21, delay: 0.3 },
       { kind: "gunner", x: 19, y: 21, delay: 0.6 },
       { kind: "archer", x: 11, y: 16, delay: 0.5 },
+      { kind: "brute", x: 6, y: 28, delay: 0 },
+      { kind: "brute", x: 16, y: 28, delay: 0 },
       { kind: "thrower", x: 8, y: 11, delay: 0.8 },
       { kind: "thrower", x: 14, y: 11, delay: 1.0 },
       { kind: "archer", x: 2, y: 3, delay: 0.4 },

@@ -4,11 +4,15 @@
  */
 import { canSee, insidePillar, pushOut } from "./geometry.ts"
 import { ROOMS } from "./rooms.ts"
-import { Body, Enemy, Flow, Game, IntentEvent, Pace, Player, RoomScope, Run, Shot, Slashes, Stick, Time } from "./schema.ts"
-import { ENEMIES, SHOTS, TUNING, VARIANTS, VARIANT_IDS } from "./tuning.ts"
+import { Body, Enemy, Flow, Melee, Game, IntentEvent, Pace, Player, RoomScope, Run, Shot, Slashes, Stick, Time } from "./schema.ts"
+import { BRUTE, SHOOTERS, SHOTS, TUNING, VARIANTS, VARIANT_IDS, radiusOf } from "./tuning.ts"
 
 const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
-const EnemyQuery = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.write(Enemy) }, without: [Player, Shot] })
+const ShooterQuery = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.write(Enemy) }, without: [Player, Shot, Melee] })
+const BruteQuery = Game.Query({ selection: { body: Game.Query.write(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.write(Melee) }, without: [Player, Shot] })
+
+/** The signed difference between two angles, in -π..π. */
+const angleDiff = (a: number, b: number): number => Math.atan2(Math.sin(a - b), Math.cos(a - b))
 const ShotQuery = Game.Query({ selection: { body: Game.Query.write(Body), shot: Game.Query.read(Shot) }, without: [Player, Enemy] })
 
 export const ApplyIntentSystem = Game.System(
@@ -61,7 +65,7 @@ export const BuildRoomSystem = Game.System(
   "Slap/BuildRoom",
   {
     resources: { run: Game.System.writeResource(Run), pace: Game.System.writeResource(Pace), stick: Game.System.writeResource(Stick), slashes: Game.System.writeResource(Slashes) },
-    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy), Game.System.despawnsScope(RoomScope))
+    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy, Melee), Game.System.despawnsScope(RoomScope))
   },
   ({ resources, commands }) => {
     const run = resources.run.get()
@@ -71,7 +75,10 @@ export const BuildRoomSystem = Game.System(
     commands.despawnScope(RoomScope)
     commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: room.start.x, y: room.start.y }], [Player, { vx: 0, vy: 0 }]))
     for (const e of room.enemies) {
-      commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: e.delay }]))
+      if (e.kind === "brute") {
+        const facing = Math.atan2(room.start.y - e.y, room.start.x - e.x)
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: 0 }], [Melee, { facing, phase: "idle", t: 0, tx: e.x, ty: e.y }]))
+      } else commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: e.delay }]))
     }
     resources.run.set({ room: run.room, deaths: run.deaths, rebuild: false })
     resources.pace.set({ scale: VARIANTS[resources.pace.get().variant].slow, variant: resources.pace.get().variant })
@@ -84,7 +91,7 @@ export const FightSystem = Game.System(
   "Slap/Fight",
   {
     when: [Game.Condition.inState(Flow, "Playing")],
-    queries: { players: PlayerQuery, enemies: EnemyQuery, shots: ShotQuery },
+    queries: { players: PlayerQuery, enemies: ShooterQuery, brutes: BruteQuery, shots: ShotQuery },
     resources: {
       time: Game.System.readResource(Time),
       run: Game.System.writeResource(Run),
@@ -148,7 +155,8 @@ export const FightSystem = Game.System(
         continue
       }
       alive++
-      const spec = ENEMIES[enemy.kind]
+      if (enemy.kind === "brute") continue
+      const spec = SHOOTERS[enemy.kind]
       // Reload runs always; a shot needs sight, and a short reaction after you step out of cover.
       const sees = canSee(at.x, at.y, x, y, TUNING.sight, room.pillars)
       const cooldown = sees ? enemy.cooldown - dt : Math.max(TUNING.reaction, enemy.cooldown - dt)
@@ -170,9 +178,65 @@ export const FightSystem = Game.System(
       }
     }
 
-    // Shots fly; walls and pillars stop them; they hit you and other enemies alike.
-    const enemyBodies = queries.enemies.each().filter((m) => !killed.has(m.entity)).map((m) => ({ m, at: m.data.body.get(), radius: ENEMIES[m.data.enemy.get().kind].radius }))
+    // Brutes: guarded in front, cut from the side or behind; they chase, wind up, swing, recover.
     let hit = false
+    for (const { entity, data } of queries.brutes.each()) {
+      const at = data.body.get()
+      const m = data.melee.get()
+      const toYou = Math.atan2(y - at.y, x - at.x)
+      const dist = Math.hypot(x - at.x, y - at.y)
+      const flank = Math.abs(angleDiff(toYou, m.facing)) > BRUTE.guard
+      if (dist <= TUNING.attackRange && flank) {
+        commands.despawn(entity)
+        killed.add(entity)
+        slashes.push({ x: at.x, y: at.y, angle: toYou + Math.PI, age: 0 })
+        continue
+      }
+      alive++
+      const sees = canSee(at.x, at.y, x, y, TUNING.sight, room.pillars)
+      const t = m.t - dt
+      switch (m.phase) {
+        case "idle":
+        case "chase": {
+          if (m.phase === "idle" && !sees) break
+          const tx = sees ? x : m.tx, ty = sees ? y : m.ty
+          if (sees && dist <= BRUTE.trigger) {
+            data.melee.set({ facing: m.facing, phase: "windup", t: BRUTE.windup, tx, ty })
+            break
+          }
+          // Turn toward you at a limited rate, walk where it faces.
+          const want = Math.atan2(ty - at.y, tx - at.x)
+          const turn = Math.max(-BRUTE.turn * dt, Math.min(BRUTE.turn * dt, angleDiff(want, m.facing)))
+          const facing = m.facing + turn
+          const step = Math.hypot(tx - at.x, ty - at.y) > 0.3 ? BRUTE.speed * dt : 0
+          let bx = Math.max(BRUTE.radius, Math.min(w - BRUTE.radius, at.x + Math.cos(facing) * step))
+          let by = Math.max(BRUTE.radius, Math.min(h - BRUTE.radius, at.y + Math.sin(facing) * step))
+          for (const p of room.pillars) {
+            const out = pushOut(bx, by, BRUTE.radius, p)
+            if (out !== null) { bx = out.x; by = out.y }
+          }
+          data.body.set({ x: bx, y: by })
+          data.melee.set({ facing, phase: "chase", t: 0, tx, ty })
+          break
+        }
+        case "windup":
+          data.melee.set(t > 0 ? { ...m, t } : { ...m, phase: "swing", t: BRUTE.swing })
+          break
+        case "swing":
+          if (dist <= BRUTE.reach + r && Math.abs(angleDiff(toYou, m.facing)) <= BRUTE.arc) hit = true
+          data.melee.set(t > 0 ? { ...m, t } : { ...m, phase: "recover", t: BRUTE.recover })
+          break
+        case "recover":
+          data.melee.set(t > 0 ? { ...m, t } : { ...m, phase: "chase", t: 0 })
+          break
+      }
+    }
+
+    // Shots fly; walls and pillars stop them; they hit you and other enemies alike.
+    const enemyBodies = [
+      ...queries.enemies.each().map((m) => ({ entity: m.entity as unknown, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind), kill: () => commands.despawn(m.entity) })),
+      ...queries.brutes.each().map((m) => ({ entity: m.entity as unknown, at: m.data.body.get(), radius: BRUTE.radius, kill: () => commands.despawn(m.entity) }))
+    ].filter((e) => !killed.has(e.entity))
     for (const { entity, data } of queries.shots.each()) {
       const s = data.shot.get()
       const at = data.body.get()
@@ -184,10 +248,10 @@ export const FightSystem = Game.System(
       }
       data.body.set({ x: nx, y: ny })
       if (Math.hypot(nx - x, ny - y) < r + sr) hit = true
-      const victim = enemyBodies.find((e) => !killed.has(e.m.entity) && Math.hypot(nx - e.at.x, ny - e.at.y) < e.radius + sr)
+      const victim = enemyBodies.find((e) => !killed.has(e.entity) && Math.hypot(nx - e.at.x, ny - e.at.y) < e.radius + sr)
       if (victim !== undefined) {
-        commands.despawn(victim.m.entity)
-        killed.add(victim.m.entity)
+        victim.kill()
+        killed.add(victim.entity)
         commands.despawn(entity)
         alive--
         slashes.push({ x: victim.at.x, y: victim.at.y, angle: Math.atan2(s.vy, s.vx), age: 0 })

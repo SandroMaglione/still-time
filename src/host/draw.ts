@@ -120,8 +120,54 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.restore()
   }
 
-  // Enemies: a body, the aim, and a ring that fills until the next shot.
+  // Brutes: the wedge their swing covers, the guarded front, and the blade.
   for (const e of view.enemies) {
+    const m = e.melee
+    if (m === null) continue
+    const r = e.radius * s
+    ctx.save()
+    ctx.translate(X(e.x), Y(e.y))
+    ctx.rotate(e.aim)
+    const wedge = (): void => {
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, m.reach * s, -m.arc, m.arc); ctx.closePath()
+    }
+    if (m.phase === "windup") {
+      wedge()
+      ctx.fillStyle = `rgba(255,60,60,${0.12 + 0.4 * m.progress})`
+      ctx.fill()
+      // The fill that grows from the body to the reach: when it reaches the edge, it swings.
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, m.reach * s * m.progress, -m.arc, m.arc); ctx.closePath()
+      ctx.fillStyle = "rgba(255,60,60,0.35)"
+      ctx.fill()
+      ctx.strokeStyle = "rgba(255,90,90,0.9)"; ctx.lineWidth = 2; wedge(); ctx.stroke()
+    } else if (m.phase === "swing") {
+      wedge(); ctx.fillStyle = "rgba(255,240,240,0.85)"; ctx.fill()
+    } else if (m.phase === "recover") {
+      wedge(); ctx.fillStyle = `rgba(200,200,220,${0.15 * (1 - m.progress)})`; ctx.fill()
+    } else {
+      ctx.strokeStyle = m.phase === "chase" ? "rgba(255,90,90,0.25)" : "rgba(255,90,90,0.12)"
+      ctx.lineWidth = 1; ctx.setLineDash([4, 5]); wedge(); ctx.stroke(); ctx.setLineDash([])
+    }
+    // Body, with a bright weak back.
+    ctx.fillStyle = "#b8323a"
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill()
+    ctx.strokeStyle = "#ffd25a"; ctx.lineWidth = 2
+    ctx.beginPath(); ctx.arc(0, 0, r - 1, m.guard, Math.PI * 2 - m.guard); ctx.stroke()
+    // The guarded front: a steel arc.
+    ctx.strokeStyle = m.phase === "recover" ? "#8a94a8" : "#dfe8ff"; ctx.lineWidth = 5
+    ctx.beginPath(); ctx.arc(0, 0, r + 3, -m.guard, m.guard); ctx.stroke()
+    // The blade: raised during the wind-up, swept on the swing, lowered while recovering.
+    const bladeAngle = m.phase === "windup" ? -m.arc * m.progress : m.phase === "swing" ? -m.arc + 2 * m.arc * m.progress : m.phase === "recover" ? m.arc : 0
+    ctx.rotate(bladeAngle)
+    ctx.strokeStyle = "#f4f6ff"; ctx.lineWidth = 3; ctx.lineCap = "round"
+    ctx.beginPath(); ctx.moveTo(r * 0.8, 0); ctx.lineTo(m.reach * s * 0.85, 0); ctx.stroke()
+    ctx.lineCap = "butt"
+    ctx.restore()
+  }
+
+  // Shooters: a body, the aim, and a ring that fills until the next shot.
+  for (const e of view.enemies) {
+    if (e.melee !== null) continue
     const r = e.radius * s
     ctx.save()
     ctx.translate(X(e.x), Y(e.y))

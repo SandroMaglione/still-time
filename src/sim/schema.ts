@@ -21,6 +21,11 @@ export const Player = Descriptor.Component<{ readonly vx: number; readonly vy: n
 /** An enemy: its kind and world seconds until it shoots. */
 export const Enemy = Descriptor.Component<{ readonly kind: EnemyKind; readonly cooldown: number }>()("Slap/Enemy")
 
+export type BrutePhase = "idle" | "chase" | "windup" | "swing" | "recover"
+
+/** A brute's blade: where it faces, its phase, world seconds left in it, and where it last saw you. */
+export const Melee = Descriptor.Component<{ readonly facing: number; readonly phase: BrutePhase; readonly t: number; readonly tx: number; readonly ty: number }>()("Slap/Melee")
+
 /** Something flying: its kind and velocity in metres per real second. */
 export const Shot = Descriptor.Component<{ readonly kind: ShotKind; readonly vx: number; readonly vy: number }>()("Slap/Shot")
 
@@ -47,7 +52,7 @@ export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
 
 export const Game = Schema.bind(
   Schema.fragment({
-    components: { Body, Player, Enemy, Shot },
+    components: { Body, Player, Enemy, Melee, Shot },
     resources: { Time, Run, Pace, Stick, Slashes },
     events: { IntentEvent }
   }),
