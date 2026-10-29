@@ -14,11 +14,12 @@ const PILLAR_HEIGHT = 1.2
 const BACK_WALL = 1.6
 
 /**
- * How world metres land on screen. `iso` turns the room 45° (2:1 dimetric);
- * `tilt` keeps it upright and leans the camera back (a 3/4 view).
+ * How world metres land on screen. Both keep the room upright and lean the
+ * camera back: `low` barely (Pokémon-style, mostly tops with short fronts),
+ * `mid` further (taller fronts).
  */
-export type ProjectionId = "iso" | "tilt"
-export const PROJECTION_IDS: ReadonlyArray<ProjectionId> = ["iso", "tilt"]
+export type ProjectionId = "low" | "mid"
+export const PROJECTION_IDS: ReadonlyArray<ProjectionId> = ["low", "mid"]
 
 interface Projection {
   /** Screen offset in px of a world point (metres, z up) for unit u. */
@@ -39,30 +40,21 @@ interface Projection {
   readonly backEdges: (w: number, h: number) => ReadonlyArray<readonly [readonly [number, number], readonly [number, number]]>
 }
 
+/** An upright view: floor depth squashed to `squash`, heights drawn at `rise` of their size. */
+const upright = (squash: number, rise: number): Projection => ({
+  at: (x, y, z, u) => ({ x: x * u, y: y * u * squash - z * u * rise }),
+  unit: (cw) => cw / 10,
+  ellipse: (u) => ({ rx: u, ry: u * squash }),
+  toWorld: (dx, dy) => ({ x: dx, y: dy / squash }),
+  depth: (_x, y) => y,
+  inFront: (_x, y, p) => y >= p.y + p.h,
+  faces: (p) => [[[p.x, p.y + p.h], [p.x + p.w, p.y + p.h]]],
+  backEdges: (w) => [[[0, 0], [w, 0]]]
+})
+
 export const PROJECTIONS: Record<ProjectionId, Projection> = {
-  iso: {
-    at: (x, y, z, u) => ({ x: (x - y) * u, y: (x + y) * u * 0.5 - z * u * 1.15 }),
-    unit: (cw) => cw / 14,
-    ellipse: (u) => ({ rx: u * Math.SQRT2, ry: (u * Math.SQRT2) / 2 }),
-    toWorld: (dx, dy) => ({ x: dx / 2 + dy, y: dy - dx / 2 }),
-    depth: (x, y) => x + y,
-    inFront: (x, y, p) => x >= p.x + p.w || y >= p.y + p.h,
-    faces: (p) => [
-      [[p.x, p.y + p.h], [p.x + p.w, p.y + p.h]],
-      [[p.x + p.w, p.y], [p.x + p.w, p.y + p.h]]
-    ],
-    backEdges: (w, h) => [[[0, h], [0, 0]], [[0, 0], [w, 0]]]
-  },
-  tilt: {
-    at: (x, y, z, u) => ({ x: x * u, y: y * u * 0.72 - z * u * 0.8 }),
-    unit: (cw) => cw / 10,
-    ellipse: (u) => ({ rx: u, ry: u * 0.72 }),
-    toWorld: (dx, dy) => ({ x: dx, y: dy / 0.72 }),
-    depth: (_x, y) => y,
-    inFront: (_x, y, p) => y >= p.y + p.h,
-    faces: (p) => [[[p.x, p.y + p.h], [p.x + p.w, p.y + p.h]]],
-    backEdges: (w) => [[[0, 0], [w, 0]]]
-  }
+  low: upright(0.86, 0.5),
+  mid: upright(0.72, 0.8)
 }
 
 /** Where the camera looks on the floor, eased toward the player: page state, not world state. */

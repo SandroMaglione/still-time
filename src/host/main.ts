@@ -19,9 +19,9 @@ if (canvas === null || canvas === undefined || ctx === null || ctx === undefined
 
 const params = new URLSearchParams(window.location.search)
 // The view is page state: switching it never touches the fight.
-let projection: ProjectionId = PROJECTION_IDS.find((id) => id === params.get("view")) ?? "iso"
+let projection: ProjectionId = PROJECTION_IDS.find((id) => id === params.get("view")) ?? "low"
 const nextProjection = (): void => {
-  projection = PROJECTION_IDS[(PROJECTION_IDS.indexOf(projection) + 1) % PROJECTION_IDS.length] ?? "iso"
+  projection = PROJECTION_IDS[(PROJECTION_IDS.indexOf(projection) + 1) % PROJECTION_IDS.length] ?? "low"
 }
 const fight = createFight(Math.max(0, Number(params.get("room") ?? "1") - 1))
 const send = (intent: Intent): void => fight.send(intent)
