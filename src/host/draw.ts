@@ -197,13 +197,19 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       ctx.strokeStyle = m.phase === "chase" ? "rgba(255,90,90,0.25)" : "rgba(255,90,90,0.12)"
       ctx.lineWidth = 1; ctx.setLineDash([4, 5]); ctx.stroke(); ctx.setLineDash([])
     }
-    // Guarded front (steel) and weak back (gold), as rings on the floor.
-    ctx.lineWidth = 4
-    ctx.strokeStyle = m.phase === "recover" ? "#8a94a8" : "#dfe8ff"
-    arcPath(e.x, e.y, e.radius + 0.12, e.aim - m.guard, e.aim + m.guard, false); ctx.stroke()
-    ctx.lineWidth = 2
-    ctx.strokeStyle = "#ffd25a"
-    arcPath(e.x, e.y, e.radius + 0.12, e.aim + m.guard, e.aim + Math.PI * 2 - m.guard, false); ctx.stroke()
+    // While attacking: a steel guarded front and a gold open back. Otherwise a gold ring: open all round.
+    if (m.phase === "windup" || m.phase === "swing") {
+      ctx.lineWidth = 4
+      ctx.strokeStyle = "#dfe8ff"
+      arcPath(e.x, e.y, e.radius + 0.12, e.aim - m.guard, e.aim + m.guard, false); ctx.stroke()
+      ctx.lineWidth = 2
+      ctx.strokeStyle = "#ffd25a"
+      arcPath(e.x, e.y, e.radius + 0.12, e.aim + m.guard, e.aim + Math.PI * 2 - m.guard, false); ctx.stroke()
+    } else {
+      ctx.lineWidth = m.phase === "recover" ? 3 : 2
+      ctx.strokeStyle = m.phase === "recover" ? "#ffd25a" : "#ffd25a80"
+      arcPath(e.x, e.y, e.radius + 0.12, 0, Math.PI * 2, false); ctx.stroke()
+    }
   }
   if (view.player !== null) {
     ctx.strokeStyle = "#ffffff22"; ctx.lineWidth = 1; ctx.setLineDash([3, 5])

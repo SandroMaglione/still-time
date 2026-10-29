@@ -30,8 +30,10 @@ export const SHOOTERS = {
 
 /**
  * The brute: walks at you with a blade held in front. Close enough, it stops,
- * winds up, and swings a wedge in front of it; its front is guarded, so you
- * cut it only from the side or behind (more than `guard` radians off its facing).
+ * winds up, and swings a wedge in front of it. While it attacks (wind-up and
+ * swing) its front is guarded: within `guard` radians of its facing your cut
+ * fails, so you cannot beat its swing by rushing in. The rest of the time it
+ * can be cut from any side: step out of the swing, then hit back.
  */
 export const BRUTE = {
   radius: 0.48,

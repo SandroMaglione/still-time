@@ -131,6 +131,20 @@ export const FightSystem = Game.System(
       const out = pushOut(x, y, r, p)
       if (out !== null) { x = out.x; y = out.y }
     }
+    // Enemies are solid to you too: no walking through a brute to reach its back.
+    const solid = [
+      ...queries.enemies.each().map((m) => ({ at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
+      ...queries.brutes.each().map((m) => ({ at: m.data.body.get(), radius: BRUTE.radius }))
+    ]
+    for (const e of solid) {
+      const dx = x - e.at.x, dy = y - e.at.y
+      const d = Math.hypot(dx, dy)
+      const min = r + e.radius
+      if (d >= min) continue
+      const nx = d === 0 ? 0 : dx / d, ny = d === 0 ? 1 : dy / d
+      x = e.at.x + nx * min
+      y = e.at.y + ny * min
+    }
     player.data.body.set({ x, y })
     player.data.player.set({ vx, vy })
 
@@ -211,15 +225,15 @@ export const FightSystem = Game.System(
       }
     }
 
-    // Brutes: guarded in front, cut from the side or behind; they chase, wind up, swing, recover.
+    // Brutes: guarded in front only while attacking; they chase, wind up, swing, recover.
     let hit = false
     for (const { entity, data } of queries.brutes.each()) {
       const at = data.body.get()
       const m = data.melee.get()
       const toYou = Math.atan2(y - at.y, x - at.x)
       const dist = Math.hypot(x - at.x, y - at.y)
-      const flank = Math.abs(angleDiff(toYou, m.facing)) > BRUTE.guard
-      if (dist <= TUNING.attackRange && flank) {
+      const guarded = (m.phase === "windup" || m.phase === "swing") && Math.abs(angleDiff(toYou, m.facing)) <= BRUTE.guard
+      if (dist <= TUNING.attackRange && !guarded) {
         commands.despawn(entity)
         killed.add(entity)
         slashes.push({ x: at.x, y: at.y, angle: toYou + Math.PI, age: 0 })
