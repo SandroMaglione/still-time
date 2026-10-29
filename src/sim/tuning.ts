@@ -1,4 +1,8 @@
-/** Every number and rule of the fight, in one place. */
+/**
+ * Every number of the fight, in one place. Lengths in metres, speeds in
+ * metres per second, angles in radians, times in seconds. "World" seconds
+ * slow down with the world; "real" seconds do not.
+ */
 export const TUNING = {
   /** World speed while you are still; moving brings it up with your push, to 1 at full push. */
   slow: 0.04,
@@ -6,19 +10,24 @@ export const TUNING = {
   sight: 13,
   /** World seconds an enemy needs to fire once it sees you again, if its reload is already done. */
   reaction: 0.25,
-  /** speed is the top speed, at full stick; curve > 1 gives finer control near the press point. */
+  /** `speed` is the top speed (real m/s) at full push; `curve` > 1 gives finer control near the press point. */
   player: { radius: 0.32, speed: 5, curve: 1.4 },
   /** Centre distance at which you cut an enemy down. */
   attackRange: 1.15,
   /** How fast the world speed eases toward its target, per real second. */
   timeEase: 18,
-  /** Real seconds before a tap restarts the room after a hit (stops accidental taps). */
-  deadLock: 0.35
+  /** Steps (at 60 Hz, real time) before a tap retries the room after a hit (stops accidental taps): 0.35 s. */
+  deadLockSteps: 21,
+  /** Steps (real time) a cut mark stays on screen: 0.35 s. */
+  slashSteps: 21
 } as const
 
-export type ShooterKind = "gunner" | "archer" | "thrower"
-export type EnemyKind = ShooterKind | "brute"
+export const SHOOTER_KINDS = ["gunner", "archer", "thrower"] as const
+export type ShooterKind = (typeof SHOOTER_KINDS)[number]
+export const ENEMY_KINDS = [...SHOOTER_KINDS, "brute"] as const
+export type EnemyKind = (typeof ENEMY_KINDS)[number]
 
+/** Per shooter: body radius, reload `period` (world s), what it fires, and the fan of angle offsets. */
 export const SHOOTERS = {
   /** Steady bullets. */
   gunner: { radius: 0.38, period: 0.85, shot: "bullet", spread: [0] },
@@ -86,8 +95,10 @@ export const CROWD = {
 
 export const radiusOf = (kind: EnemyKind): number => (kind === "brute" ? BRUTE.radius : SHOOTERS[kind].radius)
 
-export type ShotKind = "bullet" | "arrow" | "knife"
+export const SHOT_KINDS = ["bullet", "arrow", "knife"] as const
+export type ShotKind = (typeof SHOT_KINDS)[number]
 
+/** Per shot: radius and speed (m per world second). */
 export const SHOTS = {
   bullet: { radius: 0.12, speed: 9 },
   arrow: { radius: 0.09, speed: 18 },

@@ -1,4 +1,6 @@
 /** Circles against the rooms' rectangles: pushing out, overlap, and line of sight. */
+import { Ops } from "@typeonce/ritmo"
+
 import type { Pillar } from "./rooms.ts"
 
 /** Pushes a circle out of a rectangle; returns the corrected centre, or null when apart. */
@@ -7,7 +9,7 @@ export const pushOut = (x: number, y: number, r: number, p: Pillar): { x: number
   const cy = Math.max(p.y, Math.min(y, p.y + p.h))
   const dx = x - cx
   const dy = y - cy
-  const d = Math.hypot(dx, dy)
+  const d = Ops.hypot(dx, dy)
   if (d >= r) return null
   if (d === 0) {
     // Centre inside: leave by the nearest side.
@@ -49,12 +51,30 @@ export const clearLine = (ax: number, ay: number, bx: number, by: number, pillar
 
 /** Whether an enemy at (ex, ey) can see a target at (x, y): in range, nothing in the way. */
 export const canSee = (ex: number, ey: number, x: number, y: number, sight: number, pillars: ReadonlyArray<Pillar>): boolean =>
-  Math.hypot(x - ex, y - ey) <= sight && clearLine(ex, ey, x, y, pillars)
+  Ops.hypot(x - ex, y - ey) <= sight && clearLine(ex, ey, x, y, pillars)
 
 /** Distance from point (px, py) to the segment from a to b. */
 export const segmentDistance = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
   const dx = bx - ax, dy = by - ay
   const len2 = dx * dx + dy * dy
   const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
-  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t))
+  return Ops.hypot(px - (ax + dx * t), py - (ay + dy * t))
+}
+
+/** The signed turn from angle b to angle a, in -π..π. */
+export const angleDiff = (a: number, b: number): number => Ops.atan2(Ops.sin(a - b), Ops.cos(a - b))
+
+/** Turns `from` toward `to` by at most `max` radians. */
+export const turnToward = (from: number, to: number, max: number): number =>
+  from + Math.max(-max, Math.min(max, angleDiff(to, from)))
+
+/** Keeps a circle inside the room and out of every pillar. */
+export const settle = (x: number, y: number, r: number, w: number, h: number, pillars: ReadonlyArray<Pillar>): { x: number; y: number } => {
+  let nx = Math.max(r, Math.min(w - r, x))
+  let ny = Math.max(r, Math.min(h - r, y))
+  for (const p of pillars) {
+    const out = pushOut(nx, ny, r, p)
+    if (out !== null) { nx = out.x; ny = out.y }
+  }
+  return { x: nx, y: ny }
 }

@@ -14,48 +14,25 @@ const PILLAR_HEIGHT = 1.2
 const BACK_WALL = 1.6
 
 /**
- * How world metres land on screen. Both keep the room upright and lean the
- * camera back: `low` barely (Pokémon-style, mostly tops with short fronts),
- * `mid` further (taller fronts).
+ * How world metres land on screen: the room stays upright and the camera
+ * leans back a little (Pokémon-style), so you see mostly tops with short
+ * fronts. Floor depth is squashed to SQUASH; heights are drawn at RISE of
+ * their size.
  */
-export type ProjectionId = "low" | "mid"
-export const PROJECTION_IDS: ReadonlyArray<ProjectionId> = ["low", "mid"]
+const SQUASH = 0.86
+const RISE = 0.5
 
-interface Projection {
-  /** Screen offset in px of a world point (metres, z up) for unit u. */
-  readonly at: (x: number, y: number, z: number, u: number) => { readonly x: number; readonly y: number }
-  /** Pixels per unit for this canvas width. */
-  readonly unit: (cw: number) => number
-  /** Screen semi-axes in px of a ground circle of 1 m radius. */
-  readonly ellipse: (u: number) => { readonly rx: number; readonly ry: number }
-  /** A screen direction turned into the world direction that looks the same. */
-  readonly toWorld: (dx: number, dy: number) => { readonly x: number; readonly y: number }
-  /** Larger is nearer the viewer. */
-  readonly depth: (x: number, y: number) => number
-  /** Is a point on the ground in front of a box (drawn after it)? */
-  readonly inFront: (x: number, y: number, p: Pillar) => boolean
-  /** The box faces the viewer sees, as corner lists on the ground. */
-  readonly faces: (p: Pillar) => ReadonlyArray<readonly [readonly [number, number], readonly [number, number]]>
-  /** The room edges drawn as tall back walls. */
-  readonly backEdges: (w: number, h: number) => ReadonlyArray<readonly [readonly [number, number], readonly [number, number]]>
-}
+/** Screen offset in px of a world point (metres, z up) for unit u (px per metre). */
+const project = (x: number, y: number, z: number, u: number): { readonly x: number; readonly y: number } => ({ x: x * u, y: y * u * SQUASH - z * u * RISE })
 
-/** An upright view: floor depth squashed to `squash`, heights drawn at `rise` of their size. */
-const upright = (squash: number, rise: number): Projection => ({
-  at: (x, y, z, u) => ({ x: x * u, y: y * u * squash - z * u * rise }),
-  unit: (cw) => cw / 10,
-  ellipse: (u) => ({ rx: u, ry: u * squash }),
-  toWorld: (dx, dy) => ({ x: dx, y: dy / squash }),
-  depth: (_x, y) => y,
-  inFront: (_x, y, p) => y >= p.y + p.h,
-  faces: (p) => [[[p.x, p.y + p.h], [p.x + p.w, p.y + p.h]]],
-  backEdges: (w) => [[[0, 0], [w, 0]]]
-})
+/** Pixels per metre: ten metres across the screen. */
+const unitFor = (cw: number): number => cw / 10
 
-export const PROJECTIONS: Record<ProjectionId, Projection> = {
-  low: upright(0.86, 0.5),
-  mid: upright(0.72, 0.8)
-}
+/** A screen direction turned into the world direction that looks the same. */
+export const screenToWorld = (dx: number, dy: number): { readonly x: number; readonly y: number } => ({ x: dx, y: dy / SQUASH })
+
+/** Is a point on the ground in front of a box (drawn after it)? Nearer the viewer is further down the room. */
+const inFront = (y: number, p: Pillar): boolean => y >= p.y + p.h
 
 /** Where the camera looks on the floor, eased toward the player: page state, not world state. */
 export class Camera {
@@ -91,16 +68,16 @@ const mix = (a: readonly [number, number, number], b: readonly [number, number, 
 
 const SHOOTER_COLOURS = { gunner: "#e8484a", archer: "#ff7a3d", thrower: "#d24a9a", brute: "#b8323a" } as const
 
-export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, projection: ProjectionId): void => {
-  const proj = PROJECTIONS[projection]
-  const u = proj.unit(cw)
-  const { rx: erx, ry: ery } = proj.ellipse(u)
+export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera): void => {
+  const u = unitFor(cw)
+  // Screen semi-axes in px of a ground circle of 1 m radius.
+  const erx = u, ery = u * SQUASH
   const { w, h } = view.room
-  const centre = proj.at(camera.x, camera.y, 0, u)
+  const centre = project(camera.x, camera.y, 0, u)
   // Keep the room's on-screen box (floor and back walls, plus a small margin) covering the view
   // where it can, so the camera never shows void past the room's edge; centre it when it is smaller.
   const corners = [[0, 0, 0], [w, 0, 0], [w, h, 0], [0, h, 0], [0, 0, BACK_WALL], [w, 0, BACK_WALL], [0, h, BACK_WALL]] as const
-  const sx = corners.map(([x, y, z]) => proj.at(x, y, z, u).x), sy = corners.map(([x, y, z]) => proj.at(x, y, z, u).y)
+  const sx = corners.map(([x, y, z]) => project(x, y, z, u).x), sy = corners.map(([x, y, z]) => project(x, y, z, u).y)
   const margin = u * 0.6
   const fit = (want: number, lo: number, hi: number, min: number, max: number): number => {
     const from = hi - max - margin, to = lo - min + margin
@@ -109,7 +86,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx))
   const cy = fit(TOP + (ch - TOP - BOTTOM) / 2 - centre.y, TOP, ch - BOTTOM, Math.min(...sy), Math.max(...sy))
   const P = (x: number, y: number, z = 0): { x: number; y: number } => {
-    const p = proj.at(x, y, z, u)
+    const p = project(x, y, z, u)
     return { x: cx + p.x, y: cy + p.y }
   }
   const moveTo = (x: number, y: number, z = 0): void => { const p = P(x, y, z); ctx.moveTo(p.x, p.y) }
@@ -133,11 +110,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   ctx.fillRect(0, 0, cw, ch)
 
   // Back walls, then the floor and its grid: cold when frozen, warm when moving.
-  for (const [[ax, ay], [bx, by]] of proj.backEdges(w, h)) {
-    ctx.beginPath(); moveTo(ax, ay); lineTo(bx, by); lineTo(bx, by, BACK_WALL); lineTo(ax, ay, BACK_WALL); ctx.closePath()
-    ctx.fillStyle = mix([30, 40, 60], [56, 40, 36], live)
-    ctx.fill()
-  }
+  ctx.beginPath(); moveTo(0, 0); lineTo(w, 0); lineTo(w, 0, BACK_WALL); lineTo(0, 0, BACK_WALL); ctx.closePath()
+  ctx.fillStyle = mix([30, 40, 60], [56, 40, 36], live)
+  ctx.fill()
   ctx.beginPath(); moveTo(0, 0); lineTo(w, 0); lineTo(w, h); lineTo(0, h); ctx.closePath()
   ctx.fillStyle = mix([22, 30, 46], [44, 30, 28], live)
   ctx.fill()
@@ -297,25 +272,24 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  const boxes = [...view.room.pillars].sort((a, b) => proj.depth(a.x + a.w, a.y + a.h) - proj.depth(b.x + b.w, b.y + b.h))
+  const boxes = [...view.room.pillars].sort((a, b) => a.y + a.h - (b.y + b.h))
   // Each actor goes right after the last box it stands in front of.
   const slots: Array<Array<Thing>> = boxes.map(() => [])
   const first: Array<Thing> = []
   for (const a of actors) {
     let slot = -1
-    boxes.forEach((b, i) => { if (proj.inFront(a.x, a.y, b)) slot = i })
+    boxes.forEach((b, i) => { if (inFront(a.y, b)) slot = i })
     ;(slot === -1 ? first : slots[slot] ?? first).push(a)
   }
   const paintAll = (things: Array<Thing>): void => {
-    for (const t of things.sort((a, b) => proj.depth(a.x, a.y) - proj.depth(b.x, b.y))) t.paint()
+    for (const t of things.sort((a, b) => a.y - b.y)) t.paint()
   }
   paintAll(first)
   boxes.forEach((b, i) => {
-    for (const [[ax, ay], [bx, by]] of proj.faces(b)) {
-      ctx.beginPath(); moveTo(ax, ay); lineTo(bx, by); lineTo(bx, by, PILLAR_HEIGHT); lineTo(ax, ay, PILLAR_HEIGHT); ctx.closePath()
-      ctx.fillStyle = ax === bx ? "#14161e" : "#1b1e28"
-      ctx.fill()
-    }
+    // The front face, then the top.
+    ctx.beginPath(); moveTo(b.x, b.y + b.h); lineTo(b.x + b.w, b.y + b.h); lineTo(b.x + b.w, b.y + b.h, PILLAR_HEIGHT); lineTo(b.x, b.y + b.h, PILLAR_HEIGHT); ctx.closePath()
+    ctx.fillStyle = "#1b1e28"
+    ctx.fill()
     ctx.beginPath(); moveTo(b.x, b.y, PILLAR_HEIGHT); lineTo(b.x + b.w, b.y, PILLAR_HEIGHT); lineTo(b.x + b.w, b.y + b.h, PILLAR_HEIGHT); lineTo(b.x, b.y + b.h, PILLAR_HEIGHT); ctx.closePath()
     ctx.fillStyle = "#2c3140"; ctx.fill()
     ctx.strokeStyle = "#ffffff28"; ctx.lineWidth = 1; ctx.stroke()
@@ -336,7 +310,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
 
   // Cuts, at chest height.
   for (const c of view.slashes) {
-    const t = c.age / 0.35
+    const t = c.age
     const len = 0.6 + t * 0.6
     const a = c.angle + 0.8
     ctx.strokeStyle = `rgba(255,255,255,${1 - t})`; ctx.lineWidth = 3

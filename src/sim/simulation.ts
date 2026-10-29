@@ -1,66 +1,102 @@
-/** The fight without a browser: the runtime, the schedules, and the intents. */
+/**
+ * The fight without a browser: the runtime, the schedules, and the inputs.
+ * The page, the tests, the fuzzer and `ritmo-devtools lint` all build it here.
+ */
+import { InputCapture } from "@typeonce/ritmo-browser"
 import { Clock, type HostClock } from "@typeonce/ritmo"
 
-import { Flow, Game, IntentEvent, STEP, Time, type Intent } from "./schema.ts"
-import { ApplyIntentSystem, BuildRoomSystem, DeadLockSystem, FightSystem } from "./systems.ts"
+import { Flow, Game, Input, IntentEvent, STEP, ThumbInput, Time, type Intent, type Thumb } from "./schema.ts"
+import { BrutesSystem, CrowdSystem, ShootersSystem } from "./systems/enemies.ts"
+import { CutSystem, MovePlayerSystem, PaceSystem } from "./systems/player.ts"
+import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
+import { ShotsSystem } from "./systems/shots.ts"
 import { FightViewInspector, type FightView } from "./view.ts"
 
 const AdvanceTime = Clock.system(Game, { name: "Slap/AdvanceTime", resource: Time })
+const CaptureThumb = InputCapture.system(Game, { name: "Slap/CaptureThumb", source: ThumbInput, resource: Input })
 
+/** Builds the first room. */
+export const setupSchedule = Game.Schedule(OpenRunSystem, BuildRoomSystem, Game.Schedule.applyDeferred(), Game.Schedule.applyStateTransitions())
+
+/** One step: input, the run, you, the enemies, the shots, the outcome. */
 export const updateSchedule = Game.Schedule(
   AdvanceTime,
+  CaptureThumb,
   ApplyIntentSystem,
-  Game.Schedule.applyStateTransitions(),
   BuildRoomSystem,
   Game.Schedule.applyDeferred(),
-  FightSystem,
-  DeadLockSystem,
+  Game.Schedule.applyStateTransitions(),
+  PaceSystem,
+  MovePlayerSystem,
+  CutSystem,
   Game.Schedule.applyDeferred(),
+  ShootersSystem,
+  BrutesSystem,
+  CrowdSystem,
+  ShotsSystem,
+  FadeSlashesSystem,
+  Game.Schedule.applyDeferred(),
+  OutcomeSystem,
   Game.Schedule.applyStateTransitions()
 )
 
+/** A thumb at rest: what the input holds before the first capture. */
+export const IDLE_THUMB: Thumb = { x: 0, y: 0, tap: false }
+
 type DebugOption = { readonly hostClock: HostClock.HostClock } | undefined
 
-const makeRuntime = <const Debug extends DebugOption>(room: number, debug: Debug) => {
+/** The runtime for a run starting at `room`, reading the thumb from `thumb`. */
+export const makeRuntime = <const Debug extends DebugOption>(options: { readonly room: number; readonly thumb: { readonly snapshot: () => Thumb }; readonly debug: Debug }) => {
   const made = Game.Runtime.make({
-    services: Game.Runtime.services(),
+    services: Game.Runtime.services(Game.Runtime.service(ThumbInput, options.thumb)),
     resources: {
       Time: Clock.start(STEP),
-      Run: { room, deaths: 0, rebuild: true },
+      Run: { room: options.room, deaths: 0 },
       Pace: { scale: 1 },
-      Stick: { x: 0, y: 0 },
-      Slashes: []
+      Slashes: [],
+      Input: IDLE_THUMB
     },
     machines: Game.Runtime.machines(Game.Runtime.machine(Flow, { _tag: "Playing" })),
-    debug
+    debug: options.debug
   })
-  if (!made.ok) throw new Error("Slap: invalid setup")
+  if (!made.ok) throw new Error(`Slap: invalid setup ${JSON.stringify(made.error)}`)
   return made.value
 }
 
+/** A run: tick it, send page commands, read the view. Setup has already run. */
 export class Fight<const Debug extends DebugOption = undefined> {
   readonly runtime: ReturnType<typeof makeRuntime<Debug>>
 
-  constructor(room: number, debug: Debug) {
-    this.runtime = makeRuntime(room, debug)
+  constructor(room: number, thumb: { readonly snapshot: () => Thumb }, debug: Debug) {
+    this.runtime = makeRuntime({ room, thumb, debug })
+    const ran = this.runtime.tick(setupSchedule)
+    if (!ran.ok) throw new Error(`Slap: setup failed ${JSON.stringify(ran.error)}`)
+  }
+
+  /** One step of the simulation, 1/60 s of real time. */
+  tick(): void {
+    const ran = this.runtime.tick(updateSchedule)
+    if (!ran.ok) throw new Error(`Slap: tick failed ${JSON.stringify(ran.error)}`)
   }
 
   view(): FightView {
     return this.runtime.inspect(FightViewInspector)
   }
 
+  /** A page command, applied on the next tick. */
   send(intent: Intent): void {
     this.runtime.send(IntentEvent, intent)
   }
 }
 
-export const createFight = (room: number): Fight => new Fight(room, undefined)
+export const createFight = (room: number, thumb: { readonly snapshot: () => Thumb }): Fight => new Fight(room, thumb, undefined)
 
+/** The lint entry: a debug runtime and the schedules the page ticks. */
 export const lintTarget = async () => {
   const { HostClock } = await import("@typeonce/ritmo")
-  const fight = new Fight(0, { hostClock: HostClock.test() })
-  return { runtime: fight.runtime, schedules: { update: updateSchedule }, hostEvents: [IntentEvent] }
+  const runtime = makeRuntime({ room: 0, thumb: { snapshot: () => IDLE_THUMB }, debug: { hostClock: HostClock.test() } })
+  return { runtime, schedules: { setup: setupSchedule, update: updateSchedule }, hostEvents: [IntentEvent] }
 }
 
 export { STEP }
-export type { Intent }
+export type { Intent, Thumb }
