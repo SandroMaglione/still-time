@@ -2,13 +2,13 @@
  * The rules: intents from the page, building a room, and one step of the
  * fight (world speed, moving, shooting, cutting, getting hit).
  */
-import { canSee, insidePillar, pushOut } from "./geometry.ts"
+import { canSee, insidePillar, pushOut, segmentDistance } from "./geometry.ts"
 import { ROOMS } from "./rooms.ts"
-import { Body, Enemy, Flow, Melee, Game, IntentEvent, Pace, Player, RoomScope, Run, Shot, Slashes, Stick, Time } from "./schema.ts"
-import { BRUTE, SHOOTERS, SHOTS, TUNING, VARIANTS, VARIANT_IDS, radiusOf } from "./tuning.ts"
+import { Body, Enemy, Flow, Melee, Post, Game, IntentEvent, Pace, Player, RoomScope, Run, Shot, Slashes, Stick, Time } from "./schema.ts"
+import { BRUTE, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, VARIANTS, VARIANT_IDS, radiusOf } from "./tuning.ts"
 
 const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
-const ShooterQuery = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.write(Enemy) }, without: [Player, Shot, Melee] })
+const ShooterQuery = Game.Query({ selection: { body: Game.Query.write(Body), enemy: Game.Query.write(Enemy), post: Game.Query.write(Post) }, without: [Player, Shot, Melee] })
 const BruteQuery = Game.Query({ selection: { body: Game.Query.write(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.write(Melee) }, without: [Player, Shot] })
 
 /** The signed difference between two angles, in -π..π. */
@@ -65,7 +65,7 @@ export const BuildRoomSystem = Game.System(
   "Slap/BuildRoom",
   {
     resources: { run: Game.System.writeResource(Run), pace: Game.System.writeResource(Pace), stick: Game.System.writeResource(Stick), slashes: Game.System.writeResource(Slashes) },
-    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy, Melee), Game.System.despawnsScope(RoomScope))
+    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy, Melee, Post), Game.System.despawnsScope(RoomScope))
   },
   ({ resources, commands }) => {
     const run = resources.run.get()
@@ -78,7 +78,7 @@ export const BuildRoomSystem = Game.System(
       if (e.kind === "brute") {
         const facing = Math.atan2(room.start.y - e.y, room.start.x - e.x)
         commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: 0 }], [Melee, { facing, phase: "idle", t: 0, tx: e.x, ty: e.y }]))
-      } else commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: e.delay }]))
+      } else commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, { kind: e.kind, cooldown: e.delay }], [Post, { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1 }]))
     }
     resources.run.set({ room: run.room, deaths: run.deaths, rebuild: false })
     resources.pace.set({ scale: VARIANTS[resources.pace.get().variant].slow, variant: resources.pace.get().variant })
@@ -145,6 +145,20 @@ export const FightSystem = Game.System(
     const killed = new Set<unknown>()
     const slashes = resources.slashes.get().map((s) => ({ ...s, age: s.age + realDt })).filter((s) => s.age < 0.35)
     let alive = 0
+    // Everyone's place at the start of the step, to keep lines of fire clear of allies.
+    const allies = [
+      ...queries.enemies.each().map((m) => ({ entity: m.entity as unknown, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
+      ...queries.brutes.each().map((m) => ({ entity: m.entity as unknown, at: m.data.body.get(), radius: BRUTE.radius }))
+    ]
+    const moveShooter = (fx: number, fy: number, radius: number, dx: number, dy: number): { x: number; y: number } => {
+      let nx = Math.max(radius, Math.min(w - radius, fx + dx))
+      let ny = Math.max(radius, Math.min(h - radius, fy + dy))
+      for (const p of room.pillars) {
+        const out = pushOut(nx, ny, radius, p)
+        if (out !== null) { nx = out.x; ny = out.y }
+      }
+      return { x: nx, y: ny }
+    }
     for (const { entity, data } of queries.enemies.each()) {
       const at = data.body.get()
       const enemy = data.enemy.get()
@@ -157,23 +171,49 @@ export const FightSystem = Game.System(
       alive++
       if (enemy.kind === "brute") continue
       const spec = SHOOTERS[enemy.kind]
-      // Reload runs always; a shot needs sight, and a short reaction after you step out of cover.
+      const shot = SHOTS[spec.shot]
+      const post = data.post.get()
       const sees = canSee(at.x, at.y, x, y, TUNING.sight, room.pillars)
-      const cooldown = sees ? enemy.cooldown - dt : Math.max(TUNING.reaction, enemy.cooldown - dt)
+      const aim = Math.atan2(y - at.y, x - at.x)
+      // Would any of its shots (a fan, for the thrower) pass through an ally first?
+      const reach = Math.hypot(x - at.x, y - at.y)
+      const blocked = sees && spec.spread.some((offset) => {
+        const ex = at.x + Math.cos(aim + offset) * reach, ey = at.y + Math.sin(aim + offset) * reach
+        return allies.some((a) => a.entity !== entity && !killed.has(a.entity) && segmentDistance(a.at.x, a.at.y, at.x, at.y, ex, ey) < a.radius + shot.radius + SHOOTER_MOVE.allyGap)
+      })
+      const seen = sees ? { x, y } : post.seen
+      // Footwork: sidestep a blocked line, creep toward where it last saw you, on a leash from its post.
+      let strafe = post.strafe
+      let to = at
+      const stepLen = SHOOTER_MOVE.speed * dt
+      if (blocked) {
+        const side = aim + (Math.PI / 2) * strafe
+        to = moveShooter(at.x, at.y, spec.radius, Math.cos(side) * stepLen, Math.sin(side) * stepLen)
+      } else if (!sees && seen !== null && Math.hypot(seen.x - at.x, seen.y - at.y) > 1) {
+        const d = Math.hypot(seen.x - at.x, seen.y - at.y)
+        to = moveShooter(at.x, at.y, spec.radius, ((seen.x - at.x) / d) * stepLen, ((seen.y - at.y) / d) * stepLen)
+      }
+      if (Math.hypot(to.x - post.hx, to.y - post.hy) > SHOOTER_MOVE.leash) {
+        to = at
+        if (blocked) strafe = strafe === 1 ? -1 : 1
+      } else if (blocked && Math.hypot(to.x - at.x, to.y - at.y) < stepLen * 0.3) strafe = strafe === 1 ? -1 : 1
+      if (to !== at) data.body.set(to)
+      data.post.set({ hx: post.hx, hy: post.hy, seen, strafe })
+      // Reload runs always; a shot needs sight and a clear line, and a short reaction after you step out of cover.
+      const ready = sees && !blocked
+      const cooldown = ready ? enemy.cooldown - dt : Math.max(TUNING.reaction, enemy.cooldown - dt)
       if (cooldown > 0) {
         data.enemy.set({ kind: enemy.kind, cooldown })
         continue
       }
       data.enemy.set({ kind: enemy.kind, cooldown: cooldown + spec.period })
-      const aim = Math.atan2(y - at.y, x - at.x)
-      const shot = SHOTS[spec.shot]
       for (const offset of spec.spread) {
         const a = aim + offset
         const ux = Math.cos(a), uy = Math.sin(a)
         const start = spec.radius + shot.radius + 0.05
         commands.spawnIn(
           RoomScope,
-          Game.Command.spawn([Body, { x: at.x + ux * start, y: at.y + uy * start }], [Shot, { kind: spec.shot, vx: ux * shot.speed, vy: uy * shot.speed }])
+          Game.Command.spawn([Body, { x: to.x + ux * start, y: to.y + uy * start }], [Shot, { kind: spec.shot, vx: ux * shot.speed, vy: uy * shot.speed }])
         )
       }
     }
@@ -219,9 +259,22 @@ export const FightSystem = Game.System(
           data.melee.set({ facing, phase: "chase", t: 0, tx, ty })
           break
         }
-        case "windup":
-          data.melee.set(t > 0 ? { ...m, t } : { ...m, phase: "swing", t: BRUTE.swing })
+        case "windup": {
+          // Tracks you until the last `lock` seconds, then commits to its facing.
+          const tracking = m.t > BRUTE.lock
+          const facing = tracking ? m.facing + Math.max(-BRUTE.turn * dt, Math.min(BRUTE.turn * dt, angleDiff(toYou, m.facing))) : m.facing
+          if (tracking && dist > BRUTE.close) {
+            const step = Math.min(dist - BRUTE.close, BRUTE.speed * BRUTE.step * dt)
+            let bx = at.x + Math.cos(toYou) * step, by = at.y + Math.sin(toYou) * step
+            for (const p of room.pillars) {
+              const out = pushOut(bx, by, BRUTE.radius, p)
+              if (out !== null) { bx = out.x; by = out.y }
+            }
+            data.body.set({ x: bx, y: by })
+          }
+          data.melee.set(t > 0 ? { ...m, facing, t } : { ...m, facing, phase: "swing", t: BRUTE.swing })
           break
+        }
         case "swing":
           if (dist <= BRUTE.reach + r && Math.abs(angleDiff(toYou, m.facing)) <= BRUTE.arc) hit = true
           data.melee.set(t > 0 ? { ...m, t } : { ...m, phase: "recover", t: BRUTE.recover })

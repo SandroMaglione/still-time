@@ -128,15 +128,23 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.save()
     ctx.translate(X(e.x), Y(e.y))
     ctx.rotate(e.aim)
+    const lockStart = 1 - m.lockShare
     const wedge = (): void => {
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, m.reach * s, -m.arc, m.arc); ctx.closePath()
     }
-    if (m.phase === "windup") {
+    if (m.phase === "windup" && !m.locked) {
+      // Still tracking you: an outline that follows.
       wedge()
-      ctx.fillStyle = `rgba(255,60,60,${0.12 + 0.4 * m.progress})`
+      ctx.fillStyle = "rgba(255,60,60,0.1)"
       ctx.fill()
-      // The fill that grows from the body to the reach: when it reaches the edge, it swings.
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, m.reach * s * m.progress, -m.arc, m.arc); ctx.closePath()
+      ctx.strokeStyle = "rgba(255,90,90,0.8)"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([])
+    } else if (m.phase === "windup") {
+      // Committed: the fill grows to the edge, then it swings.
+      const k = (m.progress - lockStart) / (1 - lockStart)
+      wedge()
+      ctx.fillStyle = `rgba(255,60,60,${0.2 + 0.35 * k})`
+      ctx.fill()
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, m.reach * s * k, -m.arc, m.arc); ctx.closePath()
       ctx.fillStyle = "rgba(255,60,60,0.35)"
       ctx.fill()
       ctx.strokeStyle = "rgba(255,90,90,0.9)"; ctx.lineWidth = 2; wedge(); ctx.stroke()

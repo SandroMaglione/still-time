@@ -8,6 +8,10 @@ import { BRUTE, SHOOTERS, SHOTS, TUNING, VARIANTS, type EnemyKind, type ShotKind
 export interface MeleeView {
   readonly phase: BrutePhase
   readonly progress: number
+  /** In the wind-up, true once it stops tracking you: the moment to dodge. */
+  readonly locked: boolean
+  /** The committed share of the wind-up, 0 to 1. */
+  readonly lockShare: number
   readonly reach: number
   readonly arc: number
   readonly guard: number
@@ -66,7 +70,7 @@ export const FightViewInspector = Game.Inspector(
           const progress = m.phase === "idle" || m.phase === "chase" ? 0 : Math.max(0, Math.min(1, 1 - m.t / total))
           return {
             kind: enemy.kind, x: at.x, y: at.y, radius: BRUTE.radius, charge: m.phase === "windup" ? progress : 0, aim: m.facing, sees,
-            melee: { phase: m.phase, progress, reach: BRUTE.reach, arc: BRUTE.arc, guard: BRUTE.guard }
+            melee: { phase: m.phase, progress, locked: m.phase === "windup" && m.t <= BRUTE.lock, lockShare: BRUTE.lock / BRUTE.windup, reach: BRUTE.reach, arc: BRUTE.arc, guard: BRUTE.guard }
           }
         }
         if (enemy.kind === "brute") throw new Error("Slap: brute without a blade")

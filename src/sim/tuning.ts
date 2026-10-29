@@ -54,20 +54,36 @@ export const SHOOTERS = {
  */
 export const BRUTE = {
   radius: 0.48,
-  /** Metres and radians per world second while chasing. */
-  speed: 2.8,
-  turn: 2.6,
+  /** Metres and radians per world second while chasing: faster than you, and a 180° turn in about 0.3 s. */
+  speed: 5.5,
+  turn: 10,
   /** Starts the wind-up when you are this close and in sight. */
-  trigger: 2.2,
+  trigger: 2.5,
   /** The swing: reach in metres and half-angle in radians. */
   reach: 2.0,
   arc: 1.0,
   /** Half-angle of the guarded front. */
   guard: 1.2,
-  /** World seconds of each phase. */
+  /** World seconds of each phase. The wind-up keeps tracking you until `lock` of it is left, then commits. */
   windup: 0.5,
-  swing: 0.12,
-  recover: 0.9
+  lock: 0.35,
+  /** While tracking in the wind-up it steps in to this distance, at this share of its speed. */
+  close: 1.6,
+  step: 0.7,
+  swing: 0.1,
+  recover: 0.8
+} as const
+
+/**
+ * Shooters reposition a little: they sidestep when an ally stands in their line
+ * of fire, and creep toward where they last saw you when you hide, never more
+ * than `leash` metres from their post.
+ */
+export const SHOOTER_MOVE = {
+  speed: 1.8,
+  leash: 3.5,
+  /** Clearance around an ally that a line of fire must keep, in metres. */
+  allyGap: 0.25
 } as const
 
 export const radiusOf = (kind: EnemyKind): number => (kind === "brute" ? BRUTE.radius : SHOOTERS[kind].radius)

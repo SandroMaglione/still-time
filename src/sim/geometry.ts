@@ -50,3 +50,11 @@ export const clearLine = (ax: number, ay: number, bx: number, by: number, pillar
 /** Whether an enemy at (ex, ey) can see a target at (x, y): in range, nothing in the way. */
 export const canSee = (ex: number, ey: number, x: number, y: number, sight: number, pillars: ReadonlyArray<Pillar>): boolean =>
   Math.hypot(x - ex, y - ey) <= sight && clearLine(ex, ey, x, y, pillars)
+
+/** Distance from point (px, py) to the segment from a to b. */
+export const segmentDistance = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
+  const dx = bx - ax, dy = by - ay
+  const len2 = dx * dx + dy * dy
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t))
+}
