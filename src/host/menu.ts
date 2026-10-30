@@ -160,7 +160,7 @@ export class Menu {
     return box
   }
 
-  /** The in-game ☰: the room you are in, then back to it, over again, another room, or the title. */
+  /** The in-game ☰: the room you are in, then back to it, over again, another room, or home (the title). */
   private pause(view: FightView): HTMLElement {
     const box = el("div", "pause-screen")
     const head = el("div", "pause-head")
@@ -171,9 +171,10 @@ export class Menu {
     restart.addEventListener("click", () => this.actions.restart())
     const rooms = button("", "Rooms")
     rooms.addEventListener("click", () => this.show("rooms", view))
-    const title = button("back", fromHtml(pixelSvg(ICONS.back, { outline: true })), "Title")
-    title.addEventListener("click", () => this.show("title", view))
-    box.append(head, resume, restart, rooms, title, this.toggles())
+    // "Home": a word, not an arrow; the arrow alone is the room list's way back.
+    const home = button("", "Home")
+    home.addEventListener("click", () => this.show("title", view))
+    box.append(head, resume, restart, rooms, home, this.toggles())
     return box
   }
 
@@ -203,11 +204,13 @@ export class Menu {
     return row
   }
 
-  /** The room select: Title on the left, and a close back to the game when it was opened from there. */
+  /** The room select: an arrow home on the left, and a close back to the game when it was opened from there. */
   private rooms(view: FightView, from: Screen | "game"): HTMLElement {
     const box = el("div", "rooms-screen")
     const head = el("div", "rooms-head panel")
-    const title = button("back", fromHtml(pixelSvg(ICONS.back, { outline: true })), "Title")
+    // Just the arrow: the way home, without a word to weigh down the header.
+    const title = button("back icon-only", fromHtml(pixelSvg(ICONS.back, { outline: true })))
+    title.setAttribute("aria-label", "Home")
     title.addEventListener("click", () => this.show("title", view))
     const heading = el("div", "rooms-title")
     heading.append(el("h2", "", "Rooms"), total(view.best))

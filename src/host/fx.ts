@@ -51,6 +51,10 @@ export class Presentation {
   /** Armed by a real run, fired by stopping: one freeze moment per stop. */
   private running = false
   private taught = new Map<number, number>()
+  /** Rooms you have moved in this session: the first room's drag hint stops once you have. */
+  private moved = new Set<number>()
+
+  hasMoved(room: number): boolean { return this.moved.has(room) }
   private fire = new Map<number, Fire>()
   private previous: FightView | null = null
   private deadAt: number | null = null
@@ -92,6 +96,7 @@ export class Presentation {
     }
     // Stopping dead after a run is the freeze: a moment of its own, and in the first rooms, named.
     if (p !== null && view.flow === "playing") {
+      if (Math.hypot(p.vx, p.vy) > 0.5) this.moved.add(view.room.index)
       if (k > 0.5) this.running = true
       else if (this.running && k < 0.12) {
         this.running = false

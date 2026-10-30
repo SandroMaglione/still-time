@@ -189,6 +189,7 @@
       .btn .sub { font-weight: 400; font-size: var(--t0); line-height: var(--l0); opacity: 0.8; }
       .btn.continue { flex-direction: column; gap: calc(var(--u) * 2); padding: calc(var(--u) * 5) calc(var(--u) * 7) calc(var(--u) * 6); }
       .btn.back { gap: calc(var(--u) * 3); padding: 0 calc(var(--u) * 6) 0 calc(var(--u) * 5); }
+      .btn.back.icon-only { padding: 0; min-width: max(44px, calc(var(--u) * 22)); justify-content: center; }
       .pause-screen .btn { width: 100%; box-sizing: border-box; }
       /* Sound and music: two on/off toggles side by side; off is a sunken, darker stone. */
       .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 4); width: 100%; }
@@ -252,7 +253,7 @@
         <div id="msg-lines" class="msg-lines"></div>
         <div class="msg-foot">
           <span id="msg-cta" class="msg-cta"></span>
-          <div id="msg-buttons" class="msg-buttons" hidden><button id="rooms-after" class="btn" type="button">Rooms</button><button id="title-after" class="btn" type="button">Title</button></div>
+          <div id="msg-buttons" class="msg-buttons" hidden><button id="rooms-after" class="btn" type="button">Rooms</button><button id="title-after" class="btn" type="button">Home</button></div>
         </div>
       </div>
     </div>

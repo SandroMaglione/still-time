@@ -132,6 +132,70 @@ const silhouette = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: n
   ctx.restore()
 }
 
+/** A pixel hand pointing up: `o` ink, `w` ivory. */
+const HAND = [
+  "...oo....",
+  "..owwo...",
+  "..owwo...",
+  "..owwoo..",
+  "..owwwwoo",
+  "ooowwwwwo",
+  "owowwwwwo",
+  "owwwwwwwo",
+  ".owwwwwwo",
+  ".owwwwwo.",
+  "..owwwwo.",
+  "..oooooo."
+] as const
+/** The hand at twice the art's pixel size: a hint has to be seen before it is read. Its fingertip is on (x, y). */
+const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, pressed: boolean): void => {
+  const s = 2, left = Math.round(x) - 4 * s, top = Math.round(y) + (pressed ? 1 : 0)
+  HAND.forEach((row, j) => {
+    for (let i = 0; i < row.length; i++) {
+      const c = row[i]
+      if (c === ".") continue
+      ctx.fillStyle = c === "o" ? INK : pressed ? "#e8f6ff" : "#f4efda"
+      ctx.fillRect(left + i * s, top + j * s, s, s)
+    }
+  })
+}
+/** Touch or keys: the hint says what this device does. */
+const touchFirst = (): boolean => typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches
+/**
+ * The first room's lesson, looped every 2.4 real s beside the player: press (a ring), drag up (the hand rises,
+ * a dotted trail behind it: "drag to move"), then lift (the hand lets go: "let go = freeze").
+ */
+const dragHint = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, now: number): void => {
+  const t = (now % 2.4) / 2.4
+  const start = { x: Math.round(at.x + 24), y: Math.round(at.y + 4) }, travel = 34
+  const rise = t < 0.15 ? 0 : t < 0.6 ? (t - 0.15) / 0.45 : 1
+  const eased = 1 - (1 - rise) * (1 - rise)
+  const tip = { x: start.x, y: start.y - Math.round(travel * eased) }
+  const pressed = t < 0.62
+  const fade = t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1
+  ctx.save()
+  ctx.globalAlpha = fade
+  if (t < 0.2) {
+    pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, INK, 3)
+    pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, "#7fd8ff", 1)
+  }
+  if (rise > 0) {
+    pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, INK, 3, 2)
+    pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, "#7fd8ff", 1, 2)
+  }
+  hand(ctx, tip.x, tip.y, pressed)
+  ctx.textAlign = "center"; ctx.textBaseline = "top"
+  ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
+  const label = t < 0.62 ? (touchFirst() ? "DRAG TO MOVE" : "ARROWS TO MOVE") : "LET GO = FREEZE"
+  // Above you, in the open floor you are about to cross.
+  const ly = Math.round(at.y - 44)
+  ctx.fillStyle = INK
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(label, at.x + dx, ly + dy)
+  ctx.fillStyle = t < 0.62 ? "#f4efda" : "#7fd8ff"
+  ctx.fillText(label, at.x, ly)
+  ctx.restore()
+}
+
 /** The speed effect's colours: afterimages, the aura's outline and its hot core. */
 const GHOST = "#5ff0ff", AURA = "#7ff6ff", AURA_CORE = "#e8ffff"
 
@@ -563,6 +627,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, INK, t < 0.5 ? 3 : 2, t > 0.55)
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
     }
+  }
+  // The first room shows what to do until you do it: a hand presses beside you and drags, then lets go.
+  if (view.room.index === 0 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(0)) {
+    dragHint(ctx, P(view.player.x, view.player.y), presentation.now)
   }
   // In the first rooms, the freeze is named the first times it happens.
   const callout = presentation?.callout ?? null
