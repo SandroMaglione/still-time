@@ -11,7 +11,7 @@ import { STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
-import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, speedOf, type Presentation } from "./fx.ts"
+import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
@@ -378,36 +378,54 @@ const goalSplash = (ctx: CanvasRenderingContext2D, view: FightView, cw: number, 
 }
 
 /**
- * The ninja vanish when a room is cleared, over 0.6 real s: a white flash on your silhouette, afterimages shooting
- * up and fading, white speed lines, and a puff of smoke left where you stood.
+ * The ninja vanish when a room is cleared. First a beat where you stay and gather (a teal glow that pulses white,
+ * sparks rising), then a white pop where your body goes, then afterimages rising slowly away and fading, white
+ * speed lines, and a puff of smoke left where you stood.
  */
 const vanishBurst = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, flip: boolean, age: number): void => {
   const body = bodyName("player")
   ctx.save()
-  if (age < 0.12) silhouette(ctx, body, at.x, at.y, flip, "#ffffff", 1 - age / 0.12)
-  // Afterimages, each a little higher and fainter: you leave upward faster than the eye.
-  for (let i = 0; i < 6; i++) {
-    const t = age - i * 0.025
-    if (t < 0 || t > 0.3) continue
-    silhouette(ctx, body, at.x, at.y - 6 - i * 9 - t * 60, flip, i === 0 ? "#e8ffff" : GHOST, (1 - t / 0.3) * (0.8 - i * 0.1))
-  }
-  // Speed lines.
-  if (age < 0.25) {
-    for (let i = 0; i < 5; i++) {
-      const x = Math.round(at.x - 10 + i * 5), len = 18 + ((i * 7) % 11), top = Math.round(at.y - 28 - age * 120 - (i % 2) * 6)
-      ctx.fillStyle = `rgba(232,255,255,${(1 - age / 0.25).toFixed(3)})`; ctx.fillRect(x, top, 1, len)
+  // Gather: your outline glows and pulses, faster as the pop nears; sparks rise round you.
+  if (age < VANISH_POP) {
+    const k = age / VANISH_POP
+    const pulse = Math.sin(age * (10 + k * 30)) * 0.5 + 0.5
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) silhouette(ctx, body, at.x + dx, at.y + dy, flip, AURA, 0.4 + 0.6 * k)
+    silhouette(ctx, body, at.x, at.y, flip, "#ffffff", pulse * k * 0.7)
+    for (let i = 0; i < 6; i++) {
+      const t = ((age * 2.2 + i / 6) % 1)
+      const x = Math.round(at.x - 9 + ((i * 7) % 19)), y = Math.round(at.y - 2 - t * 28)
+      ctx.fillStyle = i % 2 === 0 ? AURA_CORE : AURA; ctx.fillRect(x, y, 1, 2)
     }
   }
-  // A puff of smoke where you stood: grey clusters pushing out and fading.
-  if (age < 0.6) {
-    const k = age / 0.6
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2 + 0.3
-      const r = 4 + k * 14
-      const x = Math.round(at.x + Math.cos(a) * r), y = Math.round(at.y - 4 + Math.sin(a) * r * 0.55 - k * 4)
-      const size = k < 0.5 ? 3 : 2
-      ctx.fillStyle = `rgba(${i % 3 === 0 ? "232,236,244" : "137,150,146"},${(0.85 * (1 - k)).toFixed(3)})`
-      ctx.fillRect(x - 1, y - 1, size, size)
+  const after = age - VANISH_POP
+  if (after >= 0) {
+    // The pop: a white silhouette that fades as you go.
+    if (after < 0.15) silhouette(ctx, body, at.x, at.y, flip, "#ffffff", 1 - after / 0.15)
+    // Afterimages, each a little higher and fainter, rising away over half a second.
+    for (let i = 0; i < 6; i++) {
+      const t = after - i * 0.05
+      if (t < 0 || t > 0.55) continue
+      silhouette(ctx, body, at.x, at.y - 4 - i * 8 - t * 70, flip, i === 0 ? "#e8ffff" : GHOST, (1 - t / 0.55) * (0.85 - i * 0.1))
+    }
+    // Speed lines.
+    if (after < 0.45) {
+      for (let i = 0; i < 5; i++) {
+        const x = Math.round(at.x - 10 + i * 5), len = 18 + ((i * 7) % 11), top = Math.round(at.y - 28 - after * 80 - (i % 2) * 6)
+        ctx.fillStyle = `rgba(232,255,255,${(1 - after / 0.45).toFixed(3)})`; ctx.fillRect(x, top, 1, len)
+      }
+    }
+    // A puff of smoke where you stood: grey clusters pushing out and fading.
+    const smoke = VANISH_LIFE - VANISH_POP
+    if (after < smoke) {
+      const k = after / smoke
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 + 0.3
+        const r = 4 + Math.sqrt(k) * 16
+        const x = Math.round(at.x + Math.cos(a) * r), y = Math.round(at.y - 4 + Math.sin(a) * r * 0.55 - k * 6)
+        const size = k < 0.4 ? 3 : 2
+        ctx.fillStyle = `rgba(${i % 3 === 0 ? "232,236,244" : "137,150,146"},${(0.85 * (1 - k)).toFixed(3)})`
+        ctx.fillRect(x - 1, y - 1, size, size)
+      }
     }
   }
   ctx.restore()
@@ -722,10 +740,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Clearing the room: you vanish, ninja-style. Past the first frames your body is gone.
   const vanish = presentation?.vanish ?? null
   const vanishAge = vanish === null ? -1 : presentation!.now - vanish.born
-  if (vanish !== null && vanishAge < 0.6) {
+  if (vanish !== null && vanishAge < VANISH_LIFE) {
     actors.push({ x: vanish.x, y: vanish.y, paint: () => { vanishBurst(ctx, P(vanish.x, vanish.y), vanish.flip, vanishAge); vanishBurst(glow, P(vanish.x, vanish.y), vanish.flip, vanishAge) } })
   }
-  if (view.player !== null && view.flow !== "dead" && !(vanish !== null && vanishAge > 0.08)) {
+  if (view.player !== null && view.flow !== "dead" && !(vanish !== null && vanishAge > VANISH_POP)) {
     const p = view.player
     const at = P(p.x, p.y)
     const body = bodyName("player")
