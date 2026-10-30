@@ -279,7 +279,7 @@ FixedLoop.start({
     // First Step's drill draws its own stick (on its track), and decides whether the thumb reaches the game.
     const dirs = [...held].filter((key) => DIRS[key] !== undefined)
     const drillInput = { stick: pixelStick, keys: usingKeys, upOnly: dirs.length > 0 && dirs.every((key) => key === "ArrowUp" || key === "w"), anyKey: dirs.length > 0 }
-    drill.update(menu.isOpen ? 0 : frame.elapsedSeconds, canvas.width, canvas.height, REACH * k, view, drillInput)
+    drill.update(menu.isOpen ? 0 : frame.elapsedSeconds, canvas.width, canvas.height, view, drillInput)
     const drilling = drill.active(view)
     thumb.open = !drilling || drill.gate(drillInput)
     const drawn = draw(ctx, canvas.width, canvas.height, view, drilling ? null : pixelStick, camera, presentation, lit)
