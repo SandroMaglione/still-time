@@ -123,7 +123,8 @@ export const cuesBetween = (old: FightView, view: FightView): Array<Cue> => {
 
   // How the attempt ends.
   if (old.flow === "playing" && view.flow === "dead") cues.push(cue("player.death", "real"))
-  if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won")) {
+  // A clear's fanfare and its star chimes (not for a cutscene: it has no score to sing about).
+  if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won") && !view.room.scene) {
     cues.push(cue(view.flow === "won" ? "run.won" : "room.clear", "ui"))
     const stars = view.result?.stars ?? 0
     const chimes = ["star.1", "star.2", "star.3"] as const

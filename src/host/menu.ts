@@ -101,7 +101,8 @@ export class Menu {
     const from = this.screen
     this.screen = screen
     this.root.hidden = false
-    const page = el("div", screen === "rooms" ? "menu-page list" : "menu-page")
+    this.root.classList.toggle("title", screen === "title")
+    const page = el("div", screen === "rooms" ? "menu-page list" : screen === "title" ? "menu-page title" : "menu-page")
     page.append(screen === "title" ? this.title(view) : screen === "pause" ? this.pause(view) : this.rooms(view, from ?? "game"))
     this.root.replaceChildren(page)
     this.root.scrollTop = 0
@@ -125,7 +126,10 @@ export class Menu {
     const best: Best = view.best
     const next = continueTarget(view)
     const fresh = best.every((b) => b === null) && next === 0
-    const box = el("div", "title-screen")
+    // Logo and tagline at the top, the buttons at the foot: between them, the attract loop plays on the canvas.
+    const box = el("div", "title-screen attract")
+    const head = el("div", "title-head"), foot = el("div", "title-foot")
+    box.append(head, foot)
 
     const logo = el("h1", "logo")
     logo.setAttribute("aria-label", "Still Time")
@@ -147,7 +151,7 @@ export class Menu {
     logo.append(clock, still, el("span", "logo-word logo-time", "Time"))
     const tagline = el("p", "tagline")
     tagline.append("time moves only", el("br", ""), "when ", el("b", "", "you"), " move")
-    box.append(logo, tagline)
+    head.append(logo, tagline)
 
     const play = fresh
       ? button("gold big", "Play")
@@ -155,8 +159,8 @@ export class Menu {
     play.addEventListener("click", () => this.actions.play(next))
     const rooms = button("", "Rooms")
     rooms.addEventListener("click", () => this.show("rooms", view))
-    box.append(play, rooms, this.toggles())
-    if (!fresh) box.append(total(best))
+    foot.append(play, rooms, this.toggles())
+    if (!fresh) foot.append(total(best))
     return box
   }
 

@@ -21,6 +21,8 @@ export interface Impact {
 export interface Fire { readonly born: number; readonly aim: number }
 /** An afterimage of the player: where it stood, which way it faced, and how fast the world ran then (0 to 1). */
 export interface Ghost { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number; readonly strength: number }
+/** An afterimage of an enemy on the move: time is running, and so is it. */
+export interface EnemyGhost extends Ghost { readonly kind: EnemyKind }
 
 /** How long an afterimage lasts, and how often one is left, in real seconds. */
 export const GHOST_LIFE = 0.32
@@ -47,6 +49,8 @@ export class Presentation {
   deaths: Array<Death> = []
   impacts: Array<Impact> = []
   ghosts: Array<Ghost> = []
+  /** Afterimages of enemies walking, chasing or swinging while time runs: what moves, shows that it moves. */
+  enemyGhosts: Array<EnemyGhost> = []
   stops: Array<Stop> = []
   /** Where you were when the room was cleared: you vanish from there, ninja-style. */
   vanish: { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number } | null = null
@@ -64,6 +68,7 @@ export class Presentation {
     this.deaths = this.deaths.filter(d => this.now - d.born < 1.05)
     this.impacts = this.impacts.filter(i => this.now - i.born < 0.42)
     this.ghosts = this.ghosts.filter(g => this.now - g.born < GHOST_LIFE)
+    this.enemyGhosts = this.enemyGhosts.filter(g => this.now - g.born < GHOST_LIFE)
     this.stops = this.stops.filter(s => this.now - s.born < STOP_LIFE)
   }
 
@@ -77,7 +82,7 @@ export class Presentation {
   observe(view: FightView): void {
     const old = this.previous
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
-      this.deaths = []; this.impacts = []; this.ghosts = []; this.stops = []; this.fire.clear()
+      this.deaths = []; this.impacts = []; this.ghosts = []; this.enemyGhosts = []; this.stops = []; this.fire.clear()
       this.running = false; this.runFrom = -1
       // A new attempt (a room entered, a retry, a restart) teaches the move again.
       this.deadAt = null; this.clearedAt = null; this.vanish = null
@@ -90,6 +95,14 @@ export class Presentation {
     const p = view.player, k = speedOf(view)
     if (p !== null && view.flow === "playing" && k > 0.12 && this.now - this.lastGhost >= GHOST_EVERY) {
       this.ghosts.push({ x: p.x, y: p.y, flip: p.vx < 0, born: this.now, strength: k })
+      // Enemies that moved since the last tick leave afterimages too: the world is running, and here is what runs.
+      const before = new Map(old.enemies.map(e => [e.id, e]))
+      for (const e of view.enemies) {
+        const was = before.get(e.id)
+        if (was === undefined || Math.hypot(e.x - was.x, e.y - was.y) < 0.02) continue
+        this.enemyGhosts.push({ kind: e.kind, x: e.x, y: e.y, flip: Math.cos(e.aim) < 0, born: this.now, strength: k })
+      }
+      this.enemyGhosts = this.enemyGhosts.slice(-24)
       this.lastGhost = this.now
       this.ghosts = this.ghosts.slice(-12)
     }
@@ -145,7 +158,8 @@ export class Presentation {
       this.deaths.push({ id: p.id, kind: "player", x: p.x, y: p.y, aim: p.vx < 0 ? Math.PI : 0, angle, born: this.now })
       this.impacts.push({ x: p.x, y: p.y, angle, born: this.now, seed: view.step, kind: "player" })
     }
-    if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won")) {
+    // A clear: you vanish, ninja-style (not in a cutscene, whose last words are said with you still standing there).
+    if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won") && !view.room.scene) {
       this.clearedAt = this.now
       const p = view.player ?? old.player
       if (p !== null) this.vanish = { x: p.x, y: p.y, flip: p.vx < 0, born: this.now }

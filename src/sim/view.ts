@@ -4,11 +4,13 @@ import { Clock, Ops } from "@typeonce/ritmo"
 import { canSee, clearLine } from "./geometry.ts"
 import { hazardAt, type HazardShape } from "./hazards.ts"
 import { ROOMS, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
-import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear } from "./schema.ts"
+import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear, type HitBy } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
 import { BELT, BOMB, COVER, LOCKS, MELEE, RUNNER, STALKER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover"
+/** What can take you (the page names the rule by it). */
+export type { HitBy }
 
 /** A melee enemy's blade: its phase, how far through it (0 to 1), its guard, and the shapes to draw. */
 export interface MeleeView {
@@ -121,6 +123,8 @@ export interface FightView {
     readonly goal: Goal
     readonly par: number
     readonly tip: string | null
+    /** A cutscene: the page plays it, hands off and HUD hidden. */
+    readonly scene: boolean
   }
   /** The cover still standing this attempt (broken walls and crates gone), in room order. */
   readonly cover: ReadonlyArray<CoverView>
@@ -145,6 +149,8 @@ export interface FightView {
   readonly roomNames: ReadonlyArray<string>
   readonly open: boolean
   readonly flow: "playing" | "dead" | "cleared" | "won"
+  /** Down: what took you, so the page can say what the rule was. */
+  readonly death: { readonly by: HitBy } | null
   readonly canRetry: boolean
   readonly scale: number
   /** World speed while you are still, for drawing how frozen time is. */
@@ -317,7 +323,7 @@ export const FightViewInspector = Game.Inspector(
       hazards,
       belts: (room.belts ?? []).map((b) => ({ ...b, run: (time.step / 60) * BELT.speed })),
       blasts: resources.blasts.get().map((b) => ({ x: b.x, y: b.y, radius: BOMB.radius, age: Math.min(1, (time.step - b.born) / BOMB.showSteps) })),
-      room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null },
+      room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null, scene: room.scene ?? false },
       doors,
       keys,
       deaths: run.deaths,
@@ -328,6 +334,7 @@ export const FightViewInspector = Game.Inspector(
       roomNames: ROOMS.map((r) => r.name),
       open: run.open,
       flow: flow._tag === "Playing" ? "playing" : flow._tag === "Dead" ? "dead" : flow._tag === "Cleared" ? "cleared" : "won",
+      death: flow._tag === "Dead" ? { by: flow.by } : null,
       canRetry: flow._tag !== "Dead" || Clock.reached(time, flow.retryAt),
       scale: resources.pace.get().scale,
       slow: TUNING.slow,

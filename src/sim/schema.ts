@@ -177,30 +177,32 @@ export const Input = Descriptor.TransientResource<InputCapture.SnapshotOf<typeof
 export type Intent =
   | { readonly kind: "restart" }
   | { readonly kind: "goToRoom"; readonly room: number }
-  /** The page's lesson is done: clears a room whose goal is the lesson (First Step). */
-  | { readonly kind: "lessonDone" }
 
 export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
-/** The lesson of a room whose goal is the lesson was done this step. */
-export const LessonDone = Descriptor.Event<{ readonly room: number }>()("Slap/LessonDone")
 /** A room to (re)build this step; `fresh` when you come into it anew (not a retry), which resets its hit count. */
 export const EnterRoom = Descriptor.Event<{ readonly room: number; readonly fresh: boolean }>()("Slap/EnterRoom")
-/** Something touched you: a shot, a swing, a blast, a hazard, or a stalker. */
-export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" | "blast" | "hazard" | "touch" }>()("Slap/PlayerHit")
+/** What can touch you: a shot, a swing, a blast, a hazard, or a stalker. */
+export const HIT_BY = ["shot", "swing", "blast", "hazard", "touch"] as const
+export type HitBy = (typeof HIT_BY)[number]
+/** Something touched you. */
+export const PlayerHit = Descriptor.Event<{ readonly by: HitBy }>()("Slap/PlayerHit")
 
 export const Game = Schema.bind(
   Schema.fragment({
     components: { Body, Player, Enemy, Carry, Stalk, Reload, Post, Melee, Blade, Shot, Bomb },
     resources: { Time, Run, Pace, Slashes, Blasts, Doors, Wear, Plates, Keys, Input },
-    events: { IntentEvent, EnterRoom, LessonDone, PlayerHit }
+    events: { IntentEvent, EnterRoom, PlayerHit }
   }),
   Root
 )
 
-/** Fighting, hit (a tap retries once `retryAt` is reached), room cleared, or all rooms done; a clear carries its result. */
+/**
+ * Fighting, hit (by what, so the page can say what the rule was; a tap retries once `retryAt` is reached), room
+ * cleared, or all rooms done; a clear carries its result.
+ */
 export const Flow = Game.StateMachine("Slap/Flow", {
   Playing: {},
-  Dead: codec(S.Struct({ retryAt: deadline })),
+  Dead: codec(S.Struct({ retryAt: deadline, by: S.Literals(HIT_BY) })),
   Cleared: codec(RoomResult),
   Won: codec(RoomResult)
 })

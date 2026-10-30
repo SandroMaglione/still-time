@@ -1,9 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { Presentation } from "../src/host/fx.ts"
+import { cuesBetween } from "../src/host/audio-cues.ts"
+import { Director } from "../src/host/intro.ts"
 import type { FightView } from "../src/sim/view.ts"
 import { createFight, IDLE_THUMB } from "../src/sim/simulation.ts"
-import { fightIn, placePlayer, pushToward, roomIndex } from "./helpers.ts"
+import { fightIn, placePlayer, pushToward, roomIndex, runUntil } from "./helpers.ts"
 
 // The Duel: a room that starts with an enemy to kill.
 const initial = (): FightView => createFight(roomIndex("Duel"), { snapshot: () => IDLE_THUMB }).view()
@@ -85,4 +87,37 @@ test("the real cut and fatal-swing paths produce complete presentation deaths", 
   }
   assert.equal(duel.fight.view().flow, "dead")
   assert.equal(death.deaths.filter(d => d.kind === "player").length, 1)
+})
+
+test("a cutscene's clear is quiet: no fanfare, no star chimes, no vanish; a room's clear keeps them", () => {
+  const clearOf = (name: string, play: (fight: ReturnType<typeof fightIn>["fight"], thumb: ReturnType<typeof fightIn>["thumb"]) => void): { readonly cues: ReadonlyArray<string>; readonly vanished: boolean } => {
+    const { fight, thumb } = fightIn(name)
+    const presentation = new Presentation()
+    let before = fight.view()
+    presentation.observe(before)
+    const cues: Array<string> = []
+    runUntil(fight, 60 * 120, () => fight.view().flow !== "playing", () => {
+      play(fight, thumb)
+      before = fight.view()
+    })
+    const after = fight.view()
+    presentation.observe(after)
+    cues.push(...cuesBetween(before, after).map((c) => c.name))
+    return { cues, vanished: presentation.vanish !== null }
+  }
+  const director = new Director()
+  const scene = clearOf("Prologue", (fight, thumb) => {
+    const cue = director.step(fight.view(), 1 / 60)
+    thumb.push = cue.push
+    if (cue.ready) director.advance()
+  })
+  assert.ok(!scene.cues.some((c) => c === "room.clear" || c.startsWith("star.")), `quiet: ${scene.cues.join(", ")}`)
+  assert.equal(scene.vanished, false)
+  const room = clearOf("First Cut", (fight, thumb) => {
+    const p = fight.view().player!
+    const e = fight.view().enemies.filter((x) => !x.sealed).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]
+    thumb.push = e === undefined ? { x: 0, y: 0 } : pushToward(fight, e.x, e.y)
+  })
+  assert.ok(room.cues.includes("room.clear") && room.cues.includes("star.1"), `a room's clear sings: ${room.cues.join(", ")}`)
+  assert.equal(room.vanished, true)
 })

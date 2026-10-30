@@ -250,6 +250,23 @@ const doorTimer = (ctx: CanvasRenderingContext2D, x: number, bottom: number, lef
   clockSign(ctx, tx - 24, ty - 1, running, now)
 }
 
+/** "it takes time to open", small and dim over a time door's timer, the word "time" in gold. */
+const takesTime = (ctx: CanvasRenderingContext2D, x: number, y: number): void => {
+  const parts: ReadonlyArray<readonly [string, string]> = [["IT TAKES ", "#8996b0"], ["TIME", "#edc66c"], [" TO OPEN", "#8996b0"]]
+  ctx.save()
+  ctx.font = "700 8px Silkscreen, ui-monospace, monospace"; ctx.textBaseline = "top"; ctx.textAlign = "left"
+  const width = parts.reduce((w, [t]) => w + ctx.measureText(t).width, 0)
+  let left = Math.round(x - width / 2)
+  ctx.globalAlpha = 0.85
+  for (const [t, colour] of parts) {
+    ctx.fillStyle = INK
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(t, left + dx, Math.round(y) + dy)
+    ctx.fillStyle = colour; ctx.fillText(t, left, Math.round(y))
+    left += ctx.measureText(t).width
+  }
+  ctx.restore()
+}
+
 /** A pause sign (still: the world waits) or a fast-forward sign (moving: the world runs), 10×9, drawn twice the size. */
 const PAUSE_SIGN = [
   "ooo..ooo..",
@@ -276,6 +293,14 @@ const PLAY_SIGN = [
 export const clockSign = (ctx: CanvasRenderingContext2D, x: number, y: number, running: boolean, now: number): void => {
   const nudge = running ? Math.round(Math.sin(now * 18)) : 0
   bitmap(ctx, running ? PLAY_SIGN : PAUSE_SIGN, x + nudge + 1, y, { o: INK, b: "#7fd8ff", g: "#edc66c" }, 2)
+}
+
+/** The small pause sign over you (5×7, two bars) and the small play sign (5×7, a triangle), each centred on its own. */
+const SMALL_PAUSE = ["ooooo", "obobo", "obobo", "obobo", "obobo", "obobo", "ooooo"] as const
+const SMALL_PLAY = ["oo...", "ogo..", "oggo.", "ogggo", "oggo.", "ogo..", "oo..."] as const
+/** Over your head: paused (ice) while the world waits, playing (gold) while it runs. Centred on `x`. */
+export const paceSign = (ctx: CanvasRenderingContext2D, x: number, y: number, running: boolean): void => {
+  bitmap(ctx, running ? SMALL_PLAY : SMALL_PAUSE, x + 0.5, y, { o: INK, b: "#7fd8ff", g: "#edc66c" }, 1)
 }
 
 export type Project = (x: number, y: number, z?: number) => { x: number; y: number }
@@ -454,7 +479,9 @@ const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now
 }
 
 /** The speed effect's colours: afterimages, the aura's outline and its hot core. */
-const GHOST = "#5ff0ff", AURA = "#7ff6ff", AURA_CORE = "#e8ffff"
+/** How far the wall launcher's barrel reaches out from the wall, in canvas px (its sprite's barrel tip). */
+const LAUNCHER_REACH = 23
+const GHOST = "#5ff0ff", AURA = "#7ff6ff", AURA_CORE = "#e8ffff", ENEMY_GHOST = "#ff6a5e"
 
 /** Transparent layers the size of the scene, reused per context: ground decals and shots, which also mark emissive pixels. */
 const glowLayers = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
@@ -521,6 +548,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Bolts in flight are bullets on a lane: drawn exactly as shots are (body, trail, the dotted path ahead).
   const shots = [...view.shots, ...view.hazards.flatMap((hz, i) => {
     if (hz.kind !== "bolt" || !hz.live) return []
+    // (Still in the barrel, on a screen where the launcher reaches past the lane's start: not out yet.)
+    const lane = ROOMS[view.room.index]?.hazards?.[i]
+    if (lane?.kind === "bolt") {
+      const wall = lane.x2 < lane.x1 ? view.room.w : 0
+      if (Math.abs((hz.ax + hz.bx) / 2 - wall) * u < LAUNCHER_REACH) return []
+    }
     const len = Math.hypot(hz.bx - hz.ax, hz.by - hz.ay) || 1
     const speed = SHOTS.bullet.speed
     return [{ id: -1 - i, kind: "bullet" as const, x: (hz.ax + hz.bx) / 2, y: (hz.ay + hz.by) / 2, radius: SHOTS.bullet.radius, vx: ((hz.bx - hz.ax) / len) * speed, vy: ((hz.by - hz.ay) / len) * speed }]
@@ -654,8 +687,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         ring(0, Math.PI * 2, m.phase === "recover" ? "#edc66c" : "#947058", 1, m.phase !== "recover")
       }
     }
-    // Your cut's reach (not in First Step, where it is the one circle people mistook for the one to press).
-    if (view.player !== null && view.room.goal.kind !== "lesson") {
+    // Your cut's reach.
+    if (view.player !== null) {
       pixelArc(ctx, P(view.player.x, view.player.y), view.player.attackRange * erx, view.player.attackRange * ery, 0, Math.PI * 2, view.scale < 0.15 ? "#64b6b3" : "#647373", 1, true)
     }
     ctx.restore()
@@ -669,6 +702,15 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // The room's clockwork decoration (Time Door): lanterns swinging and wheels turning on the world clock.
   for (const d of ROOMS[view.room.index]?.decor ?? []) {
     actors.push({ x: d.x, y: d.y, paint: () => (d.kind === "pendulum" ? pendulum(ctx, P, d.x, d.y, view.world) : wheel(ctx, P, d.x, d.y, view.world)) })
+  }
+  // Afterimages of enemies on the move: time runs, and so do they (red, as what can hurt you is).
+  for (const g of presentation?.enemyGhosts ?? []) {
+    const age = presentation!.now - g.born
+    const alpha = (1 - age / GHOST_LIFE) * g.strength * 0.5
+    if (alpha <= 0.02) continue
+    const spot = P(g.x, g.y)
+    const body = bodyName(g.kind)
+    actors.push({ x: g.x, y: g.y - 0.001, paint: () => { for (const c of [ctx, glow]) silhouette(c, body, spot.x, spot.y, g.flip, ENEMY_GHOST, alpha) } })
   }
   for (const e of view.enemies) {
     // A soft light at each enemy: in a dark room a threat is never lost between the torches.
@@ -756,6 +798,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         sprite(ctx, "shadow", ground.x + 2, ground.y + 3)
         const bob = speed > 0.1 ? Math.round(Math.sin((p.x + p.y) * 9)) : 0
         const y = ground.y - bob
+        // Over your head, where the eyes are: a pause sign while the world waits, a play sign as soon as it runs at
+        // all (a slow walk included). On the glow layer too, so frozen time does not grey it.
+        if (view.flow === "playing") for (const c of [ctx, glow]) paceSign(c, ground.x, y - 38, view.scale > view.slow)
         if (k > 0.3) {
           // The aura: a 1 px electric outline that flickers, thicker and steadier the faster you go.
           const strength = (k - 0.3) / 0.7, frame = Math.floor((presentation?.now ?? view.world) * 24)
@@ -782,15 +827,17 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  // A launcher bolted to the wall at the start of each bullet lane, so the bullets come from somewhere; it flashes as one leaves.
+  // A launcher bolted to the wall behind the start of each bullet lane (the lane starts at its barrel's tip), so the
+  // bullets come from somewhere; it flashes as one leaves.
   const lanes = new Map<string, Extract<Hazard, { kind: "bolt" }>>()
   for (const hz of ROOMS[view.room.index]?.hazards ?? []) if (hz.kind === "bolt") lanes.set(`${hz.x1},${hz.y1}`, hz)
   for (const lane of lanes.values()) {
-    const firing = view.hazards.some((hz) => hz.kind === "bolt" && hz.live && Math.hypot((hz.ax + hz.bx) / 2 - lane.x1, (hz.ay + hz.by) / 2 - lane.y1) < 0.7)
+    const firing = view.hazards.some((hz) => hz.kind === "bolt" && hz.live && Math.hypot((hz.ax + hz.bx) / 2 - lane.x1, (hz.ay + hz.by) / 2 - lane.y1) < 0.9)
     const flip = lane.x2 < lane.x1
+    const wall = flip ? view.room.w : 0
     actors.push({
-      x: lane.x1, y: lane.y1 - 0.01, paint: () => {
-        const muzzle = P(lane.x1, lane.y1, 0.6)
+      x: wall, y: lane.y1 - 0.01, paint: () => {
+        const muzzle = P(wall, lane.y1, 0.6)
         // The plate sits on the wall and the barrel's centre row is at bullet height.
         // On the glow layer too, like every threat: it keeps its colour while time is frozen.
         for (const c of [ctx, glow]) sprite(c, firing ? "bolt-launcher-fire" : "bolt-launcher", muzzle.x + (flip ? -11 : 11), muzzle.y + 12, flip)
@@ -939,6 +986,17 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     red.addColorStop(1, "rgba(206,70,85,0.6)")
     ctx.fillStyle = red; ctx.fillRect(0, 0, cw, ch)
     if (deathAge < 0.3) { ctx.fillStyle = `rgba(255,64,85,${(0.6 * (1 - deathAge / 0.3)).toFixed(3)})`; ctx.fillRect(0, 0, cw, ch) }
+    // The shot that took you hangs where it struck: a gold ring round it, pulsing, so the hit screen's words have a referent.
+    if (view.death?.by === "shot" && view.player !== null && deathAge >= 0.3) {
+      const p = view.player
+      const culprit = [...shots].sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]
+      if (culprit !== undefined) {
+        const at = P(culprit.x, culprit.y, 0.6)
+        const r = 9 + Math.round((Math.sin(deathAge * 5) + 1) * 2)
+        pixelArc(ctx, at, r, r, 0, Math.PI * 2, INK, 3)
+        pixelArc(ctx, at, r, r, 0, Math.PI * 2, "#edc66c", 1)
+      }
+    }
   }
   // Dust in the air drifts on the world's clock: it hangs when you stop and streams when you run.
   motes(ctx, view, P)
@@ -977,6 +1035,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     // (Up under the top bar, it would sit over the HUD: it shows once the door is on screen.)
     if (top.y < TOP + 30) continue
     doorTimer(ctx, top.x, top.y - 4, Math.max(0, d.lock.seconds - view.world), view.world / d.lock.seconds, speedOf(view) > 0.15, presentation?.now ?? 0, Math.round(u * 1.6))
+    // Over the timer, quietly: what it waits on. (At its foot, it sat under you while you waited there.)
+    takesTime(ctx, top.x, top.y - 40)
   }
   // The cut's room marks what to run into.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {

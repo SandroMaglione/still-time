@@ -130,6 +130,8 @@
       .msg-lines .line { display: inline-flex; align-items: baseline; gap: calc(var(--u) * 2); }
       .msg-lines .line:has(svg) { align-items: center; }
       .msg-lines .over { color: var(--red); }
+      .msg-lines .lesson { display: block; max-width: calc(var(--u) * 150); text-align: center; white-space: normal; }
+      .dead .msg-lines .lesson:first-child { color: var(--ice); }
       .msg-foot { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); margin-top: var(--u); }
       .msg-buttons { display: flex; gap: calc(var(--u) * 4); }
       .msg-cta { color: var(--light); animation: blink 1.1s steps(1) infinite; }
@@ -152,6 +154,14 @@
         padding: calc(env(safe-area-inset-top) + var(--u) * 8) calc(env(safe-area-inset-right) + var(--u) * 8) calc(env(safe-area-inset-bottom) + var(--u) * 12) calc(env(safe-area-inset-left) + var(--u) * 8);
       }
       .menu-page.list { justify-content: flex-start; }
+      /* A cutscene: no HUD (its words are in the letterbox, drawn on the canvas). */
+      body.cutscene .hud { visibility: hidden; }
+      /* The title: the first room plays itself on the canvas behind it (the attract loop), so the dim is light and the
+         logo and the buttons keep to the top and the foot of the screen, out of its way. */
+      .menu.title { background: linear-gradient(#0b0d12e0, #0b0d1240 22%, #0b0d1240 70%, #0b0d12e6 100%); }
+      .menu-page.title { justify-content: space-between; }
+      .title-screen.attract { justify-content: space-between; min-height: 100%; }
+      .title-head, .title-foot { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); width: 100%; }
       .title-screen, .pause-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 6); width: 100%; max-width: calc(var(--u) * 170); }
       .logo { margin: 0; display: flex; flex-direction: column; align-items: center; margin-bottom: calc(var(--u) * 6); }
       .logo .clock-face { --k: 3; margin-bottom: calc(var(--u) * 4); }

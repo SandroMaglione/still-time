@@ -7,8 +7,9 @@ import { BrowserTickSource } from "@typeonce/ritmo-browser"
 import { FixedLoop, Result } from "@typeonce/ritmo"
 import { Effect, Layer, ManagedRuntime } from "effect"
 
-import { STEP, createFight, updateSchedule, type Thumb } from "../sim/simulation.ts"
+import { STEP, createFight, updateSchedule, type Fight, type Thumb } from "../sim/simulation.ts"
 import { continueRoom, type Best } from "../sim/progress.ts"
+import type { FightView } from "../sim/view.ts"
 import { Camera, draw, screenToWorld, type Stick } from "./draw.ts"
 import { Menu } from "./menu.ts"
 import { Progress, layer as progressLayer } from "./progress.ts"
@@ -16,8 +17,8 @@ import { storageLayer } from "./storage.ts"
 import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
 import { Hud } from "./hud.ts"
-import { Drill } from "./drill.ts"
 import { Guide } from "./guide.ts"
+import { Director, letterbox, onSkip, type Cue } from "./intro.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
@@ -38,8 +39,6 @@ if (canvas === null || canvas === undefined || ctx === null || ctx === undefined
 class ThumbSource {
   private push = { x: 0, y: 0 }
   private tapped = false
-  /** Off, the push does not reach the game (First Step's drill lets it through only while you do its step). */
-  open = true
 
   /** A push on screen (direction and 0..1 strength), stored as the world direction that looks the same. */
   setScreenPush(dx: number, dy: number, strength: number): void {
@@ -52,12 +51,17 @@ class ThumbSource {
     this.push = { x: (world.x / len) * strength, y: (world.y / len) * strength }
   }
 
+  /** A push straight in world directions (a cutscene's director). */
+  setWorldPush(x: number, y: number): void {
+    this.push = { x, y }
+  }
+
   tap(): void {
     this.tapped = true
   }
 
   snapshot(): Thumb {
-    const thumb = this.open ? { x: this.push.x, y: this.push.y, tap: this.tapped } : { x: 0, y: 0, tap: this.tapped }
+    const thumb = { x: this.push.x, y: this.push.y, tap: this.tapped }
     this.tapped = false
     return thumb
   }
@@ -115,17 +119,19 @@ let consumed = false
 
 canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId)
+  // A cutscene plays itself: a press moves it on a beat, or skips it from the top bar.
+  if (fight.view().room.scene) {
+    if (onSkip(e.clientY / cssPerPixel, canvas.height)) scene.skip()
+    else scene.advance()
+    consumed = true
+    return
+  }
   if (fight.view().flow !== "playing") {
     thumb.tap()
     consumed = true
     return
   }
   usingKeys = false
-  // First Step's drill takes a press only on its circle; the rest of the screen is off until it is done.
-  if (drill.active(fight.view()) && !drill.acceptsPress(e.clientX / cssPerPixel, e.clientY / cssPerPixel)) {
-    consumed = true
-    return
-  }
   stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, reach: REACH }
 })
 canvas.addEventListener("pointermove", (e) => {
@@ -166,6 +172,7 @@ const DIRS: Record<string, readonly [number, number]> = {
   ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0]
 }
 const keyPush = (): void => {
+  if (fight.view().room.scene) return
   let x = 0, y = 0
   for (const k of held) {
     const dir = DIRS[k]
@@ -184,6 +191,13 @@ window.addEventListener("keydown", (e) => {
     return
   }
   if (menu.isOpen) return
+  // A cutscene plays itself: any key but the menu's moves it on a beat (S skips it).
+  if (fight.view().room.scene) {
+    if (key === "s") scene.skip()
+    else scene.advance()
+    e.preventDefault()
+    return
+  }
   if (DIRS[key] !== undefined) {
     held.add(key)
     usingKeys = true
@@ -230,8 +244,128 @@ const audio = createAudio()
 audio.unlockOn(window)
 audio.observe(fight.view())
 const hud = new Hud(canvas)
-const drill = new Drill()
 const guide = new Guide()
+
+/**
+ * A cutscene room (the Prologue) as the page plays it: a director per attempt drives the thumb each step, your
+ * hands are off, a tap moves it on a beat (each beat with words holds until then), "skip" plays the rest at once,
+ * and once its last words are tapped through it moves on to the next room. A hit (a director's mistake) retries by
+ * itself.
+ */
+class Scene {
+  private director = new Director()
+  private attempt = ""
+  private skipping = false
+  private now = 0
+  /** The last cue, and when (real s) its words changed. */
+  cue: Cue | null = null
+  private line = ""
+  lineAt = 0
+
+  private fresh(view: FightView): void {
+    const key = `${view.room.index}:${view.player?.id ?? -1}`
+    if (key !== this.attempt) { this.attempt = key; this.director = new Director(); this.skipping = false }
+  }
+
+  /** The director's push for this step (call before each tick of a cutscene room). */
+  drive(view: FightView): void {
+    this.fresh(view)
+    const cue = this.director.step(view, STEP.dt)
+    thumb.setWorldPush(cue.push.x, cue.push.y)
+    this.see(cue)
+  }
+
+  private see(cue: Cue): void {
+    this.cue = cue
+    const line = cue.line?.join(" ") ?? ""
+    if (line !== this.line) { this.line = line; this.lineAt = this.now }
+  }
+
+  advance(): void {
+    this.director.advance()
+  }
+
+  skip(): void {
+    this.skipping = true
+  }
+
+  /** Per frame: a skip plays the rest at once; the end (or a hit) moves on. */
+  frame(view: FightView, dt: number): void {
+    this.now += dt
+    this.fresh(view)
+    if (this.skipping && view.flow === "playing") {
+      // The rest of the scene at once, every beat taken.
+      for (let n = 0; n < 60 * 120 && fight.view().flow === "playing"; n++) {
+        this.director.advance()
+        this.drive(fight.view())
+        fight.tick()
+      }
+      presentation.observe(fight.view())
+    }
+    if (view.flow === "playing" && !this.skipping) return
+    // Hands back: the director's last push must not carry into the next room.
+    thumb.setWorldPush(0, 0)
+    if (view.flow === "dead") { if (view.canRetry) thumb.tap(); return }
+    // After the clear, its last words, each held for a tap (a skip takes them all).
+    if (this.skipping) { this.skipping = false; thumb.tap(); return }
+    this.see(this.director.step(fight.view(), dt))
+    if (this.director.over) thumb.tap()
+  }
+
+  get age(): number {
+    return this.now - this.lineAt
+  }
+}
+const scene = new Scene()
+
+/**
+ * The title's attract loop: the Prologue plays itself on the canvas behind the title, by its own director, over and
+ * over (its words left out: the logo is there). Players see the rule before they press anything. Its own fight,
+ * camera and presentation: the real run is untouched.
+ */
+class Attract {
+  private push = { x: 0, y: 0 }
+  private readonly fight: Fight
+  private readonly camera = new Camera()
+  private readonly presentation = new Presentation()
+  private director = new Director()
+  private pending = 0
+  private endedFor = 0
+  private heldFor = 0
+  private lastPlayer = -1
+
+  constructor() {
+    this.fight = createFight(0, { snapshot: () => ({ x: this.push.x, y: this.push.y, tap: false }) }, { open: true })
+  }
+
+  /** Steps the loop by `dt` real seconds and draws it. */
+  render(ctx: CanvasRenderingContext2D, cw: number, ch: number, dt: number, lit: boolean): void {
+    this.pending += dt
+    for (let n = 0; n < 5 && this.pending >= STEP.dt; n++) {
+      this.pending -= STEP.dt
+      if (this.fight.view().flow !== "playing") { this.pending = 0; break }
+      const cue = this.director.step(this.fight.view(), STEP.dt)
+      this.push = cue.push
+      // (No one taps here: each beat stands its minimum and a moment more, then moves on.)
+      this.heldFor = cue.ready ? this.heldFor + STEP.dt : 0
+      if (this.heldFor > 0.6) { this.director.advance(); this.heldFor = 0 }
+      this.fight.tick()
+      this.presentation.observe(this.fight.view())
+    }
+    // Over (cleared, or hit): a moment, then from the top.
+    if (this.fight.view().flow !== "playing") {
+      this.endedFor += dt
+      if (this.endedFor > 2) { this.fight.send({ kind: "restart" }); this.fight.tick(); this.director = new Director(); this.endedFor = 0 }
+    }
+    const view = this.fight.view()
+    this.presentation.advance(dt)
+    if (view.player?.id !== this.lastPlayer) this.camera.reset()
+    this.lastPlayer = view.player?.id ?? -1
+    this.camera.follow(view, dt)
+    draw(ctx, cw, ch, view, null, this.camera, this.presentation, lit)
+  }
+}
+const attract = new Attract()
 await loadArt()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
@@ -241,6 +375,9 @@ FixedLoop.start({
   // A menu pauses the game.
   update: () => {
     if (menu.isOpen) return Result.success(undefined)
+    // A cutscene: the director's hands on the thumb.
+    const before = fight.view()
+    if (before.room.scene && before.flow === "playing") scene.drive(before)
     const result = fight.runtime.tick(updateSchedule)
     if (result.ok) {
       presentation.observe(fight.view())
@@ -252,6 +389,14 @@ FixedLoop.start({
     const view = fight.view()
     presentation.advance(frame.elapsedSeconds)
     audio.advance(frame.elapsedSeconds, menu.current, view)
+    // On the title, the first room plays itself behind it.
+    if (menu.current === "title") {
+      attract.render(ctx, canvas.width, canvas.height, frame.elapsedSeconds, lit)
+      return
+    }
+    // A cutscene: no HUD; it plays itself and moves on by itself.
+    document.body.classList.toggle("cutscene", view.room.scene)
+    if (view.room.scene) scene.frame(view, frame.elapsedSeconds)
     // A clear changes the run's bests: save them.
     if ((view.flow === "cleared" || view.flow === "won") && lastFlow !== view.flow) save(view.best)
     lastFlow = view.flow
@@ -264,20 +409,13 @@ FixedLoop.start({
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     const k = 1 / cssPerPixel
     const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
-    // First Step's drill draws its own stick (on its track), and decides whether the thumb reaches the game.
     const dirs = [...held].filter((key) => DIRS[key] !== undefined)
-    const drillInput = { stick: pixelStick, keys: usingKeys, upOnly: dirs.length > 0 && dirs.every((key) => key === "ArrowUp" || key === "w"), anyKey: dirs.length > 0 }
-    drill.update(menu.isOpen ? 0 : frame.elapsedSeconds, canvas.width, canvas.height, view, drillInput)
-    const drilling = drill.active(view)
-    const guideInput = { stick: pixelStick, keys: usingKeys, upOnly: drillInput.upOnly, down: usingKeys ? dirs.length > 0 : stick !== null && !consumed }
+    const guideInput = { stick: pixelStick, keys: usingKeys, down: usingKeys ? dirs.length > 0 : stick !== null && !consumed }
     guide.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, guideInput)
-    thumb.open = (!drilling || drill.gate(drillInput)) && guide.gate(view, guideInput)
-    const drawn = draw(ctx, canvas.width, canvas.height, view, drilling ? null : pixelStick, camera, presentation, lit)
-    drill.draw(ctx, canvas.width, canvas.height, view, drawn.P, drillInput)
-    // Done, the drill clears First Step (its goal is the lesson).
-    if (drill.takeFinished() && view.room.goal.kind === "lesson") fight.send({ kind: "lessonDone" })
-    // First Cut's guide, over everything.
-    guide.draw(ctx, canvas.width, canvas.height, view, drawn.P, guideInput)
+    const drawn = draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
+    // The first rooms' guide, over everything; a cutscene's letterbox and words instead.
+    if (view.room.scene) letterbox(ctx, canvas.width, canvas.height, scene.cue, scene.age, drawn.P, presentation.now, view.flow === "playing")
+    else guide.draw(ctx, canvas.width, canvas.height, view, drawn.P, guideInput)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

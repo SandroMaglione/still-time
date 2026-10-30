@@ -118,7 +118,8 @@ test("a laser gate takes you only while it is on, and warns before", () => {
   // It warns before it lights.
   placePlayer(fight, 8, 20)
   let warned = false
-  runUntil(fight, 2000, () => gate()?.state === "on", () => { if (gate()?.state === "warn") warned = true; jiggle(thumb, 0.5)() })
+  const wait = jiggle(thumb, 0.5)
+  runUntil(fight, 2000, () => gate()?.state === "on", () => { if (gate()?.state === "warn") warned = true; wait() })
   assert.ok(warned, "a warning came first")
   thumb.push = { x: 0, y: 0 }
   crossAt()

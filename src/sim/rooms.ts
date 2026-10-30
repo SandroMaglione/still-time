@@ -11,7 +11,7 @@
  */
 import { Ops } from "@typeonce/ritmo"
 
-import { SHOTS, type EnemyKind } from "./tuning.ts"
+import { SHOTS, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export interface Pillar { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 
@@ -57,8 +57,9 @@ export interface Door extends Pillar { readonly lock: Lock }
 
 /** Down every enemy, reach the exit, or last `seconds` of world time (which only pass while you move). */
 export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar) | { readonly kind: "survive"; readonly seconds: number }
-  /** Cleared by the page when its lesson is done (First Step: learning the stick is the room). */
-  | { readonly kind: "lesson" }
+
+/** A shot already in the air as you come into the room, with its own velocity (metres per world second). */
+export interface ShotSpawn { readonly kind: ShotKind; readonly x: number; readonly y: number; readonly vx: number; readonly vy: number }
 
 export interface EnemySpawn {
   readonly kind: EnemyKind
@@ -86,11 +87,15 @@ export interface Room {
   readonly hazards?: ReadonlyArray<Hazard>
   readonly belts?: ReadonlyArray<Belt>
   readonly enemies: ReadonlyArray<EnemySpawn>
+  /** Shots in flight from the first frame: frozen with the world until you move. */
+  readonly shots?: ReadonlyArray<ShotSpawn>
   readonly goal: Goal
   /** World seconds for the third star. */
   readonly par: number
   /** One line shown under the room, for rooms that teach something. */
   readonly tip?: string
+  /** A cutscene: the page plays it (your hands are off), with the HUD hidden. */
+  readonly scene?: boolean
   /** Decoration that runs on the world clock (the page draws it; the game ignores it): it moves only while you do. */
   readonly decor?: ReadonlyArray<{ readonly kind: "pendulum" | "wheel"; readonly x: number; readonly y: number }>
 }
@@ -106,6 +111,12 @@ export const stream = (x1: number, y1: number, x2: number, y2: number, every: nu
   const count = Math.ceil(flight / every) + 1
   return Array.from({ length: count }, (_, i) => ({ kind: "bolt" as const, x1, y1, x2, y2, period: count * every, offset: offset + i * every }))
 }
+/**
+ * How far from its wall a launcher's lane starts (m): at the tip of its barrel, so a bolt leaves the muzzle, not the
+ * plate on the wall. (The page draws the launcher on the wall behind this point.)
+ */
+export const MUZZLE = 0.9
+
 /** A wooden crate that splinters under fire. */
 const box = (x: number, y: number, size = 1.2): Cover => ({ ...crate(x, y, size), breaks: "crate" })
 
@@ -117,8 +128,9 @@ const gate = (w: number, y: number, at: number, gap: number, lock: Lock, thick =
 
 const CLEAR = { kind: "clear" } as const
 
-// Time Door's three doors across its corridor, each opening a few world seconds after the last.
-const timeDoors = [gate(8, 24, 4, 3, { kind: "time", seconds: 7 }), gate(8, 16, 4, 3, { kind: "time", seconds: 11 }), gate(8, 8, 4, 3, { kind: "time", seconds: 15 })]
+// Time Door's one door across its corridor: it opens once the world clock has run its seconds.
+// (Near the start: a walk runs the clock as fast as it goes, so a short door must be close to be met still shut.)
+const timeDoor = gate(8, 21, 4, 3, { kind: "time", seconds: 3 })
 // First Cut's door between its two chambers: it opens when the first chamber's gunner is down.
 const cutDoor = gate(12, 12, 6, 3, { kind: "clear", chamber: 0 })
 
@@ -135,42 +147,59 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
-    // The first lesson: the move alone. The room is the page's drill (press on the circle, slide up into the near circle
-    // and hold, on to the far one and hold, let go): done, the room is cleared. Nothing else is in it.
-    name: "First Step",
-    w: 10,
-    // A long corridor, so the camera follows you (kept mid-screen, under the drill's caption and its stick).
-    h: 40,
-    start: { x: 5, y: 34 },
+    // The prologue: a cutscene, played by the page's director with the player's hands off (see `src/host/intro.ts`).
+    // A gunner up the corridor, in view from the start, fires as you walk at it; you stop short of its bullet (the
+    // world stops with you), step slowly aside, stop short of its next one, and walk in close enough to cut it.
+    name: "Prologue",
+    w: 8,
+    h: 24,
+    start: { x: 4, y: 21 },
     pillars: [],
     doors: [],
     hazards: [],
-    enemies: [],
-    goal: { kind: "lesson" },
-    par: 30
+    // In sight from the start (12 m: it sees 13), its first shot a moment after you set off.
+    enemies: [{ kind: "gunner", x: 4, y: 9, delay: 0.35 }],
+    goal: { kind: "clear" },
+    par: 30,
+    scene: true
   },
   {
-    // The second lesson, the clock. A corridor: first a stretch of lanterns swinging and wheels turning on the world
-    // clock, still until you move, all moving together as you walk; then three doors whose portcullises rise as time
-    // runs (only while you move), one after another, to the exit.
+    // The first room in your hands: you choose when time passes. Two streams of bolts cross the hall; walk and they fly, let go
+    // and they hang; cross between them. No enemy, nothing that moves on its own.
+    name: "Crossing",
+    w: 8,
+    h: 26,
+    start: { x: 4, y: 23 },
+    pillars: [],
+    doors: [],
+    // One bolt on each lane at a time (a lane takes 0.8 world s to fly), the second lane half a beat behind the first.
+    hazards: [...stream(MUZZLE, 15, 8, 15, 0.8), ...stream(8 - MUZZLE, 10, 0, 10, 0.8, 0.4)],
+    enemies: [],
+    goal: { kind: "exit", x: 2.8, y: 0.6, w: 2.4, h: 2 },
+    par: 14
+  },
+  {
+    // The third lesson, the clock. A corridor: first a door a few steps ahead whose portcullis rises as time runs
+    // (only while you move: three seconds of it); then a stretch of lanterns swinging and wheels turning on the world
+    // clock, still until you move, all moving together as you walk, to the exit.
     name: "Time Door",
     w: 8,
-    h: 42,
-    start: { x: 4, y: 39 },
-    pillars: timeDoors.flatMap((g) => g.walls),
-    doors: timeDoors.map((g) => g.door),
+    h: 30,
+    start: { x: 4, y: 27 },
+    pillars: [...timeDoor.walls],
+    doors: [timeDoor.door],
     hazards: [],
     enemies: [],
     goal: { kind: "exit", x: 2.5, y: 0.7, w: 3, h: 2.2 },
-    par: 20,
+    par: 9,
     decor: [
-      { kind: "pendulum", x: 0.4, y: 36 }, { kind: "wheel", x: 7.6, y: 35 },
-      { kind: "wheel", x: 0.4, y: 32 }, { kind: "pendulum", x: 7.6, y: 31 },
-      { kind: "pendulum", x: 0.4, y: 28 }, { kind: "wheel", x: 7.6, y: 27 }
+      { kind: "pendulum", x: 0.4, y: 18 }, { kind: "wheel", x: 7.6, y: 17 },
+      { kind: "wheel", x: 0.4, y: 14 }, { kind: "pendulum", x: 7.6, y: 13 },
+      { kind: "pendulum", x: 0.4, y: 10 }, { kind: "wheel", x: 7.6, y: 9 }
     ]
   },
   {
-    // The third lesson: the cut, with gunners that never fire. One in the first chamber: walk up to it and it's cut;
+    // The fourth lesson: the cut, with gunners that never fire. One in the first chamber: walk up to it and it's cut;
     // the door behind it opens on the second chamber, with two more to cut.
     name: "First Cut",
     w: 12,

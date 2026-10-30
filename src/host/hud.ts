@@ -8,7 +8,7 @@
  * Every size is a whole number of UI pixels (`--u`), so the pixel font and
  * borders stay crisp.
  */
-import type { FightView, PlateView } from "../sim/view.ts"
+import type { FightView, HitBy, PlateView } from "../sim/view.ts"
 import { CLEAR_PANEL_AT, starPopAt, type Presentation } from "./fx.ts"
 import { ICONS, fromHtml, hourglass, pixelSvg, star } from "./ui-pixels.ts"
 
@@ -49,8 +49,20 @@ export const smallUiPixel = (): number => {
 
 type Message =
   | { readonly kind: "none" }
-  | { readonly kind: "dead"; readonly canRetry: boolean }
+  | { readonly kind: "dead"; readonly canRetry: boolean; readonly by: HitBy | null }
   | { readonly kind: "cleared" | "won"; readonly view: FightView }
+
+/**
+ * What the hit screen says, by what hit you: the rule, named at the one moment it is read. (A player who dies without
+ * knowing the rule dies again the same way; the hit screen is the most-read screen in the game.)
+ */
+const LESSON: Record<HitBy, readonly [string, string]> = {
+  shot: ["you were moving. so was it.", "stand still: it stops. then step aside"],
+  swing: ["you were moving. so was it.", "stand still: watch the swing. step out, then cut in"],
+  hazard: ["you were moving. so was it.", "stand still: it stops. find the gap, then go"],
+  blast: ["the fuse burns while you move.", "stand still: read its ring, then get out of it"],
+  touch: ["it creeps while you stand still.", "no hesitating near it: rush it at full speed"]
+}
 
 /** The HUD over each page canvas (other canvases, such as review renders, get no messages). */
 const huds = new WeakMap<object, Hud>()
@@ -62,8 +74,10 @@ const huds = new WeakMap<object, Hud>()
 export const messages = (ctx: CanvasRenderingContext2D, view: FightView, presentation: Presentation | null): void => {
   const active = huds.get(ctx.canvas)
   if (active === undefined) return
+  // A cutscene has no messages: it carries on (or starts over) by itself.
+  if (view.room.scene) { active.message({ kind: "none" }); return }
   const deathAge = presentation?.playerDeathAge ?? -1
-  if (view.flow === "dead" && (presentation === null || deathAge >= 0.52)) active.message({ kind: "dead", canRetry: view.canRetry })
+  if (view.flow === "dead" && (presentation === null || deathAge >= 0.52)) active.message({ kind: "dead", canRetry: view.canRetry, by: view.death?.by ?? null })
   else if (view.result !== null && (view.flow === "cleared" || view.flow === "won") && (presentation === null || presentation.clearAge < 0 || presentation.clearAge >= CLEAR_PANEL_AT)) active.message({ kind: view.flow, view })
   else active.message({ kind: "none" })
 }
@@ -200,14 +214,14 @@ export class Hud {
       frag.append(span)
     }
     const goal = view.room.goal
-    line("tip-goal", goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? `survive ${goal.seconds} s` : goal.kind === "lesson" ? "learn to move" : "down every enemy")
+    line("tip-goal", goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? `survive ${goal.seconds} s` : "down every enemy")
     if (view.room.tip !== null) line("tip-text", view.room.tip)
-    // (The first two rooms' how-to is the step-by-step lesson under the room, see `lesson.ts`.)
+    // (The first rooms' how-to is the guide's caption over the scene, see `guide.ts`.)
     return frag
   }
 
   message(m: Message): void {
-    const key = m.kind === "none" ? "none" : m.kind === "dead" ? `dead:${m.canRetry}` : `${m.kind}:${m.view.room.index}:${m.view.result?.stars}:${m.view.result?.world}`
+    const key = m.kind === "none" ? "none" : m.kind === "dead" ? `dead:${m.canRetry}:${m.by}` : `${m.kind}:${m.view.room.index}:${m.view.result?.stars}:${m.view.result?.world}`
     if (key === this.messageKey) return
     this.messageKey = key
     this.msg.className = `message panel ${m.kind}`
@@ -218,6 +232,12 @@ export class Hud {
     if (m.kind === "none") return
     if (m.kind === "dead") {
       this.msgTitle.textContent = "hit"
+      // What the rule was, named: the shot that took you hangs frozen on the scene behind this.
+      const lesson = m.by === null ? null : LESSON[m.by]
+      if (lesson !== null) {
+        this.msgLines.append(Object.assign(document.createElement("span"), { className: "line lesson", textContent: lesson[0] }))
+        this.msgLines.append(Object.assign(document.createElement("span"), { className: "line lesson dim small", textContent: lesson[1] }))
+      }
       this.set(this.msgCta, m.canRetry ? "tap to retry" : "")
       return
     }

@@ -9,8 +9,12 @@ import { TUNING } from "./tuning.ts"
 
 export const pushOf = (x: number, y: number): number => Ops.pow(Math.min(1, Ops.hypot(x, y)), TUNING.player.curve)
 
+/** Within this of its target, the world speed snaps to it: a freeze is exact (the clock stops), not a long tail. */
+const SNAP = 0.002
+
 /** The world speed one step on, from `scale`, for a pace of `walked` (0 still to 1 top speed), over `dt` real seconds. */
 export const paceTo = (scale: number, walked: number, dt: number): number => {
   const target = TUNING.slow + (1 - TUNING.slow) * Math.max(0, Math.min(1, walked))
-  return scale + (target - scale) * Math.min(1, TUNING.timeEase * dt)
+  const next = scale + (target - scale) * Math.min(1, TUNING.timeEase * dt)
+  return Math.abs(next - target) < SNAP ? target : next
 }
