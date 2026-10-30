@@ -594,7 +594,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         ring(0, Math.PI * 2, m.phase === "recover" ? "#edc66c" : "#947058", 1, m.phase !== "recover")
       }
     }
-    if (view.player !== null) {
+    // Your cut's reach (not in First Step, where it is the one circle people mistook for the one to press).
+    if (view.player !== null && view.room.goal.kind !== "lesson") {
       pixelArc(ctx, P(view.player.x, view.player.y), view.player.attackRange * erx, view.player.attackRange * ery, 0, Math.PI * 2, view.scale < 0.15 ? "#64b6b3" : "#647373", 1, true)
     }
     ctx.restore()

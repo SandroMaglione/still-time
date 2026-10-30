@@ -11,7 +11,7 @@
  * Everything here is in canvas pixels (the scene's native pixels), the units the stick is drawn in.
  */
 import type { FightView } from "../sim/view.ts"
-import type { Stick } from "./draw.ts"
+import type { Project, Stick } from "./draw.ts"
 import { hand, thumbPad } from "./draw.ts"
 import { pixelArc, pixelLine } from "./pixels.ts"
 
@@ -24,11 +24,13 @@ export interface DrillInput {
   readonly anyKey: boolean
 }
 
-type Phase = "press" | "fast" | "release" | "done"
+type Phase = "press" | "fast" | "stop" | "release" | "done"
 
 /** Sizes in canvas px: the press circle, and the mirror of the stick up by the caption (its length, its circles). */
 const PRESS_R = 16, MIRROR = 52, MIRROR_R = 10
 const FAST_HOLD = 1.2, KEY_HOLD = 1.5
+/** How deep (m) the stop mark is: a run crosses it in half a second. */
+const MARK_DEPTH = 2.6
 /** Real s "got it" shows before the room counts as cleared. */
 const CLEAR_AFTER = 1.2
 const INK = "#171c2e", ICE = "#7fd8ff", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda"
@@ -66,15 +68,23 @@ export class Drill {
   private zone: Zone = "none"
   /** Where the press circle sits this frame, canvas px. */
   private spot = { x: 0, y: 0 }
+  /** The stop mark: a band across the corridor, its centre and depth in metres (set when the stop step starts). */
+  private mark = { y: 0, depth: MARK_DEPTH }
 
   /** The drill runs in First Step while you play it, until it is done. */
   active(view: FightView): boolean {
     return view.room.index === 0 && view.flow === "playing" && this.phase !== "done"
   }
 
-  /** On a press: only the circle takes it (the rest of the screen is off until the drill is done). */
+  /** On a press: only the circle takes it (the rest of the screen is off until then); on the stop step, anywhere. */
   acceptsPress(x: number, y: number): boolean {
+    if (this.phase === "stop") return true
     return this.phase === "press" && Math.hypot(x - this.spot.x, y - this.spot.y) <= PRESS_R + 8
+  }
+
+  private onMark(view: FightView): boolean {
+    const p = view.player
+    return p !== null && Math.abs(p.y - this.mark.y) <= this.mark.depth / 2
   }
 
   /** Whether the thumb may move you now: only while doing exactly the step. */
@@ -82,7 +92,8 @@ export class Drill {
     if (input.keys) return (this.phase === "press" || this.phase === "release") && input.upOnly
     const zone = zoneOf(input.stick)
     if (this.phase === "fast") return zone === "run"
-    if (this.phase === "release") return zone !== "none"
+    // Stopping on the mark: any slide moves you (back to it, if you went past).
+    if (this.phase === "stop") return input.stick !== null
     return false
   }
 
@@ -108,10 +119,15 @@ export class Drill {
       if (stick !== null) { this.phase = "fast"; this.held = 0; buzz(15) }
       return
     }
-    // Lifting before the end starts the drill over.
+    // Stopping on the mark: let go inside the band and come to rest there (miss it, and slide back to it).
+    if (this.phase === "stop") {
+      const p = view.player
+      if (stick === null && p !== null && this.onMark(view) && Math.hypot(p.vx, p.vy) < 0.25) this.finish()
+      return
+    }
+    // Lifting before then starts the drill over.
     if (stick === null) {
-      if (this.phase === "release") this.finish()
-      else { this.phase = "press"; this.held = 0 }
+      this.phase = "press"; this.held = 0
       this.zone = "none"
       return
     }
@@ -120,7 +136,12 @@ export class Drill {
     this.zone = zone
     if (this.phase === "fast" && zone === "run") {
       this.held += dt
-      if (this.held >= FAST_HOLD) { this.phase = "release"; this.held = 0; buzz(40) }
+      if (this.held >= FAST_HOLD) {
+        // The mark goes a few metres ahead of where you are, across the corridor.
+        const p = view.player
+        this.mark = { y: Math.max(2, (p?.y ?? 10) - 6), depth: MARK_DEPTH }
+        this.phase = "stop"; this.held = 0; buzz(40)
+      }
     }
   }
 
@@ -136,7 +157,7 @@ export class Drill {
     return true
   }
 
-  draw(ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, input: DrillInput): void {
+  draw(ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, P: Project, input: DrillInput): void {
     if (view.room.index !== 0 || view.flow !== "playing") return
     const x = Math.round(cw / 2)
     // The caption sits high on the screen, far from the thumb, so the finger never covers it; under it, the mirror.
@@ -152,7 +173,11 @@ export class Drill {
     }
     const stick = input.stick
     if (this.phase === "press") {
-      caption(ctx, x, labelY, "TOUCH THE CIRCLE", "KEEP IT DOWN", WHITE)
+      // The caption sits right above the press spot (nothing is under the thumb yet), with an arrow down onto it.
+      const pressY = this.spot.y - PRESS_R - 82
+      caption(ctx, x, pressY, "PRESS HERE", "AND KEEP HOLDING", WHITE)
+      const bob = Math.round(Math.abs(Math.sin(this.now * 5)) * 4)
+      downArrow(ctx, x, pressY + 48 + bob)
       // A pulsing circle, and a hand coming down onto it.
       const k = (this.now % 1.2) / 1.2
       pixelArc(ctx, this.spot, PRESS_R + k * 10, PRESS_R + k * 10, 0, Math.PI * 2, ICE, 1)
@@ -162,8 +187,16 @@ export class Drill {
       return
     }
     const zone = zoneOf(stick)
+    if (this.phase === "stop") {
+      // The mark on the floor, across the corridor: let go on it.
+      const on = this.onMark(view)
+      stopMark(ctx, P, view.room.w, this.mark.y, this.mark.depth, on, this.now)
+      if (stick !== null) caption(ctx, x, labelY, on ? "NOW LET GO" : "STOP ON THE MARK", on ? "YOU STOP" : "LET GO TO STOP", on ? GOLD : WHITE)
+      else caption(ctx, x, labelY, "MISSED IT", "SLIDE BACK, LET GO", WHITE)
+      if (stick !== null) thumbPad(ctx, { x: stick.ox, y: stick.oy }, stick, 3)
+      return
+    }
     if (this.phase === "fast") caption(ctx, x, labelY, zone === "run" ? "HOLD IT THERE" : "SLIDE UP", zone === "run" ? "YOU MOVE" : "ALL THE WAY", zone === "run" ? GOLD : WHITE)
-    else caption(ctx, x, labelY, "NOW LET GO", "YOU STOP", WHITE)
     // The track sits a little left of centre so it and its WALK / RUN labels are centred together.
     this.mirror(ctx, { x: x - 14, y: labelY + 64 + MIRROR }, stick, zone)
     // Under the thumb, faint guides only (the finger covers them): the track from where you pressed, and your knob.
@@ -265,4 +298,28 @@ export const caption = (ctx: CanvasRenderingContext2D, x: number, y: number, tit
   ctx.restore()
   bigText(ctx, title, x, y, colour, maxWidth)
   bigText(ctx, sub, x, y + 22, ICE, maxWidth)
+}
+
+/** A bouncing arrow pointing down: "here". */
+const downArrow = (ctx: CanvasRenderingContext2D, x: number, y: number): void => {
+  for (const [colour, grow] of [[INK, 1], [GOLD, 0]] as const) {
+    ctx.fillStyle = colour
+    for (let i = 0; i < 6; i++) ctx.fillRect(Math.round(x) - 6 + i - grow, Math.round(y) + i - grow, 13 - i * 2 + grow * 2, 1 + grow * 2)
+    ctx.fillRect(Math.round(x) - 2 - grow, Math.round(y) - 8 - grow, 5 + grow * 2, 8 + grow)
+  }
+}
+
+/** The stop mark: a gold band across the corridor on the floor (bright while you are on it), with "STOP" on it. */
+const stopMark = (ctx: CanvasRenderingContext2D, P: Project, w: number, y: number, depth: number, on: boolean, now: number): void => {
+  const a = P(0, y - depth / 2), b = P(w, y + depth / 2)
+  ctx.save()
+  ctx.globalAlpha = on ? 0.4 : 0.18 + 0.08 * Math.sin(now * 5)
+  ctx.fillStyle = GOLD; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
+  ctx.restore()
+  for (const yy of [a.y, b.y]) {
+    pixelLine(ctx, { x: a.x, y: yy }, { x: b.x, y: yy }, INK, 3, 3)
+    pixelLine(ctx, { x: a.x, y: yy }, { x: b.x, y: yy }, GOLD, 1, 3)
+  }
+  const mid = P(w / 2, y)
+  smallText(ctx, "STOP", Math.round(mid.x) - 10, Math.round(mid.y) - 4, on ? WHITE : GOLD)
 }
