@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "In the rooms: a held breath. A heartbeat kick, a dark pad, low bass and a few cold bells; sparse, so it never tires.",
+  "about": "In the rooms: a held breath over a moving low end. A heartbeat kick, a dark pad, a pulsing bass line with octave jumps and a held reese underneath; sparse on top, so it never tires.",
   "tempo": 68,
   "key": "D harmonic minor",
   "bars": 8,
@@ -94,101 +94,195 @@
       "notes": [
         {
           "at": 0,
-          "length": 2.5,
+          "length": 1.25,
           "pitch": "D2",
-          "velocity": 0.6
+          "velocity": 0.78
+        },
+        {
+          "at": 1.5,
+          "length": 0.5,
+          "pitch": "D2",
+          "velocity": 0.56
+        },
+        {
+          "at": 2,
+          "length": 0.75,
+          "pitch": "D3",
+          "velocity": 0.62
+        },
+        {
+          "at": 3,
+          "length": 0.75,
+          "pitch": "D2",
+          "velocity": 0.56
         },
         {
           "at": 4,
-          "length": 2.5,
+          "length": 1.25,
           "pitch": "D2",
-          "velocity": 0.6
+          "velocity": 0.78
+        },
+        {
+          "at": 5.5,
+          "length": 0.5,
+          "pitch": "D2",
+          "velocity": 0.56
+        },
+        {
+          "at": 6,
+          "length": 0.75,
+          "pitch": "D3",
+          "velocity": 0.62
+        },
+        {
+          "at": 7,
+          "length": 0.75,
+          "pitch": "D2",
+          "velocity": 0.56
         },
         {
           "at": 8,
-          "length": 2.5,
+          "length": 1.25,
           "pitch": "Bb1",
-          "velocity": 0.6
+          "velocity": 0.78
+        },
+        {
+          "at": 9.5,
+          "length": 0.5,
+          "pitch": "Bb1",
+          "velocity": 0.56
+        },
+        {
+          "at": 10,
+          "length": 0.75,
+          "pitch": "Bb2",
+          "velocity": 0.62
+        },
+        {
+          "at": 11,
+          "length": 0.75,
+          "pitch": "Bb1",
+          "velocity": 0.56
         },
         {
           "at": 12,
-          "length": 2.5,
+          "length": 1.25,
           "pitch": "Bb1",
-          "velocity": 0.6
+          "velocity": 0.78
+        },
+        {
+          "at": 13.5,
+          "length": 0.5,
+          "pitch": "Bb1",
+          "velocity": 0.56
+        },
+        {
+          "at": 14,
+          "length": 0.75,
+          "pitch": "Bb2",
+          "velocity": 0.62
+        },
+        {
+          "at": 15,
+          "length": 0.75,
+          "pitch": "Bb1",
+          "velocity": 0.56
         },
         {
           "at": 16,
-          "length": 2.5,
+          "length": 1.25,
           "pitch": "G1",
-          "velocity": 0.6
+          "velocity": 0.78
+        },
+        {
+          "at": 17.5,
+          "length": 0.5,
+          "pitch": "G1",
+          "velocity": 0.56
+        },
+        {
+          "at": 18,
+          "length": 0.75,
+          "pitch": "G2",
+          "velocity": 0.62
+        },
+        {
+          "at": 19,
+          "length": 0.75,
+          "pitch": "G1",
+          "velocity": 0.56
         },
         {
           "at": 20,
-          "length": 2.5,
+          "length": 1.25,
           "pitch": "G1",
-          "velocity": 0.6
+          "velocity": 0.78
         },
         {
-          "at": 24,
-          "length": 2.5,
-          "pitch": "A1",
-          "velocity": 0.6
-        },
-        {
-          "at": 28,
-          "length": 2.5,
-          "pitch": "A1",
-          "velocity": 0.6
-        }
-      ]
-    },
-    {
-      "name": "Bells",
-      "instrument": "bells",
-      "volume": 0.45,
-      "reverb": 0.6,
-      "notes": [
-        {
-          "at": 2,
-          "length": 2,
-          "pitch": "A5",
-          "velocity": 0.45
-        },
-        {
-          "at": 7.5,
-          "length": 1.5,
-          "pitch": "F5",
-          "velocity": 0.35
-        },
-        {
-          "at": 13,
-          "length": 3,
-          "pitch": "D6",
-          "velocity": 0.4
+          "at": 21.5,
+          "length": 0.5,
+          "pitch": "G1",
+          "velocity": 0.56
         },
         {
           "at": 22,
-          "length": 2,
-          "pitch": "G5",
-          "velocity": 0.4
+          "length": 0.75,
+          "pitch": "G2",
+          "velocity": 0.62
+        },
+        {
+          "at": 23,
+          "length": 0.75,
+          "pitch": "G1",
+          "velocity": 0.56
+        },
+        {
+          "at": 24,
+          "length": 1.25,
+          "pitch": "A1",
+          "velocity": 0.78
+        },
+        {
+          "at": 25.5,
+          "length": 0.5,
+          "pitch": "A1",
+          "velocity": 0.56
+        },
+        {
+          "at": 26,
+          "length": 0.75,
+          "pitch": "A2",
+          "velocity": 0.62
         },
         {
           "at": 27,
-          "length": 1,
-          "pitch": "Bb5",
-          "velocity": 0.35
+          "length": 0.75,
+          "pitch": "A1",
+          "velocity": 0.56
         },
         {
-          "at": 28.5,
-          "length": 1.5,
-          "pitch": "A5",
-          "velocity": 0.35
+          "at": 28,
+          "length": 1.25,
+          "pitch": "A1",
+          "velocity": 0.78
+        },
+        {
+          "at": 29.5,
+          "length": 0.5,
+          "pitch": "A1",
+          "velocity": 0.56
         },
         {
           "at": 30,
-          "length": 2,
-          "pitch": "C#6",
-          "velocity": 0.3
+          "length": 0.75,
+          "pitch": "A2",
+          "velocity": 0.62
+        },
+        {
+          "at": 31,
+          "length": 0.75,
+          "pitch": "A1",
+          "velocity": 0.56
         }
       ]
     },
@@ -323,6 +417,38 @@
           "length": 0.5,
           "pitch": "tomLow",
           "velocity": 0.3
+        }
+      ]
+    },
+    {
+      "name": "Low",
+      "instrument": "reese",
+      "volume": 0.75,
+      "reverb": 0.15,
+      "notes": [
+        {
+          "at": 0,
+          "length": 7.5,
+          "pitch": "D2",
+          "velocity": 0.5
+        },
+        {
+          "at": 8,
+          "length": 7.5,
+          "pitch": "Bb1",
+          "velocity": 0.5
+        },
+        {
+          "at": 16,
+          "length": 7.5,
+          "pitch": "G1",
+          "velocity": 0.5
+        },
+        {
+          "at": 24,
+          "length": 7.5,
+          "pitch": "A1",
+          "velocity": 0.5
         }
       ]
     }
