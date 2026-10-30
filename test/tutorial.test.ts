@@ -46,9 +46,23 @@ test("Time Door: the door opens only once its timer has run, and its timer runs 
   assert.equal(fight.view().flow, "cleared")
 })
 
-test("First Cut: one gunner, the only thing to cut", () => {
-  const { fight } = fightIn("First Cut")
+test("First Cut: one gunner that never fires; walking into it cuts it and clears the room", () => {
+  const { fight, thumb } = fightIn("First Cut")
   assert.equal(fight.view().room.index, 2)
   assert.deepEqual(fight.view().enemies.map((e) => e.kind), ["gunner"])
+  assert.equal(fight.view().enemies[0]?.quiet, true)
   assert.equal(fight.view().room.goal.kind, "clear")
+  // Time running for a while (side to side, full push): it never fires.
+  let flip = 1
+  runUntil(fight, 600, () => fight.view().shots.length > 0, () => { flip = -flip; thumb.push = { x: flip, y: 0 } })
+  assert.equal(fight.view().shots.length, 0, "a quiet gunner never fires")
+  // Walk straight at it (round the crates, up the middle): close enough, it is cut.
+  runUntil(fight, 900, () => fight.view().flow !== "playing", () => {
+    const p = fight.view().player!, e = fight.view().enemies[0]
+    if (e === undefined) return
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1
+    thumb.push = { x: dx / d, y: dy / d }
+  })
+  assert.equal(fight.view().flow, "cleared")
+  assert.equal(fight.view().hits, 0)
 })

@@ -37,7 +37,7 @@ export const Player = Descriptor.ConstructedComponent(codec(S.Struct({ vx: S.Num
 })
 
 /** What an enemy is, which chamber of the room it guards, and whether it wears a crown: fixed for its life. */
-export const Enemy = Descriptor.ConstructedComponent(codec(S.Struct({ kind: S.Literals(ENEMY_KINDS), chamber: count, captain: S.Boolean })))("Slap/Enemy", { immutable: true })
+export const Enemy = Descriptor.ConstructedComponent(codec(S.Struct({ kind: S.Literals(ENEMY_KINDS), chamber: count, captain: S.Boolean, quiet: S.Boolean })))("Slap/Enemy", { immutable: true })
 
 /** A stalker: it moves only while you are still. */
 export const Stalk = Descriptor.ConstructedComponent(codec(S.Struct({})))("Slap/Stalk", { immutable: true })

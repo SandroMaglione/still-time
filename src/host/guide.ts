@@ -1,7 +1,7 @@
 /**
  * First Cut's guide, in the style of First Step's drill: one big caption at a time, placed where it covers neither
  * you nor the enemy, each step waiting until you have done it, and the thumb let through only as far as the step
- * asks: that's an enemy, walk into it to cut; while a shot is in the air, the red line is the shot: step out of it.
+ * asks: get close, touch it to cut (its gunner never fires: getting close is the whole lesson).
  * (Time Door has no words: the timer on its door, running only while you move, is the lesson.)
  */
 import type { FightView } from "../sim/view.ts"
@@ -37,18 +37,18 @@ interface Step {
   readonly need: number
 }
 
-const INK = "#171c2e", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda", RED = "#ff6845"
+const INK = "#171c2e", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda"
+// The gunner never fires here: the one thing to learn is to get close. (The caption turns gold once you are moving in.)
 const CUT: ReadonlyArray<Step> = [
   {
-    title: (s) => (s.view.shots.length > 0 ? "RED LINE: A SHOT" : "THAT'S AN ENEMY"),
-    sub: (s) => (s.view.shots.length > 0 ? "STEP OUT OF IT" : "WALK INTO IT TO CUT"),
-    colour: (s) => (s.view.shots.length > 0 ? RED : WHITE),
+    title: () => "GET CLOSE", sub: () => "TOUCH IT TO CUT",
+    colour: (s) => (s.speed > 0.15 ? GOLD : WHITE),
     gate: () => true,
     ok: (s) => s.view.enemies.length === 0, need: 0
   }
 ]
 const stepsFor = (room: number): ReadonlyArray<Step> => (room === 2 ? CUT : [])
-const DONE: Record<number, readonly [string, string]> = { 2: ["GOT IT!", "TOUCH = CUT"] }
+const DONE: Record<number, readonly [string, string]> = { 2: ["GOT IT!", "CLOSE = CUT"] }
 const DONE_LIFE = 2.2
 
 export class Guide {
@@ -105,7 +105,8 @@ export class Guide {
     const avoid: Array<{ top: number; bottom: number }> = []
     const me = P(view.player!.x, view.player!.y)
     avoid.push({ top: me.y - 34, bottom: me.y + 8 })
-    for (const e of view.enemies) { const at = P(e.x, e.y); avoid.push({ top: at.y - 34, bottom: at.y + 8 }) }
+    // (An enemy with the gold ring round it at touching range: clear of the whole ring.)
+    for (const e of view.enemies) { const at = P(e.x, e.y); avoid.push({ top: at.y - 34, bottom: at.y + 30 }) }
     const fits = (y: number): boolean => avoid.every((a) => y + 44 < a.top || y - 12 > a.bottom)
     // It stays put while it still fits (no jumping as you walk), else takes the highest spot that does.
     const spots = Array.from({ length: 34 }, (_, i) => Math.round(ch * (0.14 + i * 0.02)))

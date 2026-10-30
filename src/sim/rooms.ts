@@ -71,6 +71,8 @@ export interface EnemySpawn {
   readonly captain?: boolean
   /** Runners only: the key it carries. */
   readonly key?: number
+  /** Never attacks (shooters only): First Cut's gunner, a target that only teaches you to walk into it. */
+  readonly quiet?: boolean
 }
 
 export interface Room {
@@ -157,14 +159,14 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 8
   },
   {
-    // The second lesson: one gunner. Freeze to read its shot, step out of the line, close in and cut.
+    // The third lesson: one gunner that never fires, behind two crates. Nothing to fear: walk up to it and it's cut.
     name: "First Cut",
     w: 12,
     h: 18,
     start: { x: 6, y: 16 },
     pillars: [crate(3.5, 10), crate(8.5, 10)],
     doors: [],
-    enemies: [{ kind: "gunner", x: 6, y: 3.5, delay: 0.8 }],
+    enemies: [{ kind: "gunner", x: 6, y: 3.5, delay: 0.8, quiet: true }],
     goal: CLEAR,
     par: 4,
   },

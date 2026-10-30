@@ -6,7 +6,7 @@
  */
 import { ROOMS, type Hazard, type Lock, type Pillar } from "../sim/rooms.ts"
 
-import { SHOTS, STALKER } from "../sim/tuning.ts"
+import { SHOTS, STALKER, TUNING } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
@@ -369,7 +369,8 @@ export const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number,
 
 /**
  * First Cut's marks (its words are the guide's caption, see `guide.ts`): gold brackets round the gunner, breathing by a
- * pixel, and teal chevrons toward it until it falls (they give way while a shot is in the air).
+ * pixel, teal chevrons toward it until it falls (they give way while a shot is in the air), and a gold ring on the
+ * floor round it at touching range: inside it, it's cut.
  */
 const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number): void => {
   const p = view.player
@@ -385,6 +386,11 @@ const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, "#edc66c"); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, "#edc66c")
   }
   if (view.shots.length === 0) chevronsToward(ctx, p, target, P, now, "#64b6b3")
+  // Where the cut lands: a gold ring on the floor at touching range, breathing; step inside it and the enemy is cut.
+  const r = TUNING.attackRange, rx = Math.round(P(target.x + r, target.y).x - them.x), ry = Math.round(rx * SQUASH)
+  const breathe = Math.round(Math.sin(now * 5) * 2)
+  pixelArc(ctx, them, rx + breathe, ry + breathe, 0, Math.PI * 2, INK, 3, true)
+  pixelArc(ctx, them, rx + breathe, ry + breathe, 0, Math.PI * 2, "#edc66c", 1, true)
 }
 
 /** The speed effect's colours: afterimages, the aura's outline and its hot core. */
@@ -560,6 +566,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         threatArc(ctx, centre, STALKER.reach * erx, STALKER.reach * ery, 0, Math.PI * 2, awake ? DANGER : "#9a638e", awake ? 2 : 1, !awake)
         continue
       }
+      // A quiet enemy (First Cut's target) has no threat marks: its marks are the cut's, see `cutHint`.
+      if (e.quiet) continue
       if (m === null) {
         reloadArc(ctx, feet, footRadius, Math.max(4, Math.round(footRadius * 0.4)), e.charge, e.charge > 0.8 ? THREAT : DANGER)
         continue

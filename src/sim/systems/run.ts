@@ -75,7 +75,7 @@ export const BuildRoomSystem = Game.System(
     let walkers = 0
     const keys: Array<Key> = []
     for (const e of room.enemies) {
-      const enemy = { kind: e.kind, chamber: e.chamber ?? 0, captain: e.captain ?? false }
+      const enemy = { kind: e.kind, chamber: e.chamber ?? 0, captain: e.captain ?? false, quiet: e.quiet ?? false }
       const kind = e.kind
       const toStart = Ops.atan2(room.start.y - e.y, room.start.x - e.x)
       if (isMelee(kind)) {
