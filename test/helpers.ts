@@ -64,3 +64,18 @@ export const pushToward = (fight: Fight, x: number, y: number, away = false): { 
   const sign = away ? -1 : 1
   return { x: (dx / d) * sign, y: (dy / d) * sign }
 }
+
+/** Drops a shot into the room by editing a snapshot: a test setting up a blow from a chosen side. */
+export const spawnShot = (fight: Fight, shot: { readonly kind: "bullet" | "arrow" | "knife" | "slug"; readonly x: number; readonly y: number; readonly vx: number; readonly vy: number }): void => {
+  const snapshot = fight.runtime.snapshot()
+  if (!snapshot.ok) throw new Error("snapshot failed")
+  const id = snapshot.value.nextEntity
+  const edited = {
+    ...snapshot.value,
+    nextEntity: id + 1,
+    entities: [...snapshot.value.entities, { id, components: { "Slap/Body": { x: shot.x, y: shot.y }, "Slap/Shot": { kind: shot.kind, vx: shot.vx, vy: shot.vy } } }],
+    scopes: { ...snapshot.value.scopes, "Slap/Room": [...(snapshot.value.scopes["Slap/Room"] ?? []), id] }
+  }
+  const restored = fight.runtime.restore(edited)
+  if (!restored.ok) throw new Error(`restore failed ${JSON.stringify(restored.error)}`)
+}

@@ -2,8 +2,9 @@
  * The enemies, in world time (slowed with the world):
  * - shooters reload, sidestep an ally in their line of fire, creep toward
  *   where they last saw you, and fire only with sight and a clear line;
- * - brutes chase you round their allies, wind up (tracking, then
- *   committed), swing a wedge, and recover;
+ * - the melee family (brute, knight, shield-bearer) chases you round its
+ *   allies, winds up (tracking, then committed), swings a wedge, and
+ *   recovers; a blow it survives staggers it;
  * - runners flee while they can see you, toward the way out that keeps
  *   them furthest from you;
  * - every enemy is solid: overlaps are pushed apart.
@@ -13,8 +14,8 @@ import { Ops } from "@typeonce/ritmo"
 
 import { angleDiff, canSee, segmentDistance, settle, turnToward } from "../geometry.ts"
 import { Body, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time } from "../schema.ts"
-import { BRUTE, CROWD, GIVE, RUNNER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isShooter, radiusOf } from "../tuning.ts"
-import { BruteQuery, BruteRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, roomOf, wallsOf } from "./queries.ts"
+import { CROWD, GIVE, MELEE, RUNNER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
+import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
@@ -32,7 +33,7 @@ export const ShootersSystem = Game.System(
   "Slap/Shooters",
   {
     when: playing,
-    queries: { players: PlayerRead, shooters: ShooterQuery, brutes: BruteRead, runners: RunnerRead },
+    queries: { players: PlayerRead, shooters: ShooterQuery, melee: MeleeRead, runners: RunnerRead },
     resources: fightResources,
     commands: Game.System.commands(Game.System.spawns(Body, Shot))
   },
@@ -45,7 +46,7 @@ export const ShootersSystem = Game.System(
     // Everyone's place at the start of the step, to keep lines of fire clear of allies.
     const allies = [
       ...queries.shooters.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
-      ...queries.brutes.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: BRUTE.radius })),
+      ...queries.melee.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
       ...queries.runners.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: RUNNER.radius }))
     ]
     for (const { entity, data } of queries.shooters.each()) {
@@ -55,8 +56,10 @@ export const ShootersSystem = Game.System(
       const shot = SHOTS[spec.shot]
       const at = data.body.get()
       const post = data.post.get()
-      const sees = canSee(at.x, at.y, me.x, me.y, TUNING.sight, walls)
-      const aim = Ops.atan2(me.y - at.y, me.x - at.x)
+      const sees = canSee(at.x, at.y, me.x, me.y, spec.sight, walls)
+      const reload = data.reload.get()
+      // A scoped shooter's aim stops following you for the last `lock` of its charge.
+      const aim = spec.scoped && reload.left <= spec.lock ? reload.aim : Ops.atan2(me.y - at.y, me.x - at.x)
       // Would any of its shots (each knife of a fan) pass through an ally first?
       const reach = Ops.hypot(me.x - at.x, me.y - at.y)
       const blocked = sees && spec.spread.some((offset) => {
@@ -71,7 +74,7 @@ export const ShootersSystem = Game.System(
       if (blocked) {
         const side = aim + (Math.PI / 2) * strafe
         to = settle(at.x + Ops.cos(side) * stepLen, at.y + Ops.sin(side) * stepLen, spec.radius, room.w, room.h, walls)
-      } else if (!sees && seen !== null && Ops.hypot(seen.x - at.x, seen.y - at.y) > 1) {
+      } else if (spec.creeps && !sees && seen !== null && Ops.hypot(seen.x - at.x, seen.y - at.y) > 1) {
         const d = Ops.hypot(seen.x - at.x, seen.y - at.y)
         to = settle(at.x + ((seen.x - at.x) / d) * stepLen, at.y + ((seen.y - at.y) / d) * stepLen, spec.radius, room.w, room.h, walls)
       }
@@ -82,14 +85,17 @@ export const ShootersSystem = Game.System(
       if (to !== at) data.body.set(to)
       data.post.set({ hx: post.hx, hy: post.hy, seen, strafe })
       // Reload runs always; a shot needs sight and a clear line, and a short reaction after you step out of cover.
+      // A scoped shooter charges only while it sees you with a clear line (an ally in the way holds it): losing sight of you starts it over.
       // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion: no whole step to end on
-      const counted = data.reload.get().left - dt
-      const left = sees && !blocked ? counted : Math.max(TUNING.reaction, counted)
+      const counted = reload.left - dt
+      const left = sees && !blocked ? counted
+        : spec.scoped ? (sees ? reload.left : spec.period)
+        : Math.max(TUNING.reaction, counted)
       if (left > 0) {
-        data.reload.set({ left })
+        data.reload.set({ left, aim })
         continue
       }
-      data.reload.set({ left: left + spec.period })
+      data.reload.set({ left: left + spec.period, aim })
       for (const offset of spec.spread) {
         const a = aim + offset
         const ux = Ops.cos(a), uy = Ops.sin(a)
@@ -100,11 +106,11 @@ export const ShootersSystem = Game.System(
   }
 )
 
-export const BrutesSystem = Game.System(
-  "Slap/Brutes",
+export const MeleeSystem = Game.System(
+  "Slap/Blades",
   {
     when: playing,
-    queries: { players: PlayerRead, shooters: ShooterRead, brutes: BruteQuery, runners: RunnerRead },
+    queries: { players: PlayerRead, shooters: ShooterRead, melee: MeleeQuery, runners: RunnerRead },
     resources: fightResources,
     events: { hit: Game.System.writeEvent(PlayerHit) }
   },
@@ -117,12 +123,15 @@ export const BrutesSystem = Game.System(
     const r = TUNING.player.radius
     const allies = [
       ...queries.shooters.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
-      ...queries.brutes.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: BRUTE.radius })),
+      ...queries.melee.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
       ...queries.runners.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: RUNNER.radius }))
     ]
-    for (const { entity, data } of queries.brutes.each()) {
+    for (const { entity, data } of queries.melee.each()) {
+      const kind = data.enemy.get().kind
+      if (!isMelee(kind)) continue
+      const spec = MELEE[kind]
       const at = data.body.get()
-      const { facing, pace } = data.melee.get()
+      const { facing, pace, hp } = data.melee.get()
       const blade = data.blade.get()
       const toYou = Ops.atan2(me.y - at.y, me.x - at.x)
       const dist = Ops.hypot(me.x - at.x, me.y - at.y)
@@ -131,9 +140,9 @@ export const BrutesSystem = Game.System(
         case "idle":
         case "chase": {
           if (blade._tag === "idle" && !sees) break
-          if (sees && dist <= BRUTE.trigger) {
-            if (blade._tag === "idle") data.blade.transition({ from: "idle", to: "windup", data: { left: BRUTE.windup } })
-            else data.blade.transition({ from: "chase", to: "windup", data: { left: BRUTE.windup } })
+          if (sees && dist <= spec.trigger) {
+            if (blade._tag === "idle") data.blade.transition({ from: "idle", to: "windup", data: { left: spec.windup } })
+            else data.blade.transition({ from: "chase", to: "windup", data: { left: spec.windup } })
             break
           }
           const target = sees ? { x: me.x, y: me.y } : blade._tag === "chase" ? { x: blade.x, y: blade.y } : at
@@ -146,46 +155,55 @@ export const BrutesSystem = Game.System(
             const ox = at.x - a.at.x, oy = at.y - a.at.y
             const od = Ops.hypot(ox, oy)
             if (od === 0) { mx += Ops.cos(facing + Math.PI / 2); my += Ops.sin(facing + Math.PI / 2); continue }
-            const space = BRUTE.radius + a.radius + CROWD.space
+            const space = spec.radius + a.radius + CROWD.space
             if (od < space) { mx += (ox / od) * ((space - od) / space) * CROWD.push; my += (oy / od) * ((space - od) / space) * CROWD.push }
             // An ally ahead on the path: step to whichever side it is not on.
             const ahead = -(ox * ux + oy * uy)
             const lateral = -(ox * -uy + oy * ux)
-            if (ahead > 0 && ahead < CROWD.look && Math.abs(lateral) < BRUTE.radius + a.radius + 0.3) {
+            if (ahead > 0 && ahead < CROWD.look && Math.abs(lateral) < spec.radius + a.radius + 0.3) {
               const k = CROWD.round * (1 - ahead / CROWD.look) * (lateral > 0 ? -1 : 1)
               mx += -uy * k; my += ux * k
             }
           }
           const ml = Ops.hypot(mx, my) || 1
-          const step = Ops.hypot(target.x - at.x, target.y - at.y) > 0.3 ? BRUTE.speed * pace * dt : 0
-          data.body.set(settle(at.x + (mx / ml) * step, at.y + (my / ml) * step, BRUTE.radius, room.w, room.h, walls))
-          data.melee.set({ facing: turnToward(facing, want, BRUTE.turn * dt), pace })
+          const step = Ops.hypot(target.x - at.x, target.y - at.y) > 0.3 ? spec.speed * pace * dt : 0
+          data.body.set(settle(at.x + (mx / ml) * step, at.y + (my / ml) * step, spec.radius, room.w, room.h, walls))
+          data.melee.set({ facing: turnToward(facing, want, spec.turn * dt), pace, hp })
           if (blade._tag === "idle") data.blade.transition({ from: "idle", to: "chase", data: target })
           else data.blade.update({ state: "chase", data: () => target })
           break
         }
         case "windup": {
           // Tracks you and steps in until the last `lock` seconds, then commits to its facing.
-          const tracking = blade.left > BRUTE.lock
+          const tracking = blade.left > spec.lock
           if (tracking) {
-            data.melee.set({ facing: turnToward(facing, toYou, BRUTE.turn * dt), pace })
-            if (dist > BRUTE.close) {
-              const step = Math.min(dist - BRUTE.close, BRUTE.speed * BRUTE.step * dt)
-              data.body.set(settle(at.x + Ops.cos(toYou) * step, at.y + Ops.sin(toYou) * step, BRUTE.radius, room.w, room.h, walls))
+            data.melee.set({ facing: turnToward(facing, toYou, spec.turn * dt), pace, hp })
+            if (dist > spec.close) {
+              const step = Math.min(dist - spec.close, spec.speed * spec.step * dt)
+              data.body.set(settle(at.x + Ops.cos(toYou) * step, at.y + Ops.sin(toYou) * step, spec.radius, room.w, room.h, walls))
             }
           }
           // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "windup", data: () => ({ left }) })
-          else data.blade.transition({ from: "windup", to: "swing", data: { left: BRUTE.swing } })
+          else data.blade.transition({ from: "windup", to: "swing", data: { left: spec.swing } })
           break
         }
         case "swing": {
-          if (dist <= BRUTE.reach + r && Math.abs(angleDiff(toYou, facing)) <= BRUTE.arc) events.hit.emit({ by: "swing" })
+          if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
           // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "swing", data: () => ({ left }) })
-          else data.blade.transition({ from: "swing", to: "recover", data: { left: BRUTE.recover } })
+          else data.blade.transition({ from: "swing", to: "recover", data: { left: spec.recover } })
+          break
+        }
+        case "stagger": {
+          // Dazed: it stands where the blow sent it. Coming to, it counters at once if you stand close.
+          // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
+          const left = blade.left - dt
+          if (left > 0) data.blade.update({ state: "stagger", data: () => ({ left }) })
+          else if (sees && dist <= spec.trigger) data.blade.transition({ from: "stagger", to: "windup", data: { left: spec.windup } })
+          else data.blade.transition({ from: "stagger", to: "chase", data: { x: me.x, y: me.y } })
           break
         }
         case "recover": {
@@ -239,7 +257,7 @@ export const CrowdSystem = Game.System(
   "Slap/Crowd",
   {
     when: playing,
-    queries: { shooters: ShooterQuery, brutes: BruteQuery, runners: RunnerQuery },
+    queries: { shooters: ShooterQuery, melee: MeleeQuery, runners: RunnerQuery },
     resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors) }
   },
   ({ queries, resources }) => {
@@ -247,7 +265,7 @@ export const CrowdSystem = Game.System(
     const walls = wallsOf(room, resources.doors.get())
     const bodies = [
       ...queries.shooters.each().map((m) => ({ cell: m.data.body, radius: radiusOf(m.data.enemy.get().kind), give: GIVE[m.data.enemy.get().kind] })),
-      ...queries.brutes.each().map((m) => ({ cell: m.data.body, radius: BRUTE.radius, give: GIVE.brute })),
+      ...queries.melee.each().map((m) => ({ cell: m.data.body, radius: radiusOf(m.data.enemy.get().kind), give: GIVE[m.data.enemy.get().kind] })),
       ...queries.runners.each().map((m) => ({ cell: m.data.body, radius: RUNNER.radius, give: GIVE.runner }))
     ]
     for (let pass = 0; pass < 2; pass++) {

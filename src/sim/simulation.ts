@@ -7,7 +7,7 @@ import { Clock, type HostClock } from "@typeonce/ritmo"
 
 import { Flow, Game, Input, IntentEvent, STEP, ThumbInput, Time, type Intent, type Thumb } from "./schema.ts"
 import { ROOMS } from "./rooms.ts"
-import { BrutesSystem, CrowdSystem, RunnersSystem, ShootersSystem } from "./systems/enemies.ts"
+import { MeleeSystem, CrowdSystem, RunnersSystem, ShootersSystem } from "./systems/enemies.ts"
 import { CutSystem, MovePlayerSystem, PaceSystem } from "./systems/player.ts"
 import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, LocksSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
 import { ShotsSystem } from "./systems/shots.ts"
@@ -32,7 +32,7 @@ export const updateSchedule = Game.Schedule(
   CutSystem,
   Game.Schedule.applyDeferred(),
   ShootersSystem,
-  BrutesSystem,
+  MeleeSystem,
   RunnersSystem,
   CrowdSystem,
   ShotsSystem,

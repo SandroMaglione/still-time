@@ -5,13 +5,13 @@ import { canSee, clearLine } from "./geometry.ts"
 import { ROOMS, type Goal, type Lock, type Pillar } from "./rooms.ts"
 import { Blade, Body, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Player, Reload, Run, Shot, Slashes, Time } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
-import { BRUTE, RUNNER, SHOOTERS, SHOTS, TUNING, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
+import { MELEE, RUNNER, SHOOTERS, SHOTS, STAGGER, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
-export type BrutePhase = "idle" | "chase" | "windup" | "swing" | "recover"
+export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover" | "stagger"
 
-/** A brute's blade: its phase, how far through it (0 to 1), and the shapes to draw. */
+/** A melee enemy's blade: its phase, how far through it (0 to 1), its guard and hit points, and the shapes to draw. */
 export interface MeleeView {
-  readonly phase: BrutePhase
+  readonly phase: MeleePhase
   readonly progress: number
   /** In the wind-up, true once it stops tracking you: the moment to dodge. */
   readonly locked: boolean
@@ -19,7 +19,20 @@ export interface MeleeView {
   readonly lockShare: number
   readonly reach: number
   readonly arc: number
-  readonly guard: number
+  /** Half-angle of the guarded front, and whether it is up now. */
+  readonly guardArc: number
+  readonly guarding: boolean
+  /** True for a shield always up (the shield-bearer), false for a guard raised only to attack. */
+  readonly shield: boolean
+  readonly hp: number
+  readonly maxHp: number
+}
+
+/** A scoped shooter's laser: where it points, how far it reaches (to you, or to the first wall), and whether it is locked. */
+export interface LaserView {
+  readonly aim: number
+  readonly length: number
+  readonly locked: boolean
 }
 
 export interface EnemyView {
@@ -27,9 +40,9 @@ export interface EnemyView {
   readonly x: number
   readonly y: number
   readonly radius: number
-  /** How close to firing (shooters) or to swinging (brutes, in the wind-up), 0 to 1. */
+  /** How close to firing (shooters) or to swinging (melee, in the wind-up), 0 to 1. */
   readonly charge: number
-  /** Where it faces: at you for shooters, its blade for brutes. */
+  /** Where it faces: at you for shooters (a locked sniper keeps its line), its blade for melee. */
   readonly aim: number
   readonly sees: boolean
   /** A shut door stands between it and you: not a threat yet. */
@@ -39,6 +52,8 @@ export interface EnemyView {
   /** Runners: the key it carries. */
   readonly key: number | null
   readonly melee: MeleeView | null
+  /** Scoped shooters that see you: their laser. */
+  readonly laser: LaserView | null
 }
 
 /** A door: its box, what opens it, whether it is open, and (for chamber locks) how many it still waits on. */
@@ -91,11 +106,21 @@ export interface FightView {
   readonly player: { readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number; readonly attackRange: number } | null
   readonly enemies: ReadonlyArray<EnemyView>
   readonly shots: ReadonlyArray<{ readonly kind: ShotKind; readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number }>
-  /** Cut marks, with `age` from 0 (just cut) to 1 (gone). */
-  readonly slashes: ReadonlyArray<{ readonly x: number; readonly y: number; readonly angle: number; readonly age: number }>
+  /** Cut marks, with `age` from 0 (just cut) to 1 (gone); `blocked` for a blow a guarded front stopped. */
+  readonly slashes: ReadonlyArray<{ readonly x: number; readonly y: number; readonly angle: number; readonly age: number; readonly blocked: boolean }>
 }
 
-const phaseLength = { idle: 1, chase: 1, windup: BRUTE.windup, swing: BRUTE.swing, recover: BRUTE.recover } as const satisfies Record<BrutePhase, number>
+/** How far a line from (x, y) along angle `a` runs before a wall, up to `max`. */
+const rayLength = (x: number, y: number, a: number, max: number, walls: ReadonlyArray<Pillar>): number => {
+  if (clearLine(x, y, x + Ops.cos(a) * max, y + Ops.sin(a) * max, walls)) return max
+  let lo = 0, hi = max
+  for (let i = 0; i < 14; i++) {
+    const mid = (lo + hi) / 2
+    if (clearLine(x, y, x + Ops.cos(a) * mid, y + Ops.sin(a) * mid, walls)) lo = mid
+    else hi = mid
+  }
+  return lo
+}
 
 export const FightViewInspector = Game.Inspector(
   "Slap/FightView",
@@ -103,7 +128,7 @@ export const FightViewInspector = Game.Inspector(
     queries: {
       players: Game.Query({ selection: { body: Game.Query.read(Body), player: Game.Query.read(Player) } }),
       shooters: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), reload: Game.Query.read(Reload) } }),
-      brutes: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.read(Melee), blade: Game.Query.read(Blade) } }),
+      melee: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.read(Melee), blade: Game.Query.read(Blade) } }),
       runners: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), carry: Game.Query.read(Carry) } }),
       shots: Game.Query({ selection: { body: Game.Query.read(Body), shot: Game.Query.read(Shot) } })
     },
@@ -134,14 +159,21 @@ export const FightViewInspector = Game.Inspector(
       if (!isShooter(kind)) return []
       const at = data.body.get()
       const spec = SHOOTERS[kind]
+      const reload = data.reload.get()
+      const locked = spec.scoped && reload.left <= spec.lock
+      const aim = locked ? reload.aim : player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x)
+      const seesYou = player !== null && canSee(at.x, at.y, player.x, player.y, spec.sight, walls)
+      const laser = !spec.scoped || !seesYou || player === null ? null
+        : { aim, locked, length: locked ? rayLength(at.x, at.y, aim, spec.sight, walls) : Ops.hypot(player.x - at.x, player.y - at.y) }
       return [{
         kind, x: at.x, y: at.y, radius: spec.radius,
-        charge: Math.max(0, Math.min(1, 1 - data.reload.get().left / spec.period)),
-        aim: player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x),
-        sees: sees(at),
+        charge: Math.max(0, Math.min(1, 1 - reload.left / spec.period)),
+        aim,
+        sees: seesYou,
         sealed: sealed(at),
         captain, key: null,
-        melee: null
+        melee: null,
+        laser
       }]
     })
     const runners = queries.runners.each().map(({ data }): EnemyView => {
@@ -152,29 +184,37 @@ export const FightViewInspector = Game.Inspector(
         sees: sees(at),
         sealed: sealed(at),
         captain: data.enemy.get().captain, key: data.carry.get().key,
-        melee: null
+        melee: null,
+        laser: null
       }
     })
-    const brutes = queries.brutes.each().map(({ data }): EnemyView => {
+    const melee = queries.melee.each().flatMap(({ data }): Array<EnemyView> => {
+      const kind = data.enemy.get().kind
+      if (!isMelee(kind)) return []
+      const spec = MELEE[kind]
       const at = data.body.get()
       const blade = data.blade.get()
-      const left = blade._tag === "windup" || blade._tag === "swing" || blade._tag === "recover" ? blade.left : 0
+      const { facing, hp } = data.melee.get()
+      const phaseLength = { idle: 1, chase: 1, windup: spec.windup, swing: spec.swing, recover: spec.recover, stagger: STAGGER.time } as const satisfies Record<MeleePhase, number>
+      const left = blade._tag === "idle" || blade._tag === "chase" ? 0 : blade.left
       const progress = left === 0 ? 0 : Math.max(0, Math.min(1, 1 - left / phaseLength[blade._tag]))
-      return {
-        kind: "brute", x: at.x, y: at.y, radius: BRUTE.radius,
+      const guarding = spec.guard === "always" ? blade._tag !== "stagger" : blade._tag === "windup" || blade._tag === "swing"
+      return [{
+        kind, x: at.x, y: at.y, radius: spec.radius,
         charge: blade._tag === "windup" ? progress : 0,
-        aim: data.melee.get().facing,
+        aim: facing,
         sees: sees(at),
         sealed: sealed(at),
         captain: data.enemy.get().captain, key: null,
         melee: {
-          phase: blade._tag, progress, locked: blade._tag === "windup" && blade.left <= BRUTE.lock, lockShare: BRUTE.lock / BRUTE.windup,
-          reach: BRUTE.reach, arc: BRUTE.arc, guard: BRUTE.guard
-        }
-      }
+          phase: blade._tag, progress, locked: blade._tag === "windup" && blade.left <= spec.lock, lockShare: spec.lock / spec.windup,
+          reach: spec.reach, arc: spec.arc, guardArc: spec.guardArc, guarding, shield: spec.guard === "always", hp, maxHp: spec.hp
+        },
+        laser: null
+      }]
     })
     const flow = machines.flow.get()
-    const standing = [...queries.shooters.each(), ...queries.brutes.each(), ...queries.runners.each()].map((m) => m.data.enemy.get())
+    const standing = [...queries.shooters.each(), ...queries.melee.each(), ...queries.runners.each()].map((m) => m.data.enemy.get())
     const doors = room.doors.map((d, i): DoorView => {
       const lock = d.lock
       const waiting = lock.kind === "key" ? 0 : standing.filter((e) => e.chamber === lock.chamber && (lock.kind === "clear" || e.captain)).length
@@ -198,13 +238,13 @@ export const FightViewInspector = Game.Inspector(
       scale: resources.pace.get().scale,
       slow: TUNING.slow,
       player,
-      enemies: [...shooters, ...brutes, ...runners],
+      enemies: [...shooters, ...melee, ...runners],
       shots: queries.shots.each().map(({ data }) => {
         const at = data.body.get()
         const shot = data.shot.get()
         return { kind: shot.kind, x: at.x, y: at.y, radius: SHOTS[shot.kind].radius, vx: shot.vx, vy: shot.vy }
       }),
-      slashes: resources.slashes.get().map((s) => ({ x: s.x, y: s.y, angle: s.angle, age: Math.min(1, (time.step - s.born) / TUNING.slashSteps) }))
+      slashes: resources.slashes.get().map((s) => ({ x: s.x, y: s.y, angle: s.angle, age: Math.min(1, (time.step - s.born) / TUNING.slashSteps), blocked: s.blocked }))
     }
   }
 )

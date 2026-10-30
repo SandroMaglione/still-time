@@ -94,7 +94,8 @@ const lift = (): void => {
 canvas.addEventListener("pointerup", lift)
 canvas.addEventListener("pointercancel", lift)
 
-// Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 and 0 jump to rooms 1-10.
+// Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 and 0 jump to rooms 1-10,
+// [ and ] step to the previous and next room.
 const held = new Set<string>()
 const DIRS: Record<string, readonly [number, number]> = {
   ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0]
@@ -117,6 +118,7 @@ window.addEventListener("keydown", (e) => {
   } else if (key === " " || key === "Enter") thumb.tap()
   else if (key === "r") fight.send({ kind: "restart" })
   else if (/^[0-9]$/.test(key)) fight.send({ kind: "goToRoom", room: key === "0" ? 9 : Number(key) - 1 })
+  else if (key === "[" || key === "]") fight.send({ kind: "goToRoom", room: fight.view().room.index + (key === "]" ? 1 : -1) })
   else return
   e.preventDefault()
 })

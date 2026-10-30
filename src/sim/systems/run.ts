@@ -7,7 +7,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
 import { Blade, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult } from "../schema.ts"
-import { CROWD, LOCKS, TUNING } from "../tuning.ts"
+import { CROWD, LOCKS, MELEE, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, roomOf } from "./queries.ts"
 
 /** The first room of the run: built once by the setup schedule. */
@@ -66,21 +66,26 @@ export const BuildRoomSystem = Game.System(
     if (room === undefined) return
     commands.despawnScope(RoomScope)
     commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: room.start.x, y: room.start.y }], [Player, { vx: 0, vy: 0 }]))
-    let brutes = 0
+    let walkers = 0
     const keys: Array<Key> = []
     for (const e of room.enemies) {
       const enemy = { kind: e.kind, chamber: e.chamber ?? 0, captain: e.captain ?? false }
-      if (e.kind === "brute") {
-        const facing = Ops.atan2(room.start.y - e.y, room.start.x - e.x)
-        const pace = CROWD.paces[brutes++ % CROWD.paces.length] ?? 1
-        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Melee, { facing, pace }], [Blade, { _tag: "idle" }]))
-      } else if (e.kind === "runner") {
+      const kind = e.kind
+      const toStart = Ops.atan2(room.start.y - e.y, room.start.x - e.x)
+      if (isMelee(kind)) {
+        const pace = CROWD.paces[walkers++ % CROWD.paces.length] ?? 1
+        const melee = { facing: toStart, pace, hp: MELEE[kind].hp }
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Melee, melee], [Blade, { _tag: "idle" }]))
+      } else if (kind === "runner") {
         const key = e.key ?? 0
         commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Carry, { key }]))
         keys.push({ key, state: "carried", x: e.x, y: e.y })
       } else {
         const post = { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1 } as const
-        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Reload, { left: e.delay }], [Post, post]))
+        // A scoped shooter starts uncharged: it must see you for a whole charge before its first shot.
+        const spec = SHOOTERS[kind]
+        const left = spec.scoped ? spec.period + e.delay : e.delay
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Reload, { left, aim: toStart }], [Post, post]))
       }
     }
     const run = resources.run.get()

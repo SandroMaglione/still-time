@@ -37,9 +37,12 @@ export const Enemy = Descriptor.ConstructedComponent(z.object({ kind: z.enum(ENE
 /** A runner's key, which it drops wherever it falls. */
 export const Carry = Descriptor.ConstructedComponent(z.object({ key: z.int().nonnegative() }))("Slap/Carry", { immutable: true })
 
-/** A shooter's reload: world seconds until it may fire. */
-export const Reload = Descriptor.ConstructedComponent(z.object({ left: z.number() }))("Slap/Reload", {
-  meta: { left: { unit: "s", range: [0, 3], hint: "World seconds (slowed with the world) until the next shot." } }
+/**
+ * A shooter's reload: world seconds until it may fire, and where it aims
+ * (a scoped shooter stops turning it once locked).
+ */
+export const Reload = Descriptor.ConstructedComponent(z.object({ left: z.number(), aim: z.number() }))("Slap/Reload", {
+  meta: { left: { unit: "s", range: [0, 3], hint: "World seconds (slowed with the world) until the next shot." }, aim: { unit: "rad" } }
 })
 
 /** A shooter's footing: its post, where it last saw you (once it has), and which way it sidesteps. */
@@ -50,24 +53,36 @@ export const Post = Descriptor.ConstructedComponent(z.object({
   strafe: z.union([z.literal(1), z.literal(-1)])
 }))("Slap/Post", { meta: { hx: { unit: "m" }, hy: { unit: "m" } } })
 
-/** A brute's body: where its blade faces, and its walking pace as a share of top speed. */
-export const Melee = Descriptor.ConstructedComponent(z.object({ facing: z.number(), pace: z.number() }))("Slap/Melee", {
-  meta: { facing: { unit: "rad" }, pace: { unit: "share", range: [0.5, 1], hint: "Share of the brute's top speed." } }
+/** A melee enemy's body: where its blade faces, its walking pace as a share of top speed, and the hits it can still take. */
+export const Melee = Descriptor.ConstructedComponent(z.object({ facing: z.number(), pace: z.number(), hp: z.int().positive() }))("Slap/Melee", {
+  meta: {
+    facing: { unit: "rad" },
+    pace: { unit: "share", range: [0.5, 1], hint: "Share of its kind's top speed." },
+    hp: { unit: "hits", range: [1, 3] }
+  }
 })
 
 /**
- * What a brute is doing: waiting to see you, chasing (toward where it last
- * saw you), winding up, swinging, or recovering. `left` is world seconds left
- * in the phase.
+ * What a melee enemy is doing: waiting to see you, chasing (toward where it
+ * last saw you), winding up, swinging, recovering, or staggered by a hit it
+ * survived. `left` is world seconds left in the phase.
  */
 export const Blade = Descriptor.EntityState("Slap/Blade", {
   idle: {},
   chase: point,
   windup: z.object({ left: z.number() }),
   swing: z.object({ left: z.number() }),
-  recover: z.object({ left: z.number() })
+  recover: z.object({ left: z.number() }),
+  stagger: z.object({ left: z.number() })
 }, {
-  transitions: { idle: ["chase", "windup"], chase: ["windup"], windup: ["swing"], swing: ["recover"], recover: ["chase"] }
+  transitions: {
+    idle: ["chase", "windup", "stagger"],
+    chase: ["windup", "stagger"],
+    windup: ["swing", "stagger"],
+    swing: ["recover", "stagger"],
+    recover: ["chase", "stagger"],
+    stagger: ["chase", "windup"]
+  }
 })
 
 /** Something flying: its kind and velocity in metres per world second. */
@@ -113,8 +128,8 @@ export const Pace = Descriptor.ConstructedResource(z.object({ scale: z.number() 
   meta: { scale: { unit: "share", range: [TUNING.slow, 1], hint: "World seconds per real second." } }
 })
 
-/** Cut marks for the page to draw, with the step each was made on. */
-export const Slashes = Descriptor.ConstructedResource(z.array(z.object({ x: z.number(), y: z.number(), angle: z.number(), born: z.int() })))("Slap/Slashes")
+/** Cut marks for the page to draw, with the step each was made on; `blocked` marks a blow a guarded front stopped. */
+export const Slashes = Descriptor.ConstructedResource(z.array(z.object({ x: z.number(), y: z.number(), angle: z.number(), born: z.int(), blocked: z.boolean() })))("Slap/Slashes")
 
 /**
  * The thumb, once per step: its push in world directions (length 0 at the

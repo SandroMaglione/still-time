@@ -66,7 +66,13 @@ export class Camera {
 const mix = (a: readonly [number, number, number], b: readonly [number, number, number], t: number, alpha = 1): string =>
   `rgba(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)},${alpha})`
 
-const ENEMY_COLOURS = { gunner: "#e8484a", archer: "#ff7a3d", thrower: "#d24a9a", brute: "#b8323a", runner: "#f2c14e" } as const
+const ENEMY_COLOURS = {
+  gunner: "#e8484a", archer: "#ff7a3d", thrower: "#d24a9a", sniper: "#e2365b",
+  brute: "#b8323a", knight: "#8e2c48", shield: "#c45a2c",
+  runner: "#f2c14e"
+} as const satisfies Record<FightView["enemies"][number]["kind"], string>
+
+const STEEL = "#dfe8ff"
 
 /** Each key and its door share a colour. */
 const KEY_COLOURS = ["#5fd4ff", "#c18cff", "#7dff9a"] as const
@@ -224,6 +230,19 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.fillStyle = "#00000060"
     ctx.beginPath(); ctx.ellipse(p.x, p.y, shot.radius * erx, shot.radius * ery, 0, 0, Math.PI * 2); ctx.fill()
   }
+  // Snipers' lasers: a thin line that tracks you while it charges, solid and blinking once locked.
+  for (const e of view.enemies) {
+    const l = e.laser
+    if (l === null) continue
+    const ex = e.x + Math.cos(l.aim) * l.length, ey = e.y + Math.sin(l.aim) * l.length
+    if (l.locked) {
+      const blink = Math.sin(view.world * 60) > 0 ? 1 : 0.55
+      ctx.strokeStyle = `rgba(255,40,80,${0.9 * blink})`; ctx.lineWidth = 3
+    } else {
+      ctx.strokeStyle = `rgba(255,60,90,${0.2 + 0.5 * e.charge})`; ctx.lineWidth = 1.5; ctx.setLineDash([8, 6])
+    }
+    ctx.beginPath(); moveTo(e.x, e.y, 0.6); lineTo(ex, ey, 0.6); ctx.stroke(); ctx.setLineDash([])
+  }
   for (const e of view.enemies) {
     const m = e.melee
     if (e.kind === "runner") {
@@ -264,14 +283,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       ctx.strokeStyle = m.phase === "chase" ? "rgba(255,90,90,0.25)" : "rgba(255,90,90,0.12)"
       ctx.lineWidth = 1; ctx.setLineDash([4, 5]); ctx.stroke(); ctx.setLineDash([])
     }
-    // While attacking: a steel guarded front and a gold open back. Otherwise a gold ring: open all round.
-    if (m.phase === "windup" || m.phase === "swing") {
+    // Guard up: a steel front and a gold open back. Dazed: a wobbling white ring, open all round and no blow lands.
+    // Otherwise a gold ring: open all round.
+    if (m.phase === "stagger") {
+      ctx.lineWidth = 2; ctx.strokeStyle = "#ffffffb0"; ctx.setLineDash([3, 4])
+      arcPath(e.x, e.y, e.radius + 0.14, m.progress * 6, m.progress * 6 + Math.PI * 2, false); ctx.stroke(); ctx.setLineDash([])
+    } else if (m.guarding) {
       ctx.lineWidth = 4
-      ctx.strokeStyle = "#dfe8ff"
-      arcPath(e.x, e.y, e.radius + 0.12, e.aim - m.guard, e.aim + m.guard, false); ctx.stroke()
+      ctx.strokeStyle = STEEL
+      arcPath(e.x, e.y, e.radius + 0.12, e.aim - m.guardArc, e.aim + m.guardArc, false); ctx.stroke()
       ctx.lineWidth = 2
       ctx.strokeStyle = "#ffd25a"
-      arcPath(e.x, e.y, e.radius + 0.12, e.aim + m.guard, e.aim + Math.PI * 2 - m.guard, false); ctx.stroke()
+      arcPath(e.x, e.y, e.radius + 0.12, e.aim + m.guardArc, e.aim + Math.PI * 2 - m.guardArc, false); ctx.stroke()
     } else {
       ctx.lineWidth = m.phase === "recover" ? 3 : 2
       ctx.strokeStyle = m.phase === "recover" ? "#ffd25a" : "#ffd25a80"
@@ -314,10 +337,21 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const m = e.melee
         const height = e.kind === "runner" ? 0.8 : m === null ? 0.95 : 1.15
         const colour = ENEMY_COLOURS[e.kind]
-        cylinder(e.x, e.y, e.radius, height, colour, "#ffffff30")
+        // The knight wears a steel helm.
+        cylinder(e.x, e.y, e.radius, height, colour, e.kind === "knight" ? "#c9d2e6" : "#ffffff30")
         if (e.captain) {
           const c = P(e.x, e.y, height)
           crownGlyph(ctx, c.x, c.y - 2, e.radius * erx * 0.75)
+        }
+        if (m !== null && m.maxHp > 1) {
+          // Hit points over its head: one pip per hit it can still take.
+          const c = P(e.x, e.y, height + (e.captain ? 0.55 : 0.3))
+          const gap = u * 0.2
+          for (let i = 0; i < m.maxHp; i++) {
+            ctx.beginPath(); ctx.arc(c.x + (i - (m.maxHp - 1) / 2) * gap, c.y, u * 0.065, 0, Math.PI * 2)
+            ctx.fillStyle = i < m.hp ? "#ff6a6a" : "#00000060"; ctx.fill()
+            ctx.strokeStyle = "#000000a0"; ctx.lineWidth = 1; ctx.stroke()
+          }
         }
         if (e.kind === "runner") {
           // A hood that points the way it runs.
@@ -336,10 +370,17 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
           ctx.beginPath(); ctx.ellipse(b.x, b.y, e.radius * erx, e.radius * ery, 0, 0, Math.PI); ctx.stroke()
         }
         if (m === null) {
-          held(e.x, e.y, e.aim, e.radius * 0.6, e.radius + 0.35, 0.6, e.sees ? "#ffffffdd" : "#ffffff40", 3)
+          // A sniper's long barrel; everyone else a short one.
+          held(e.x, e.y, e.aim, e.radius * 0.6, e.radius + (e.kind === "sniper" ? 0.8 : 0.35), 0.6, e.sees ? "#ffffffdd" : "#ffffff40", e.kind === "sniper" ? 2 : 3)
         } else {
+          if (m.shield) {
+            // The shield: a steel plate across its front, held at chest height.
+            ctx.strokeStyle = m.guarding ? STEEL : "#9aa3b8"; ctx.lineWidth = 7; ctx.lineCap = "round"
+            arcPath(e.x, e.y, e.radius + 0.12, e.aim - m.guardArc * 0.75, e.aim + m.guardArc * 0.75, false, 0.55); ctx.stroke()
+            ctx.lineCap = "butt"
+          }
           const bladeAngle = m.phase === "windup" ? -m.arc * m.progress : m.phase === "swing" ? -m.arc + 2 * m.arc * m.progress : m.phase === "recover" ? m.arc : 0
-          held(e.x, e.y, e.aim + bladeAngle, e.radius * 0.8, m.reach * 0.85, m.phase === "recover" ? 0.25 : 0.7, "#f4f6ff", 3)
+          held(e.x, e.y, e.aim + bladeAngle, e.radius * 0.8, m.reach * 0.85, m.phase === "recover" || m.phase === "stagger" ? 0.25 : 0.7, "#f4f6ff", 3)
         }
       }
     })
@@ -354,6 +395,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
           const p = P(shot.x, shot.y, z)
           ctx.fillStyle = "#ffd25a"
           ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(3, shot.radius * erx), 0, Math.PI * 2); ctx.fill()
+        } else if (shot.kind === "slug") {
+          held(shot.x, shot.y, a + Math.PI, 0, 1.2, z, "#ff4d7a80", 3)
+          held(shot.x, shot.y, a, 0, 0.1, z, "#ffffff", 5)
         } else if (shot.kind === "arrow") {
           held(shot.x, shot.y, a + Math.PI, 0, 0.55, z, "#cfe8ff", 2)
           held(shot.x, shot.y, a, 0, 0.12, z, "#ffffff", 4)
@@ -445,8 +489,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.closePath(); ctx.stroke()
   }
 
-  // Cuts, at chest height.
+  // Cuts, at chest height; a blow a guard stopped throws a spark instead.
   for (const c of view.slashes) {
+    if (c.blocked) {
+      const p = P(c.x, c.y, 0.6)
+      ctx.strokeStyle = `rgba(255,230,150,${1 - c.age})`; ctx.lineWidth = 2
+      for (let i = 0; i < 6; i++) {
+        const a = c.angle + Math.PI + (i - 2.5) * 0.45
+        const r0 = 4 + c.age * 6, r1 = 10 + c.age * 14
+        ctx.beginPath(); ctx.moveTo(p.x + Math.cos(a) * r0, p.y + Math.sin(a) * r0); ctx.lineTo(p.x + Math.cos(a) * r1, p.y + Math.sin(a) * r1); ctx.stroke()
+      }
+      continue
+    }
     const t = c.age
     const len = 0.6 + t * 0.6
     const a = c.angle + 0.8

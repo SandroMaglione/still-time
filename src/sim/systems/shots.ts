@@ -1,16 +1,17 @@
-/** Shots fly in world time; walls and pillars stop them; they hit you and any enemy alike. */
+/** Shots fly in world time; walls and pillars stop them; they hit you and any enemy alike (a guarded front stops them). */
 import { Ops } from "@typeonce/ritmo"
 
 import { insidePillar } from "../geometry.ts"
 import { Doors, Enemy, Flow, Game, Pace, PlayerHit, Run, Shot, Slashes, Time } from "../schema.ts"
-import { SHOTS, TUNING, radiusOf } from "../tuning.ts"
-import { EnemyRead, PlayerRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
+import { SHOTS, TUNING, isMelee, radiusOf } from "../tuning.ts"
+import { blow, type BlowResult } from "./blows.ts"
+import { MeleeQuery, PlayerRead, RunnerRead, ShooterRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
 
 export const ShotsSystem = Game.System(
   "Slap/Shots",
   {
     when: [Game.Condition.inState(Flow, "Playing")],
-    queries: { players: PlayerRead, enemies: EnemyRead, shots: ShotQuery },
+    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeQuery, shots: ShotQuery },
     resources: {
       time: Game.System.readResource(Time),
       pace: Game.System.readResource(Pace),
@@ -28,9 +29,27 @@ export const ShotsSystem = Game.System(
     const walls = wallsOf(room, resources.doors.get())
     const time = resources.time.get()
     const dt = time.dt * resources.pace.get().scale
-    const targets = queries.enemies.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind), down: () => commands.despawn(m.entity) }))
+    // Each target: where it stands, and what a shot does to it. Shooters and runners fall; melee enemies take a blow.
+    const targets = [
+      ...[...queries.shooters.each(), ...queries.runners.each()].map((m) => ({
+        id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind),
+        struck: (): BlowResult => { commands.despawn(m.entity); return "down" }
+      })),
+      ...queries.melee.each().flatMap((m) => {
+        const kind = m.data.enemy.get().kind
+        if (!isMelee(kind)) return []
+        return [{
+          id: m.entity.id, at: m.data.body.get(), radius: radiusOf(kind),
+          struck: (from: { x: number; y: number }): BlowResult => {
+            const result = blow(kind, m.data, from, room, walls)
+            if (result === "down") commands.despawn(m.entity)
+            return result
+          }
+        }]
+      })
+    ]
     const downed = new Set<number>()
-    const cuts: Array<{ x: number; y: number; angle: number; born: number }> = []
+    const marks: Array<{ x: number; y: number; angle: number; born: number; blocked: boolean }> = []
     let hit = false
     for (const { entity, data } of queries.shots.each()) {
       const s = data.shot.get()
@@ -45,12 +64,15 @@ export const ShotsSystem = Game.System(
       if (Ops.hypot(nx - me.x, ny - me.y) < TUNING.player.radius + sr) hit = true
       const victim = targets.find((t) => !downed.has(t.id) && Ops.hypot(nx - t.at.x, ny - t.at.y) < t.radius + sr)
       if (victim === undefined) continue
-      victim.down()
-      downed.add(victim.id)
+      // The blow comes from where the shot flew in.
+      const result = victim.struck({ x: nx - s.vx, y: ny - s.vy })
+      if (result === "down") downed.add(victim.id)
       commands.despawn(entity)
-      cuts.push({ x: victim.at.x, y: victim.at.y, angle: Ops.atan2(s.vy, s.vx), born: time.step })
+      const angle = Ops.atan2(s.vy, s.vx)
+      if (result === "guarded") marks.push({ x: nx, y: ny, angle, born: time.step, blocked: true })
+      else if (result !== "dazed") marks.push({ x: victim.at.x, y: victim.at.y, angle, born: time.step, blocked: false })
     }
     if (hit) events.hit.emit({ by: "shot" })
-    if (cuts.length > 0) resources.slashes.set([...resources.slashes.get(), ...cuts])
+    if (marks.length > 0) resources.slashes.set([...resources.slashes.get(), ...marks])
   }
 )

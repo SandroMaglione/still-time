@@ -15,11 +15,14 @@ export const ShooterQuery = Game.Query({
 })
 export const ShooterRead = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), reload: Game.Query.read(Reload) }, without: [Player, Shot, Melee] })
 
-export const BruteQuery = Game.Query({
-  selection: { body: Game.Query.write(Body), melee: Game.Query.write(Melee), blade: Game.Query.write(Blade) },
+export const MeleeQuery = Game.Query({
+  selection: { body: Game.Query.write(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.write(Melee), blade: Game.Query.write(Blade) },
   without: [Player, Shot, Reload]
 })
-export const BruteRead = Game.Query({ selection: { body: Game.Query.read(Body), melee: Game.Query.read(Melee), blade: Game.Query.read(Blade) }, without: [Player, Shot, Reload] })
+export const MeleeRead = Game.Query({
+  selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.read(Melee), blade: Game.Query.read(Blade) },
+  without: [Player, Shot, Reload]
+})
 
 export const RunnerQuery = Game.Query({
   selection: { body: Game.Query.write(Body), enemy: Game.Query.read(Enemy), carry: Game.Query.read(Carry) },

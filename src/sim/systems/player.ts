@@ -4,10 +4,11 @@
  */
 import { Ops } from "@typeonce/ritmo"
 
-import { angleDiff, settle } from "../geometry.ts"
-import { BRUTE, TUNING, radiusOf } from "../tuning.ts"
+import { settle } from "../geometry.ts"
+import { TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { Doors, Enemy, Flow, Game, Input, Pace, Run, Slashes, Time } from "../schema.ts"
-import { BruteRead, EnemyRead, PlayerQuery, PlayerRead, roomOf, wallsOf } from "./queries.ts"
+import { blow } from "./blows.ts"
+import { EnemyRead, MeleeQuery, PlayerQuery, PlayerRead, RunnerRead, ShooterRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
@@ -64,36 +65,45 @@ export const MovePlayerSystem = Game.System(
 )
 
 /**
- * You cut down every enemy within reach, except a brute you face while it
- * attacks (its front is guarded during wind-up and swing).
+ * You cut every enemy within reach. Shooters and runners fall. A melee enemy
+ * takes the blow by its kind (see blows.ts): its guarded front stops it, and
+ * an armoured one is staggered until its last hit.
  */
 export const CutSystem = Game.System(
   "Slap/Cut",
   {
     when: playing,
-    queries: { players: PlayerRead, enemies: EnemyRead, brutes: BruteRead },
-    resources: { time: Game.System.readResource(Time), slashes: Game.System.writeResource(Slashes) },
+    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeQuery },
+    resources: {
+      time: Game.System.readResource(Time),
+      run: Game.System.readResource(Run),
+      doors: Game.System.readResource(Doors),
+      slashes: Game.System.writeResource(Slashes)
+    },
     commands: Game.System.commands(Game.System.despawns(Enemy))
   },
   ({ queries, resources, commands }) => {
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
+    const room = roomOf(resources.run.get().room)
+    const walls = wallsOf(room, resources.doors.get())
     const born = resources.time.get().step
-    const cuts: Array<{ x: number; y: number; angle: number; born: number }> = []
+    const cuts: Array<{ x: number; y: number; angle: number; born: number; blocked: boolean }> = []
     const inReach = (at: { x: number; y: number }): boolean => Ops.hypot(at.x - me.x, at.y - me.y) <= TUNING.attackRange
-    // A brute you face while it attacks is guarded; everything else in reach falls.
-    const guarded = new Set<number>()
-    for (const { entity, data } of queries.brutes.each()) {
+    const cutAt = (at: { x: number; y: number }): void => { cuts.push({ x: at.x, y: at.y, angle: Ops.atan2(at.y - me.y, at.x - me.x), born, blocked: false }) }
+    for (const { entity, data } of [...queries.shooters.each(), ...queries.runners.each()]) {
       const at = data.body.get()
-      const phase = data.blade.get()._tag
-      const toYou = Ops.atan2(me.y - at.y, me.x - at.x)
-      if ((phase === "windup" || phase === "swing") && Math.abs(angleDiff(toYou, data.melee.get().facing)) <= BRUTE.guard) guarded.add(entity.id)
-    }
-    for (const { entity, data } of queries.enemies.each()) {
-      const at = data.body.get()
-      if (!inReach(at) || guarded.has(entity.id)) continue
+      if (!inReach(at)) continue
       commands.despawn(entity)
-      cuts.push({ x: at.x, y: at.y, angle: Ops.atan2(at.y - me.y, at.x - me.x), born })
+      cutAt(at)
+    }
+    for (const { entity, data } of queries.melee.each()) {
+      const at = data.body.get()
+      const kind = data.enemy.get().kind
+      if (!inReach(at) || !isMelee(kind)) continue
+      const result = blow(kind, data, me, room, walls)
+      if (result === "down") commands.despawn(entity)
+      if (result === "down" || result === "staggered") cutAt(at)
     }
     if (cuts.length > 0) resources.slashes.set([...resources.slashes.get(), ...cuts])
   }
