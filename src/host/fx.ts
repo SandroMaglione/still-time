@@ -48,6 +48,8 @@ export class Presentation {
   stops: Array<Stop> = []
   /** When (real s) this attempt began: the room's goal is shown as a picture for a moment. */
   attemptAt = 0
+  /** Where you were when the room was cleared: you vanish from there, ninja-style. */
+  vanish: { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number } | null = null
   callout: Callout | null = null
   private lastGhost = -1
   /** Armed by a real run, fired by stopping: one freeze moment per stop. */
@@ -86,7 +88,7 @@ export class Presentation {
       // A new attempt (a room entered, a retry, a restart) teaches the move again, and shows the goal again.
       this.moved.clear()
       this.attemptAt = this.now
-      this.deadAt = null; this.clearedAt = null
+      this.deadAt = null; this.clearedAt = null; this.vanish = null
       this.previous = view
       return
     }
@@ -153,7 +155,11 @@ export class Presentation {
       this.deaths.push({ id: p.id, kind: "player", x: p.x, y: p.y, aim: p.vx < 0 ? Math.PI : 0, angle, born: this.now })
       this.impacts.push({ x: p.x, y: p.y, angle, born: this.now, seed: view.step, kind: "player" })
     }
-    if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won")) this.clearedAt = this.now
+    if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won")) {
+      this.clearedAt = this.now
+      const p = view.player ?? old.player
+      if (p !== null) this.vanish = { x: p.x, y: p.y, flip: p.vx < 0, born: this.now }
+    }
     this.previous = view
     // Bounded cosmetics, including projectile-heavy fan attacks.
     this.deaths = this.deaths.slice(-24); this.impacts = this.impacts.slice(-48)

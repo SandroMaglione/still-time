@@ -377,6 +377,42 @@ const goalSplash = (ctx: CanvasRenderingContext2D, view: FightView, cw: number, 
   ctx.restore()
 }
 
+/**
+ * The ninja vanish when a room is cleared, over 0.6 real s: a white flash on your silhouette, afterimages shooting
+ * up and fading, white speed lines, and a puff of smoke left where you stood.
+ */
+const vanishBurst = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, flip: boolean, age: number): void => {
+  const body = bodyName("player")
+  ctx.save()
+  if (age < 0.12) silhouette(ctx, body, at.x, at.y, flip, "#ffffff", 1 - age / 0.12)
+  // Afterimages, each a little higher and fainter: you leave upward faster than the eye.
+  for (let i = 0; i < 6; i++) {
+    const t = age - i * 0.025
+    if (t < 0 || t > 0.3) continue
+    silhouette(ctx, body, at.x, at.y - 6 - i * 9 - t * 60, flip, i === 0 ? "#e8ffff" : GHOST, (1 - t / 0.3) * (0.8 - i * 0.1))
+  }
+  // Speed lines.
+  if (age < 0.25) {
+    for (let i = 0; i < 5; i++) {
+      const x = Math.round(at.x - 10 + i * 5), len = 18 + ((i * 7) % 11), top = Math.round(at.y - 28 - age * 120 - (i % 2) * 6)
+      ctx.fillStyle = `rgba(232,255,255,${(1 - age / 0.25).toFixed(3)})`; ctx.fillRect(x, top, 1, len)
+    }
+  }
+  // A puff of smoke where you stood: grey clusters pushing out and fading.
+  if (age < 0.6) {
+    const k = age / 0.6
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + 0.3
+      const r = 4 + k * 14
+      const x = Math.round(at.x + Math.cos(a) * r), y = Math.round(at.y - 4 + Math.sin(a) * r * 0.55 - k * 4)
+      const size = k < 0.5 ? 3 : 2
+      ctx.fillStyle = `rgba(${i % 3 === 0 ? "232,236,244" : "137,150,146"},${(0.85 * (1 - k)).toFixed(3)})`
+      ctx.fillRect(x - 1, y - 1, size, size)
+    }
+  }
+  ctx.restore()
+}
+
 /** One line of hint text in the pixel font, outlined in ink, centred on x. */
 const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, colour: string): void => {
   ctx.save()
@@ -487,7 +523,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     return from > to ? (from + to) / 2 : Math.max(from, Math.min(to, want))
   }
   const deathAge = presentation?.playerDeathAge ?? -1
-  const shake = deathAge >= 0 && deathAge < 0.12 ? Math.round(Math.sin(deathAge * 90) * (1 - deathAge / 0.12)) : 0
+  const shake = deathAge >= 0 && deathAge < 0.25 ? Math.round(Math.sin(deathAge * 80) * 3 * (1 - deathAge / 0.25)) : 0
   const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx)) + shake
   const cy = fit(TOP + (ch - TOP - BOTTOM) / 2 - centre.y, TOP, ch - BOTTOM, Math.min(...sy), Math.max(...sy))
   const P = (x: number, y: number, z = 0): { x: number; y: number } => {
@@ -683,7 +719,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
     actors.push({ x: shot.x, y: shot.y, paint: () => { paintShot(ctx); paintShot(glow) } })
   }
-  if (view.player !== null && view.flow !== "dead") {
+  // Clearing the room: you vanish, ninja-style. Past the first frames your body is gone.
+  const vanish = presentation?.vanish ?? null
+  const vanishAge = vanish === null ? -1 : presentation!.now - vanish.born
+  if (vanish !== null && vanishAge < 0.6) {
+    actors.push({ x: vanish.x, y: vanish.y, paint: () => { vanishBurst(ctx, P(vanish.x, vanish.y), vanish.flip, vanishAge); vanishBurst(glow, P(vanish.x, vanish.y), vanish.flip, vanishAge) } })
+  }
+  if (view.player !== null && view.flow !== "dead" && !(vanish !== null && vanishAge > 0.08)) {
     const p = view.player
     const at = P(p.x, p.y)
     const body = bodyName("player")
@@ -858,6 +900,20 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       ctx.drawImage(glow.canvas, 0, 0)
     }
   }
+  // A hit, screen-wide: a hard red flash, then the world drains to grey under a red vignette while you are down.
+  if (view.flow === "dead" && deathAge >= 0) {
+    ctx.save()
+    ctx.globalCompositeOperation = "saturation"
+    ctx.globalAlpha = Math.min(1, deathAge / 0.15)
+    ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, cw, ch)
+    ctx.restore()
+    const r = Math.hypot(cw, ch) / 2
+    const red = ctx.createRadialGradient(cw / 2, ch / 2, r * 0.3, cw / 2, ch / 2, r)
+    red.addColorStop(0, "rgba(206,70,85,0)")
+    red.addColorStop(1, "rgba(206,70,85,0.6)")
+    ctx.fillStyle = red; ctx.fillRect(0, 0, cw, ch)
+    if (deathAge < 0.3) { ctx.fillStyle = `rgba(255,64,85,${(0.6 * (1 - deathAge / 0.3)).toFixed(3)})`; ctx.fillRect(0, 0, cw, ch) }
+  }
   // Dust in the air drifts on the world's clock: it hangs when you stop and streams when you run.
   motes(ctx, view, P)
   // The exit is a beacon: a column of light and a bouncing arrow over the pad.
@@ -891,9 +947,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const g = view.room.goal
     chevronsToward(ctx, view.player, { x: g.x + g.w / 2, y: g.y + g.h / 2 }, P, presentation?.now ?? 0, "#7dff9a", 8)
   }
-  // The first room shows the move until you make it: a hand presses, drags and keeps holding while a ghost of you
-  // walks ahead; then lets go, and the ghost stops.
-  if (view.room.index === 0 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(0)) {
+  // The first two rooms show the move until you make it: a hand presses, drags and keeps holding while a ghost of
+  // you walks ahead; then lets go, and the ghost stops.
+  if (view.room.index <= 1 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(view.room.index)) {
     dragHint(ctx, view.player, P, presentation.now)
   }
   // After the first room, the tutorial shows the clock you drive: a pause sign over you while you are still, a play
