@@ -1,9 +1,11 @@
 /**
  * The menus over the game: the title (continue where you left off, or pick
- * a room) and the room select, a grid of every room with its stars and best
- * time. Rooms open one by one: a locked room shows its name dimmed. The
- * menus only read the view and call back; the game is paused while one is
- * open (see `main.ts`).
+ * a room), the pause panel (the in-game ☰: resume, restart, rooms, title)
+ * and the room select, a grid of every room with its stars and best time.
+ * Rooms open one by one: a locked room shows its name dimmed. Every screen
+ * reaches the title, and the title's Continue goes back to the room you
+ * left. The menus only read the view and call back; the game is paused
+ * while one is open (see `main.ts`).
  */
 import { continueRoom, totalStars, unlocked, type Best } from "../sim/progress.ts"
 import type { FightView } from "../sim/view.ts"
@@ -14,9 +16,21 @@ export interface MenuActions {
   readonly play: (room: number) => void
   /** Closes the menu and goes back to the room as it was. */
   readonly resume: () => void
+  /** Closes the menu and starts the room over. */
+  readonly restart: () => void
 }
 
-type Screen = "title" | "rooms"
+type Screen = "title" | "rooms" | "pause"
+
+/**
+ * Where Continue picks up: the room you are in (as you left it, or retried
+ * after a hit), the next one after a clear, the first not cleared after the
+ * last room.
+ */
+const continueTarget = (view: FightView): number =>
+  view.flow === "cleared" ? Math.min(view.room.index + 1, view.roomNames.length - 1)
+  : view.flow === "won" ? continueRoom(view.best)
+  : view.room.index
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ""): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag)
@@ -60,6 +74,7 @@ export class Menu {
   constructor(parent: HTMLElement, actions: MenuActions) {
     this.actions = actions
     this.root = el("div", "menu")
+    this.root.setAttribute("role", "dialog")
     this.root.hidden = true
     parent.append(this.root)
   }
@@ -68,11 +83,19 @@ export class Menu {
     return this.screen !== null
   }
 
+  get current(): Screen | null {
+    return this.screen
+  }
+
   show(screen: Screen, view: FightView): void {
     this.stopClock()
+    const from = this.screen
     this.screen = screen
     this.root.hidden = false
-    this.root.replaceChildren(screen === "title" ? this.title(view) : this.rooms(view))
+    const page = el("div", screen === "rooms" ? "menu-page list" : "menu-page")
+    page.append(screen === "title" ? this.title(view) : screen === "pause" ? this.pause(view) : this.rooms(view, from ?? "game"))
+    this.root.replaceChildren(page)
+    this.root.scrollTop = 0
     document.body.classList.add("menu-open")
   }
 
@@ -91,8 +114,8 @@ export class Menu {
 
   private title(view: FightView): HTMLElement {
     const best: Best = view.best
-    const next = continueRoom(best)
-    const fresh = best.every((b) => b === null)
+    const next = continueTarget(view)
+    const fresh = best.every((b) => b === null) && next === 0
     const box = el("div", "title-screen")
 
     const logo = el("h1", "logo")
@@ -128,13 +151,38 @@ export class Menu {
     return box
   }
 
-  private rooms(view: FightView): HTMLElement {
+  /** The in-game ☰: the room you are in, then back to it, over again, another room, or the title. */
+  private pause(view: FightView): HTMLElement {
+    const box = el("div", "pause-screen")
+    const head = el("div", "pause-head")
+    head.append(el("h2", "", "Paused"), el("span", "dim small", `${view.room.index + 1} · ${view.room.name}`))
+    const resume = button("gold big", "Resume")
+    resume.addEventListener("click", () => this.actions.resume())
+    const restart = button("", "Restart")
+    restart.addEventListener("click", () => this.actions.restart())
+    const rooms = button("", "Rooms")
+    rooms.addEventListener("click", () => this.show("rooms", view))
+    const title = button("back", fromHtml(pixelSvg(ICONS.back, { outline: true })), "Title")
+    title.addEventListener("click", () => this.show("title", view))
+    box.append(head, resume, restart, rooms, title)
+    return box
+  }
+
+  /** The room select: Title on the left, and a close back to the game when it was opened from there. */
+  private rooms(view: FightView, from: Screen | "game"): HTMLElement {
     const box = el("div", "rooms-screen")
-    const head = el("div", "rooms-head panel glass")
-    const back = button("square", fromHtml(pixelSvg(ICONS.close, { outline: true })))
-    back.setAttribute("aria-label", "Close")
-    back.addEventListener("click", () => this.actions.resume())
-    head.append(el("h2", "", "Rooms"), total(view.best), back)
+    const head = el("div", "rooms-head panel")
+    const title = button("back", fromHtml(pixelSvg(ICONS.back, { outline: true })), "Title")
+    title.addEventListener("click", () => this.show("title", view))
+    const heading = el("div", "rooms-title")
+    heading.append(el("h2", "", "Rooms"), total(view.best))
+    head.append(title, heading)
+    if (from !== "title") {
+      const close = button("square", fromHtml(pixelSvg(ICONS.close, { outline: true })))
+      close.setAttribute("aria-label", "Back to the game")
+      close.addEventListener("click", () => this.actions.resume())
+      head.append(close)
+    }
     const grid = el("div", "rooms-grid")
     view.roomNames.forEach((name, i) => {
       const best = view.best[i] ?? null

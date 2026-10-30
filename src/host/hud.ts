@@ -33,6 +33,12 @@ export const uiPixel = (): number => {
   return Math.max(2, Math.round(css * dpr)) / dpr
 }
 
+/** The small UI pixel for sub-labels (the `t0` type step): about ¾ of a UI pixel, still a whole number of device pixels. */
+export const smallUiPixel = (): number => {
+  const dpr = window.devicePixelRatio || 1
+  return Math.max(1, Math.floor((Math.round(uiPixel() * dpr) * 3) / 4)) / dpr
+}
+
 type Message =
   | { readonly kind: "none" }
   | { readonly kind: "dead"; readonly canRetry: boolean }
@@ -70,7 +76,7 @@ export class Hud {
   private readonly msgStars = byId("msg-stars")
   private readonly msgLines = byId("msg-lines")
   private readonly msgCta = byId("msg-cta")
-  private readonly after = byId("rooms-after")
+  private readonly after = byId("msg-buttons")
   private readonly cells: Array<HTMLElement> = []
   private text = new Map<HTMLElement, string>()
   private lit = -1
@@ -88,9 +94,12 @@ export class Hud {
       this.cells.push(cell)
       this.gauge.append(cell)
     }
-    byId("rooms").replaceChildren(fromHtml(pixelSvg(ICONS.menu, { outline: true })))
+    byId("pause").replaceChildren(fromHtml(pixelSvg(ICONS.menu, { outline: true })))
     byId("restart").replaceChildren(fromHtml(pixelSvg(ICONS.restart, { outline: true })))
-    const resize = (): void => document.documentElement.style.setProperty("--u", `${uiPixel()}px`)
+    const resize = (): void => {
+      document.documentElement.style.setProperty("--u", `${uiPixel()}px`)
+      document.documentElement.style.setProperty("--us", `${smallUiPixel()}px`)
+    }
     window.addEventListener("resize", resize)
     resize()
   }
@@ -196,12 +205,12 @@ export class Hud {
       return span
     }
     const over = result.world > view.room.par
-    add(over ? "line over" : "line", `${result.world.toFixed(1)}s`).append(Object.assign(document.createElement("span"), { className: "dim", textContent: ` / par ${view.room.par}s` }))
+    add(over ? "line over" : "line", `${result.world.toFixed(1)}s`).append(Object.assign(document.createElement("span"), { className: "dim small", textContent: `/ par ${view.room.par}s` }))
     if (won) {
       const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)
       const total = add("line", ` ${stars}/${view.best.length * 3}`)
       total.prepend(fromHtml(star(true)))
-      add("line dim", `${view.deaths} ${view.deaths === 1 ? "death" : "deaths"}`)
+      add("line dim small", `${view.deaths} ${view.deaths === 1 ? "death" : "deaths"}`)
     }
     this.set(this.msgCta, won ? "tap to go again" : "tap for next room")
   }

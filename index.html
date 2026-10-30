@@ -12,24 +12,28 @@
       @font-face { font-family: "Silkscreen"; src: url("/ui/fonts/Silkscreen-Regular.ttf") format("truetype"); font-weight: 400; font-display: block; }
       @font-face { font-family: "Silkscreen"; src: url("/ui/fonts/Silkscreen-Bold.ttf") format("truetype"); font-weight: 700; font-display: block; }
 
-      /* --u: one UI pixel (a whole number of device pixels, set by the HUD). Palette: the dungeon's inks and stone, gold, danger red, player teal. */
+      /* --u: one UI pixel (a whole number of device pixels, set by the HUD); --us: a small UI pixel, about ¾ of one (also whole device pixels).
+         The type scale: t0 (sub-labels, at --us), t1 (body), t2, t3; each with a line height in whole UI pixels (l0–l3).
+         A smaller line under a bigger one is one step down the scale. Palette: the dungeon's inks and stone, gold, danger red, player teal. */
       :root {
-        --u: 2px;
+        --u: 2px; --us: 1.5px;
         --ink: #0b0d12; --ink2: #171c2e; --stone: #2a3044; --stone-hi: #465070; --stone-lo: #1d2233;
         --light: #e8ecf4; --dim: #8996b0; --gold: #edc66c; --gold-hi: #fbe7a6; --gold-lo: #b8873e;
         --red: #ce4655; --teal: #64b6b3; --ice: #c6dcef; --ice-lo: #7fa6c9;
-        --t1: calc(var(--u) * 8); --t2: calc(var(--u) * 16); --t3: calc(var(--u) * 24);
+        --t0: calc(var(--us) * 8); --t1: calc(var(--u) * 8); --t2: calc(var(--u) * 16); --t3: calc(var(--u) * 24);
+        --l0: calc(var(--u) * 7); --l1: calc(var(--u) * 9); --l2: calc(var(--u) * 16); --l3: calc(var(--u) * 24);
       }
-      html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; overscroll-behavior: none; }
+      html, body { margin: 0; height: 100%; height: 100dvh; background: var(--ink); overflow: hidden; overscroll-behavior: none; }
       body {
         touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-        font-family: "Silkscreen", ui-monospace, monospace; font-size: var(--t1); line-height: calc(var(--u) * 9);
+        font-family: "Silkscreen", ui-monospace, monospace; font-size: var(--t1); line-height: var(--l1);
         color: var(--light); text-transform: uppercase; -webkit-font-smoothing: none; font-smooth: never; -webkit-tap-highlight-color: transparent;
       }
       canvas { position: fixed; left: 0; top: 0; display: block; image-rendering: pixelated; }
       [hidden] { display: none !important; }
       .px { --k: 1; width: calc(var(--u) * var(--w) * var(--k)); height: calc(var(--u) * var(--h) * var(--k)); display: block; flex: none; }
       .dim { color: var(--dim); }
+      .small { font-size: var(--t0); line-height: var(--l0); font-weight: 400; }
       .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
       /* A pixel panel: ink outline with cut corners (four offset shadows), a highlight on top, a shade below, a drop under. */
@@ -55,11 +59,11 @@
       /* The HUD. */
       .hud { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
       .hud-top {
-        position: absolute; left: 0; right: 0; top: 0; display: flex; flex-wrap: wrap; align-items: flex-start; gap: calc(var(--u) * 4);
+        position: absolute; left: 0; right: 0; top: 0; display: flex; flex-wrap: wrap; align-items: stretch; gap: calc(var(--u) * 4);
         padding: calc(env(safe-area-inset-top) + var(--u) * 4) calc(env(safe-area-inset-right) + var(--u) * 4) 0 calc(env(safe-area-inset-left) + var(--u) * 4);
       }
-      /* One row: the room plate (name, then the freeze gauge), the clock against par, the buttons. Every panel is a button high. */
-      .hud-top > .panel { box-sizing: border-box; height: max(44px, calc(var(--u) * 23)); padding: calc(var(--u) * 2) calc(var(--u) * 5) calc(var(--u) * 3); display: flex; flex-direction: column; justify-content: center; }
+      /* One row: the room plate (name, then the freeze gauge), the clock against par, the buttons. Every panel is at least a button high and grows with its lines. */
+      .hud-top > .panel { box-sizing: border-box; min-height: max(44px, calc(var(--u) * 23)); padding: calc(var(--u) * 3) calc(var(--u) * 5) calc(var(--u) * 4); display: flex; flex-direction: column; justify-content: center; gap: var(--u); }
       .plate { flex: 1 1 0; min-width: 0; max-width: calc(var(--u) * 150); }
       .plate .plate-row:first-child { gap: calc(var(--u) * 4); }
       .plate-row { display: flex; align-items: center; gap: calc(var(--u) * 3); min-width: 0; }
@@ -72,7 +76,7 @@
       .gauge i { flex: 1; background: var(--ink); box-shadow: inset 0 calc(var(--u) * -1) 0 #ffffff10; }
       .gauge i.on { background: var(--c); box-shadow: inset 0 var(--u) 0 #ffffff59, inset 0 calc(var(--u) * -1) 0 #00000059; }
       .frozen .gauge i:first-child { background: var(--ice-lo); }
-      .pace { color: var(--gold); white-space: nowrap; }
+      .pace { color: var(--gold); white-space: nowrap; font-size: var(--t0); line-height: var(--l0); }
       .frozen .pace { color: var(--ice); }
       .clock-panel { align-items: flex-end; min-width: calc(var(--u) * 26); white-space: nowrap; }
       #glass { display: flex; }
@@ -89,25 +93,27 @@
       }
       .tip.shown { opacity: 1; translate: 0 0; transition-duration: 0.2s; }
       .tip-goal { color: var(--gold); font-weight: 700; }
-      .tip-hint { color: var(--dim); }
+      .tip-hint { color: var(--dim); font-size: var(--t0); line-height: var(--l0); }
 
       /* Messages: a hit, a clear and its stars, the run's end. */
       .message {
         position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + var(--u) * 8); transform: translateX(-50%);
-        width: max-content; max-width: calc(100% - var(--u) * 16); box-sizing: border-box; padding: calc(var(--u) * 4) calc(var(--u) * 10) calc(var(--u) * 6);
-        display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3); text-align: center; animation: rise 0.18s steps(3) both;
+        width: max-content; max-width: calc(100% - var(--u) * 16 - env(safe-area-inset-left) - env(safe-area-inset-right)); box-sizing: border-box; padding: calc(var(--u) * 6) calc(var(--u) * 10) calc(var(--u) * 7);
+        display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); text-align: center; animation: rise 0.18s steps(3) both;
       }
-      .message.won { bottom: auto; top: 50%; transform: translate(-50%, -50%); padding: calc(var(--u) * 8) calc(var(--u) * 10); gap: calc(var(--u) * 5); }
-      .msg-title { font-size: var(--t3); line-height: calc(var(--u) * 24); font-weight: 700; color: var(--gold); text-shadow: 0 calc(var(--u) * 2) 0 var(--ink); }
+      .message.won { bottom: auto; top: 50%; transform: translate(-50%, -50%); padding: calc(var(--u) * 8) calc(var(--u) * 10) calc(var(--u) * 9); gap: calc(var(--u) * 5); }
+      .msg-title { font-size: var(--t3); line-height: var(--l3); font-weight: 700; color: var(--gold); text-shadow: 0 calc(var(--u) * 2) 0 var(--ink); }
       .dead .msg-title { color: var(--red); letter-spacing: calc(var(--u) * 2); }
-      .won .msg-title { font-size: var(--t2); line-height: calc(var(--u) * 18); max-width: calc(var(--u) * 120); }
+      .won .msg-title { font-size: var(--t2); line-height: var(--l2); max-width: calc(var(--u) * 120); }
       .msg-stars { display: flex; gap: calc(var(--u) * 3); }
       .msg-stars:empty { display: none; }
       .msg-lines { display: flex; flex-direction: column; align-items: center; gap: var(--u); }
       .msg-lines:empty { display: none; }
-      .msg-lines .line { display: inline-flex; align-items: center; gap: calc(var(--u) * 2); }
+      .msg-lines .line { display: inline-flex; align-items: baseline; gap: calc(var(--u) * 2); }
+      .msg-lines .line:has(svg) { align-items: center; }
       .msg-lines .over { color: var(--red); }
-      .msg-foot { display: flex; align-items: center; gap: calc(var(--u) * 8); margin-top: calc(var(--u) * 2); }
+      .msg-foot { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); margin-top: var(--u); }
+      .msg-buttons { display: flex; gap: calc(var(--u) * 4); }
       .msg-cta { color: var(--light); animation: blink 1.1s steps(1) infinite; }
       .msg-cta:empty { display: none; }
       .pop { animation: pop 0.24s steps(4) both; }
@@ -116,13 +122,19 @@
       @keyframes blink { 0%, 65% { opacity: 1; } 66%, 100% { opacity: 0.35; } }
 
       /* Menus. */
+      /* The menu scrolls itself, as tall as the visible viewport (dvh: the phone's toolbars excluded); the page inside carries the
+         safe-area padding, so the last row always scrolls clear of the home indicator and the toolbar. */
       .menu {
-        position: fixed; inset: 0; z-index: 10; display: flex; justify-content: center; overflow-y: auto; box-sizing: border-box;
-        padding: calc(env(safe-area-inset-top) + var(--u) * 8) calc(env(safe-area-inset-right) + var(--u) * 8) calc(env(safe-area-inset-bottom) + var(--u) * 8) calc(env(safe-area-inset-left) + var(--u) * 8);
+        position: fixed; left: 0; right: 0; top: 0; height: 100vh; height: 100dvh; z-index: 10; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
         background: repeating-conic-gradient(#06070a 0 25%, transparent 0 50%) 0 0 / calc(var(--u) * 2) calc(var(--u) * 2), #0b0d12a8;
-        touch-action: pan-y;
+        touch-action: pan-y; -webkit-overflow-scrolling: touch;
       }
-      .title-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 6); width: 100%; max-width: calc(var(--u) * 170); min-height: 100%; }
+      .menu-page {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; box-sizing: border-box;
+        padding: calc(env(safe-area-inset-top) + var(--u) * 8) calc(env(safe-area-inset-right) + var(--u) * 8) calc(env(safe-area-inset-bottom) + var(--u) * 12) calc(env(safe-area-inset-left) + var(--u) * 8);
+      }
+      .menu-page.list { justify-content: flex-start; }
+      .title-screen, .pause-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 6); width: 100%; max-width: calc(var(--u) * 170); }
       .logo { margin: 0; display: flex; flex-direction: column; align-items: center; margin-bottom: calc(var(--u) * 6); }
       .logo .clock-face { --k: 3; margin-bottom: calc(var(--u) * 4); }
       .logo-word { font-weight: 700; font-size: calc(var(--u) * 32); line-height: calc(var(--u) * 28); position: relative; white-space: nowrap; }
@@ -156,22 +168,35 @@
       .tagline { margin: calc(var(--u) * 6) 0 0; color: var(--dim); text-align: center; }
       .tagline b { color: var(--teal); font-weight: 400; }
       .title-screen .btn { width: 100%; box-sizing: border-box; }
-      .btn.big { font-weight: 700; min-height: max(52px, calc(var(--u) * 28)); font-size: var(--t2); }
-      .btn .sub { font-weight: 400; font-size: var(--t1); opacity: 0.75; }
-      .btn.continue { flex-direction: column; gap: 0; padding: calc(var(--u) * 3) calc(var(--u) * 7) calc(var(--u) * 4); }
+      .btn.big { font-weight: 700; min-height: max(52px, calc(var(--u) * 28)); font-size: var(--t2); line-height: var(--l2); }
+      .btn .sub { font-weight: 400; font-size: var(--t0); line-height: var(--l0); opacity: 0.8; }
+      .btn.continue { flex-direction: column; gap: calc(var(--u) * 2); padding: calc(var(--u) * 5) calc(var(--u) * 7) calc(var(--u) * 6); }
+      .btn.back { gap: calc(var(--u) * 3); padding: 0 calc(var(--u) * 6) 0 calc(var(--u) * 5); }
+      .pause-screen .btn { width: 100%; box-sizing: border-box; }
+      .pause-head { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 2); margin-bottom: calc(var(--u) * 2); text-align: center; }
+      .pause-head h2 { margin: 0; font-size: var(--t2); line-height: var(--l2); color: var(--light); }
       .total { display: inline-flex; align-items: center; gap: calc(var(--u) * 2); color: var(--gold); }
       .rooms-screen { width: 100%; max-width: calc(var(--u) * 260); }
-      .rooms-head { display: flex; align-items: center; gap: calc(var(--u) * 6); margin-bottom: calc(var(--u) * 8); padding: calc(var(--u) * 2) calc(var(--u) * 2) calc(var(--u) * 2) calc(var(--u) * 6); }
-      .rooms-head h2 { margin: 0; font-size: var(--t2); line-height: calc(var(--u) * 16); flex: 1; color: var(--light); }
+      /* The head stays at the top while the list scrolls under it: Title and close are always in reach. */
+      .rooms-head {
+        position: sticky; top: calc(env(safe-area-inset-top) + var(--u) * 2); z-index: 1; display: flex; align-items: center; gap: calc(var(--u) * 5);
+        margin-bottom: calc(var(--u) * 8); padding: calc(var(--u) * 3);
+      }
+      /* Covers the strip above the stuck head, so rows don't show scrolling past over it. */
+      .rooms-head::before { content: ""; position: absolute; left: calc(var(--u) * -2); right: calc(var(--u) * -2); bottom: calc(100% + var(--u)); height: calc(env(safe-area-inset-top) + var(--u) * 4); background: var(--ink); }
+      .rooms-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--u); }
+      .rooms-title h2 { margin: 0; font-size: var(--t2); line-height: var(--l2); color: var(--light); }
+      .rooms-title .total { font-size: var(--t0); line-height: var(--l0); }
       .rooms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 150), 1fr)); gap: calc(var(--u) * 4); }
       .btn.room-card {
         display: grid; grid-template-columns: calc(var(--u) * 30) 1fr auto; gap: calc(var(--u) * 4); align-items: center; justify-content: stretch;
-        text-align: left; min-height: max(44px, calc(var(--u) * 22)); padding: var(--u) calc(var(--u) * 5) calc(var(--u) * 2);
+        text-align: left; min-height: max(44px, calc(var(--u) * 22)); padding: calc(var(--u) * 4) calc(var(--u) * 5) calc(var(--u) * 5);
       }
-      .room-number { font-size: var(--t2); line-height: calc(var(--u) * 16); font-weight: 700; color: var(--stone-hi); text-align: center; text-shadow: 0 var(--u) 0 var(--stone-lo); }
+      .room-number { font-size: var(--t2); line-height: var(--l2); font-weight: 700; color: var(--stone-hi); text-align: center; text-shadow: 0 var(--u) 0 var(--stone-lo); }
       .room-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .room-meta { display: flex; flex-direction: column; gap: var(--u); align-items: flex-end; }
-      .room-best { color: var(--dim); }
+      .room-meta { display: flex; flex-direction: column; gap: calc(var(--u) * 2); align-items: flex-end; }
+      .room-best { color: var(--dim); font-size: var(--t0); line-height: var(--l0); }
+      .room-meta .room-best:only-child { font-size: var(--t1); line-height: var(--l1); }
       .room-stars { display: flex; gap: var(--u); }
       .room-card.current { --o: var(--gold); }
       .room-card.current .room-number { color: var(--gold); text-shadow: 0 var(--u) 0 var(--gold-lo); }
@@ -189,10 +214,10 @@
           <div class="plate-row"><span id="glass"></span><span id="gauge" class="gauge"></span><span id="pace" class="pace"></span></div>
         </div>
         <div id="clock-panel" class="panel glass clock-panel">
-          <span id="clock" class="clock"></span><span class="dim">/<span id="par"></span>s</span>
+          <span id="clock" class="clock"></span><span class="dim small">/<span id="par"></span>s</span>
         </div>
         <div class="hud-buttons">
-          <button id="rooms" class="btn square" type="button" aria-label="Rooms"></button>
+          <button id="pause" class="btn square" type="button" aria-label="Menu"></button>
           <button id="restart" class="btn square" type="button" aria-label="Restart"></button>
         </div>
       </div>
@@ -201,7 +226,10 @@
         <div id="msg-title" class="msg-title"></div>
         <div id="msg-stars" class="msg-stars"></div>
         <div id="msg-lines" class="msg-lines"></div>
-        <div class="msg-foot"><button id="rooms-after" class="btn" type="button" hidden>Rooms</button><span id="msg-cta" class="msg-cta"></span></div>
+        <div class="msg-foot">
+          <span id="msg-cta" class="msg-cta"></span>
+          <div id="msg-buttons" class="msg-buttons" hidden><button id="rooms-after" class="btn" type="button">Rooms</button><button id="title-after" class="btn" type="button">Title</button></div>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/host/main.ts"></script>

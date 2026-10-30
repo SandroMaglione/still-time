@@ -79,13 +79,18 @@ const menu = new Menu(document.body, {
     if (room !== fight.view().room.index || fight.view().flow !== "playing") fight.send({ kind: "goToRoom", room })
     menu.close()
   },
-  resume: () => menu.close()
+  resume: () => menu.close(),
+  restart: () => {
+    fight.send({ kind: "restart" })
+    menu.close()
+  }
 })
 if (asked === null) menu.show("title", fight.view())
 
 el("restart").addEventListener("click", () => fight.send({ kind: "restart" }))
-el("rooms").addEventListener("click", () => menu.show("rooms", fight.view()))
+el("pause").addEventListener("click", () => menu.show("pause", fight.view()))
 el("rooms-after").addEventListener("click", () => menu.show("rooms", fight.view()))
+el("title-after").addEventListener("click", () => menu.show("title", fight.view()))
 
 // The floating stick starts wherever the finger lands. Within DEAD_ZONE px of
 // the press point you stand still; at REACH px you run at top speed.
@@ -129,7 +134,7 @@ canvas.addEventListener("pointerup", lift)
 canvas.addEventListener("pointercancel", lift)
 
 // Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 and 0 jump to rooms 1-10,
-// [ and ] step to the previous and next room (open rooms only), Escape or M opens the room select.
+// [ and ] step to the previous and next room (open rooms only), Escape or M pauses (and closes the pause or room select).
 const held = new Set<string>()
 const DIRS: Record<string, readonly [number, number]> = {
   ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0]
@@ -145,10 +150,10 @@ const keyPush = (): void => {
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
   if (e.repeat) return
-  // Escape or M opens the room select, and closes any menu.
+  // Escape or M pauses, and closes the pause or the room select (the title stays until you pick Play).
   if (key === "Escape" || key === "m") {
-    if (menu.isOpen) menu.close()
-    else menu.show("rooms", fight.view())
+    if (menu.current === "pause" || menu.current === "rooms") menu.close()
+    else if (!menu.isOpen) menu.show("pause", fight.view())
     e.preventDefault()
     return
   }
