@@ -13,6 +13,12 @@ the three-frame `batch2` atlas. Runtime weapon/body layering remains in
 `src/host/combat-art.ts`; each role has its own body. Every living body gets
 a one-source-pixel light rim inside the renderer, outside its dark outline.
 
+`scripts/art-hero.mjs` authors three original 24×24 player options: split scarf,
+swept hat and lantern visor. The selected swept ivory hat and teal scarf give
+the player a wide asymmetric silhouette. Rebuild updates `player-body.png`,
+`player.png` and the player frame in `characters.png` together. `hero-options.png`
+is the native three-option export; labelled 1×/4× reviews stay in `output/`.
+
 ## Rebuild
 
 Run `pnpm art` for characters and environment, or `pnpm art:environment` for
@@ -64,6 +70,10 @@ the previous review's captures.
 
 Use `--round-3` for the same six captures and matched fixtures in
 `output/review-3/`, compared with `output/review-2/after`.
+
+Use `--round-4` for lit phone captures of rooms 1, 4, 9 and 11, plus an unlit
+room 9. `node scripts/art-review.ts <url>` makes the player options sheet,
+4× production-renderer crops and a matching unlit scene in `output/review-4/`.
 
 `pnpm shots:art <url>` checks phone/desktop/landscape integer pixel scaling;
 `pnpm record:fx <url>` records isolated motion studies and a live death/retry.

@@ -2,6 +2,7 @@
 import { readdirSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import './batch2-art.mjs'
+import './art-hero.mjs'
 
 const out = 'output/art'
 for (const folder of ['previews', 'reports']) mkdirSync(`${out}/${folder}`, { recursive: true })

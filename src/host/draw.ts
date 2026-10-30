@@ -11,6 +11,7 @@ import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./co
 import type { Presentation } from "./fx.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
+import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
 import { DANGER, THREAT, pathArrow, reloadArc, threatArc, threatLine } from "./threats.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
@@ -111,7 +112,23 @@ const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 /** A crown glyph in screen pixels, its base centred on (x, y). */
 const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void => sprite(ctx, "crown", x, y + 3)
 
-export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null): void => {
+/** Ambient light: cool and dim while time is frozen, warmer as the world runs. */
+const AMBIENT_FROZEN: Rgb = [128, 140, 184], AMBIENT_RUNNING: Rgb = [172, 162, 148]
+
+/** Transparent layers the size of the scene, reused per context: ground decals and shots, which also mark emissive pixels. */
+const glowLayers = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
+const glowLayer = (ctx: CanvasRenderingContext2D): CanvasRenderingContext2D => {
+  let c = glowLayers.get(ctx)
+  if (c === undefined) { c = document.createElement("canvas"); glowLayers.set(ctx, c) }
+  if (c.width !== ctx.canvas.width) c.width = ctx.canvas.width
+  if (c.height !== ctx.canvas.height) c.height = ctx.canvas.height
+  const g = c.getContext("2d")!
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, c.width, c.height)
+  g.imageSmoothingEnabled = false
+  return g
+}
+
+export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): void => {
   // Margins are in source pixels, so short desktop/landscape views need smaller ones.
   const TOP = Math.min(32, Math.round(ch * 0.08)), BOTTOM = Math.min(42, Math.round(ch * 0.12))
   const u = unitFor(cw)
@@ -152,6 +169,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelLine(ctx, a, { x: a.x, y: b.y }, "#4b5d50")
     pixelLine(ctx, { x: b.x, y: a.y }, b, "#4b5d50")
     sprite(ctx, "exit-rune", (a.x + b.x) / 2, (a.y + b.y) / 2 + 12)
+    emitLight(ctx, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, radius: 2.2, colour: [125, 255, 154], intensity: 0.45 })
   }
   // Open doors: a threshold in the lock's colour.
   for (const d of view.doors) {
@@ -168,7 +186,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
 
   // Ground decals: where shots will pass, what each enemy covers, your reach.
+  // Drawn on the glow layer: copied onto the scene, and kept at full light as threats.
+  const glow = glowLayer(ctx)
   if (view.flow === "playing") {
+    const ctx = glow
+    ctx.save()
+    ctx.beginPath(); ctx.rect(Math.round(floorStart.x), Math.round(floorStart.y), Math.round(floorEnd.x - floorStart.x), Math.round(floorEnd.y - floorStart.y)); ctx.clip()
     for (const shot of view.shots) {
       const start = P(shot.x, shot.y), end = P(shot.x + shot.vx, shot.y + shot.vy)
       threatLine(ctx, start, end, false, 6)
@@ -230,20 +253,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     if (view.player !== null) {
       pixelArc(ctx, P(view.player.x, view.player.y), view.player.attackRange * erx, view.player.attackRange * ery, 0, Math.PI * 2, view.scale < 0.15 ? "#64b6b3" : "#647373", 1, true)
     }
+    ctx.restore()
   }
+  ctx.drawImage(glow.canvas, 0, 0)
   ctx.restore()
 
   // Everything standing, painted back to front; crates and walls by the box rule.
   type Thing = { readonly x: number; readonly y: number; readonly paint: () => void }
   const actors: Array<Thing> = []
-  /** A line held at height z from (x, y) toward angle a. */
-  const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
-    const start = P(x + Math.cos(a) * from, y + Math.sin(a) * from, z)
-    const end = P(x + Math.cos(a) * to, y + Math.sin(a) * to, z)
-    pixelLine(ctx, start, end, "#171c2e", width + 2)
-    pixelLine(ctx, start, end, colour, width)
-  }
   for (const e of view.enemies) {
+    // Every enemy carries a little light of its own, so a threat never hides in a shadow.
+    const lamp = P(e.x, e.y)
+    emitLight(ctx, { x: lamp.x, y: lamp.y - 8, radius: 1.1, colour: [255, 226, 200], intensity: 0.45, shadows: false })
     actors.push({
       x: e.x, y: e.y, paint: () => {
         const ground = P(e.x, e.y)
@@ -267,8 +288,17 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     })
   }
   for (const shot of view.shots) {
-    actors.push({
-      x: shot.x, y: shot.y, paint: () => {
+    const glowing = P(shot.x, shot.y)
+    emitLight(ctx, { x: glowing.x, y: glowing.y, radius: 0.9, colour: [255, 96, 72], intensity: 0.5, shadows: false })
+    const paintShot = (ctx: CanvasRenderingContext2D): void => {
+      /** A line held at height z from (x, y) toward angle a. */
+      const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
+        const start = P(x + Math.cos(a) * from, y + Math.sin(a) * from, z)
+        const end = P(x + Math.cos(a) * to, y + Math.sin(a) * to, z)
+        pixelLine(ctx, start, end, "#171c2e", width + 2)
+        pixelLine(ctx, start, end, colour, width)
+      }
+      {
         const a = Math.atan2(shot.vy, shot.vx)
         const z = 0.6
         if (shot.kind === "bullet") {
@@ -292,10 +322,14 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
           held(shot.x, shot.y, a, -0.25, -0.15, z, "#f4efda", 3)
         }
       }
-    })
+    }
+    actors.push({ x: shot.x, y: shot.y, paint: () => { paintShot(ctx); paintShot(glow) } })
   }
   if (view.player !== null && view.flow !== "dead") {
     const p = view.player
+    const at = P(p.x, p.y)
+    // A faint light of your own, so you never vanish into the dark.
+    emitLight(ctx, { x: at.x, y: at.y, radius: 2.4, colour: [200, 236, 230], intensity: 0.4 })
     actors.push({
       x: p.x, y: p.y, paint: () => {
         const speed = Math.hypot(p.vx, p.vy)
@@ -365,6 +399,20 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
     paintAll(slots[i] ?? [])
   })
+
+  if (lit) {
+    const t = Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))
+    const mixc = (i: number): number => Math.round(AMBIENT_FROZEN[i]! + (AMBIENT_RUNNING[i]! - AMBIENT_FROZEN[i]!) * t)
+    applyLighting(ctx, {
+      P, u, squash: SQUASH,
+      toFloor: (sx, sy) => ({ x: (sx - cx) / u, y: (sy - cy) / (u * SQUASH) }),
+      blockers: [...view.room.pillars, ...view.doors.filter((d) => !d.open)],
+      blockerHeight: PILLAR_HEIGHT,
+      backWall: BACK_WALL,
+      room: view.room,
+      ambient: [mixc(0), mixc(1), mixc(2)]
+    }, glow.canvas)
+  } else discardLights(ctx)
 
   // An occluded player keeps an ivory marker above cover.
   if (view.player !== null && view.flow !== "dead") {

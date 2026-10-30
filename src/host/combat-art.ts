@@ -1,6 +1,7 @@
 import type { EnemyView } from "../sim/view.ts"
 import { posedSprite, sprite, type Sprite } from "./art.ts"
 import type { Death, Impact } from "./fx.ts"
+import { emitLight } from "./lighting.ts"
 import { decorationHash, pixelArc, pixelLine, pixelPolygon, type Point } from "./pixels.ts"
 
 const INK = "#171c2e", STEEL = "#c6d4df", IVORY = "#f4efda", GOLD = "#edc66c"
@@ -124,6 +125,8 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
 }
 
 export const muzzle = (ctx: CanvasRenderingContext2D, at: Point, angle: number, progress: number): void => {
+  // The flash lights the floor around the shooter for a moment.
+  emitLight(ctx, { x: at.x, y: at.y + 6, radius: 2.4, colour: [255, 214, 140], intensity: 0.9 * (1 - progress), shadows: false })
   const length = progress < 0.5 ? 11 : 6
   const to = { x: at.x + Math.cos(angle) * length, y: at.y + Math.sin(angle) * length }
   pixelLine(ctx, at, to, INK, progress < 0.5 ? 9 : 6)
@@ -203,6 +206,8 @@ export const impactBurst = (ctx: CanvasRenderingContext2D, impact: Impact, at: P
 /** Quantized flame tongues, drifting embers and low-contrast smoke, all in world time. */
 export const torchFire = (ctx: CanvasRenderingContext2D, x: number, y: number, time: number, seed: number): void => {
   const frame = Math.floor(time * 14), wobble = Math.sin(frame * 1.7 + seed)
+  // A warm pool on the floor below the flame, flickering with it.
+  emitLight(ctx, { x, y: y + 4, radius: 3.6 + Math.sin(frame * 0.7 + seed) * 0.12, colour: [255, 176, 96], intensity: 0.85 })
   rect(ctx, x - 3, y - 10, 7, 10, INK); rect(ctx, x - 2, y - 9, 5, 8, "#465253")
   rect(ctx, x - 1, y - 8, 2, 6, "#899692")
   rect(ctx, x - 5, y - 11, 11, 2, INK); rect(ctx, x - 4, y - 11, 9, 1, "#899692")

@@ -1,10 +1,10 @@
 palette
 . transparent
 A #171c2e
-B #262b31
+B #262e2a
 C #363e35
 D #41483e
-E #454c42
+E #495044
 F #62695b
 G #7b826f
 H #a6ad94

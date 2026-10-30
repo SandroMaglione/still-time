@@ -1,5 +1,5 @@
 /** True-size assets; enlargement happens once, on the final canvas. */
-const names = ["player-body", "gunner-body", "archer-body", "thrower-body", "brute-body", "runner-body", "sniper-body", "knight-body", "shield-body", "crown", "cap", "masonry", "iron", "banner-red", "banner-moss", "rubble", "pots", "chain", "shadow", "exit-rune", "bullet", "spark"] as const
+const names = ["player-body", "gunner-body", "archer-body", "thrower-body", "brute-body", "runner-body", "sniper-body", "knight-body", "shield-body", "crown", "cap", "cover-cap-1", "cover-cap-2", "cover-chip", "crate-cap", "crate-face", "masonry", "iron", "banner-red", "banner-moss", "rubble", "pots", "chain", "shadow", "exit-rune", "bullet", "spark", "floor-0", "floor-1", "floor-2", "floor-3", "floor-4", "floor-5", "floor-cracked", "floor-moss", "floor-drain", "rock-0", "rock-1", "rock-2", "brazier-0", "brazier-1"] as const
 export type Sprite = typeof names[number]
 const images = new Map<Sprite, HTMLImageElement>()
 const patterns = new WeakMap<CanvasRenderingContext2D, Map<Sprite, CanvasPattern>>()
@@ -84,6 +84,25 @@ export const sprite = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y
 export const tile = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: number): void => {
   const image = images.get(name)
   if (image !== undefined) ctx.drawImage(image, Math.round(x), Math.round(y))
+}
+
+/** Nine-slice panel. Every centre and edge repeats source texels; none are stretched. */
+export const panel = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: number, width: number, height: number, border = 4): void => {
+  const image = images.get(name)
+  if (image === undefined) return
+  x = Math.round(x); y = Math.round(y); width = Math.round(width); height = Math.round(height)
+  const b = Math.min(border, Math.floor(width / 2), Math.floor(height / 2))
+  if (b < 1) return
+  const sourceX = [0, b, image.width - b], sourceY = [0, b, image.height - b]
+  const targetX = [x, x + b, x + width - b], targetY = [y, y + b, y + height - b]
+  const sourceW = [b, image.width - b * 2, b], sourceH = [b, image.height - b * 2, b]
+  const targetW = [b, width - b * 2, b], targetH = [b, height - b * 2, b]
+  for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) {
+    for (let dy = 0; dy < targetH[row]!; dy += sourceH[row]!) for (let dx = 0; dx < targetW[col]!; dx += sourceW[col]!) {
+      const w = Math.min(sourceW[col]!, targetW[col]! - dx), h = Math.min(sourceH[row]!, targetH[row]! - dy)
+      ctx.drawImage(image, sourceX[col]!, sourceY[row]!, w, h, targetX[col]! + dx, targetY[row]! + dy, w, h)
+    }
+  }
 }
 
 export const texture = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: number, w: number, h: number): void => {

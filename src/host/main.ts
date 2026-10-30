@@ -182,6 +182,8 @@ const resize = (): void => {
 window.addEventListener("resize", resize)
 resize()
 
+// `?nolight` turns the lighting pass off, to compare.
+const lit = !new URLSearchParams(location.search).has("nolight")
 const camera = new Camera()
 let lastRoom = -1
 let lastPlayer = -1
@@ -223,7 +225,7 @@ FixedLoop.start({
     const sx = canvas.width / window.innerWidth / pixelScale
     const sy = canvas.height / window.innerHeight / pixelScale
     const pixelStick = stick === null ? null : { ox: stick.ox * sx, oy: stick.oy * sy, x: stick.x * sx, y: stick.y * sy, reach: stick.reach * sx }
-    draw(sceneCtx, scene.width, scene.height, view, pixelStick, camera, presentation)
+    draw(sceneCtx, scene.width, scene.height, view, pixelStick, camera, presentation, lit)
     ctx.drawImage(scene, 0, 0, scene.width * pixelScale, scene.height * pixelScale)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
