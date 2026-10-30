@@ -182,6 +182,38 @@
         }
       ]
     },
+    "time.stop": {
+      "about": "Stopping dead: time freezes around you. Air drawn in as a filter closes, a falling hum, a faint glassy tick: the dash's mirror.",
+      "reverb": 0.25,
+      "interval": 0.4,
+      "layers": [
+        {
+          "type": "noise",
+          "filter": "lowpass",
+          "from": 3200,
+          "to": 280,
+          "q": 0.8,
+          "duration": 0.38,
+          "gain": 0.32
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 230,
+          "to": 72,
+          "duration": 0.34,
+          "attack": 0.01,
+          "gain": 0.3
+        },
+        {
+          "type": "metal",
+          "pitch": 1760,
+          "duration": 0.3,
+          "gain": 0.07,
+          "delay": 0.02
+        }
+      ]
+    },
     "shot.bullet": {
       "about": "A gunner fires: a dry pop with a short crack.",
       "reverb": 0.12,

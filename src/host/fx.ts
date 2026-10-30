@@ -26,6 +26,15 @@ export interface Ghost { readonly x: number; readonly y: number; readonly flip: 
 export const GHOST_LIFE = 0.32
 const GHOST_EVERY = 0.09
 
+/** Where and when (real s) you stopped dead and the world froze. */
+export interface Stop { readonly x: number; readonly y: number; readonly born: number }
+/** A short line over the room the first times something happens, to name it: the freeze, in the first rooms. */
+export interface Callout { readonly title: string; readonly line: string; readonly born: number }
+export const STOP_LIFE = 0.5
+export const CALLOUT_LIFE = 1.8
+/** The first rooms name the freeze the first few times it happens. */
+const TEACH_ROOMS = 2, TEACH_TIMES = 3
+
 /** World speed as 0 (frozen) to 1 (full speed). */
 export const speedOf = (view: FightView): number => Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))
 const slashKey = (s: FightView["slashes"][number]): string => `${s.born}:${s.x}:${s.y}`
@@ -36,7 +45,12 @@ export class Presentation {
   deaths: Array<Death> = []
   impacts: Array<Impact> = []
   ghosts: Array<Ghost> = []
+  stops: Array<Stop> = []
+  callout: Callout | null = null
   private lastGhost = -1
+  /** Armed by a real run, fired by stopping: one freeze moment per stop. */
+  private running = false
+  private taught = new Map<number, number>()
   private fire = new Map<number, Fire>()
   private previous: FightView | null = null
   private deadAt: number | null = null
@@ -47,6 +61,8 @@ export class Presentation {
     this.deaths = this.deaths.filter(d => this.now - d.born < 1.05)
     this.impacts = this.impacts.filter(i => this.now - i.born < 0.42)
     this.ghosts = this.ghosts.filter(g => this.now - g.born < GHOST_LIFE)
+    this.stops = this.stops.filter(s => this.now - s.born < STOP_LIFE)
+    if (this.callout !== null && this.now - this.callout.born >= CALLOUT_LIFE) this.callout = null
   }
 
   get playerDeathAge(): number { return this.deadAt === null ? -1 : this.now - this.deadAt }
@@ -59,7 +75,8 @@ export class Presentation {
   observe(view: FightView): void {
     const old = this.previous
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
-      this.deaths = []; this.impacts = []; this.ghosts = []; this.fire.clear()
+      this.deaths = []; this.impacts = []; this.ghosts = []; this.stops = []; this.fire.clear()
+      this.running = false
       this.deadAt = null; this.clearedAt = null
       this.previous = view
       return
@@ -72,6 +89,19 @@ export class Presentation {
       this.ghosts.push({ x: p.x, y: p.y, flip: p.vx < 0, born: this.now, strength: k })
       this.lastGhost = this.now
       this.ghosts = this.ghosts.slice(-12)
+    }
+    // Stopping dead after a run is the freeze: a moment of its own, and in the first rooms, named.
+    if (p !== null && view.flow === "playing") {
+      if (k > 0.5) this.running = true
+      else if (this.running && k < 0.12) {
+        this.running = false
+        this.stops = [...this.stops, { x: p.x, y: p.y, born: this.now }].slice(-3)
+        const times = this.taught.get(view.room.index) ?? 0
+        if (view.room.index < TEACH_ROOMS && times < TEACH_TIMES) {
+          this.taught.set(view.room.index, times + 1)
+          this.callout = { title: "TIME STOPS", line: times === 0 ? "read the room, then move" : "", born: this.now }
+        }
+      }
     }
     const live = new Set(view.enemies.map(e => e.id))
     for (const enemy of old.enemies) {

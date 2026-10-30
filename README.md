@@ -13,7 +13,7 @@ Controls: drag anywhere (the further, the faster); lift to freeze time; tap to c
 
 Rooms open one by one; progress (each room's best stars and time) is saved in the browser's local storage under `still-time/`. For testing: `?room=N` opens a room straight away (skipping the title), `?all` opens every room.
 
-`pnpm build` writes `dist/` with relative paths: zip its contents and upload it to itch.io as an HTML game.
+`pnpm build` writes `dist/` with relative paths. `pnpm package` builds and zips it into `output/still-time-itch.zip` (`index.html` at the zip's root): upload that to itch.io as an HTML game, viewport 720×1280, mobile friendly, with the fullscreen button.
 
 ## Layout
 

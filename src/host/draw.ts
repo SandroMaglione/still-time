@@ -9,7 +9,7 @@ import { STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
-import { GHOST_LIFE, speedOf, type Presentation } from "./fx.ts"
+import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
@@ -540,6 +540,51 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       ambient: [mixc(0), mixc(1), mixc(2)]
     }, glow.canvas)
   } else discardLights(ctx)
+
+  // Frozen time closes in: a cold vignette, as strong as the world is still.
+  if (view.flow === "playing") {
+    const still = 1 - speedOf(view)
+    if (still > 0.05) {
+      const r = Math.hypot(cw, ch) / 2
+      const g = ctx.createRadialGradient(cw / 2, ch / 2, r * 0.45, cw / 2, ch / 2, r)
+      g.addColorStop(0, "rgba(14,22,52,0)")
+      g.addColorStop(1, `rgba(14,22,52,${(0.62 * still).toFixed(3)})`)
+      ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch)
+    }
+  }
+  // The moment you stop dead: two cold rings burst out across the floor as the world freezes.
+  for (const stop of presentation?.stops ?? []) {
+    const age = presentation!.now - stop.born
+    for (const [lag, colour] of [[0, "#e8f6ff"], [0.08, "#7fd8ff"]] as const) {
+      const t = (age - lag) / (STOP_LIFE - lag)
+      if (t <= 0 || t >= 1) continue
+      const reach = (1 - (1 - t) * (1 - t)) * 3.4
+      const centre = P(stop.x, stop.y)
+      pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, INK, t < 0.5 ? 3 : 2, t > 0.55)
+      pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
+    }
+  }
+  // In the first rooms, the freeze is named the first times it happens.
+  const callout = presentation?.callout ?? null
+  if (callout !== null && view.flow === "playing") {
+    const age = presentation!.now - callout.born
+    const alpha = Math.min(1, age / 0.12, (CALLOUT_LIFE - age) / 0.45)
+    if (alpha > 0) {
+      const y = Math.round(TOP + 30 - Math.min(1, age / 0.2) * 4)
+      ctx.save()
+      ctx.globalAlpha = alpha
+      ctx.textAlign = "center"; ctx.textBaseline = "top"
+      const text = (t: string, size: number, at: number, colour: string): void => {
+        ctx.font = `700 ${size}px Silkscreen, ui-monospace, monospace`
+        ctx.fillStyle = INK
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]] as const) ctx.fillText(t, Math.round(cw / 2) + dx, at + dy)
+        ctx.fillStyle = colour; ctx.fillText(t, Math.round(cw / 2), at)
+      }
+      text(callout.title, 16, y, "#e8f6ff")
+      if (callout.line !== "") text(callout.line, 8, y + 19, "#7fd8ff")
+      ctx.restore()
+    }
+  }
 
   // An occluded player keeps an ivory marker above cover.
   if (view.player !== null && view.flow !== "dead") {
