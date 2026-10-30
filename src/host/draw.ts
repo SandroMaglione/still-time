@@ -7,7 +7,7 @@
 import { ROOMS, type Hazard, type Lock, type Pillar } from "../sim/rooms.ts"
 
 type Blade = Extract<Hazard, { readonly kind: "blade" }>
-import { STALKER } from "../sim/tuning.ts"
+import { SHOTS, STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
@@ -164,9 +164,9 @@ export const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, presse
 /** Touch or keys: the hint says what this device does. */
 const touchFirst = (): boolean => typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches
 /**
- * The first room's lesson, the move alone, looped every 2.8 real s: the hand presses beside you (a ring), drags up
- * and keeps holding while a ghost of you walks ahead with it; then the hand lets go and the ghost stops dead with a
- * cold ring. Hold to keep moving; let go to stop. The label sits over everything.
+ * The first rooms' lesson, the move, looped every 2.8 real s: a hand presses on the floor a little ahead of you (a
+ * ring) and keeps holding while a ghost of you walks to it; then the hand lets go and the ghost stops dead with a cold
+ * ring. Hold where you want to go; let go to stop. The label sits under you, over everything.
  */
 export const dragHint = (
   ctx: CanvasRenderingContext2D, player: { readonly x: number; readonly y: number }, P: Project, now: number,
@@ -174,36 +174,34 @@ export const dragHint = (
 ): void => {
   const t = now % 2.8
   const at = P(player.x, player.y)
-  // The hand sits beside you, on the side away from where the ghost walks, and drags the way it goes.
-  const side = dir.x > 0.3 ? -1 : 1
-  const start = { x: Math.round(at.x + side * 26), y: Math.round(at.y + 4) }
-  const drag = t < 0.2 ? 0 : t < 0.5 ? (t - 0.2) / 0.3 : 1
-  const held = t < 1.9
+  const reach = 2.4
+  const goal = P(player.x + dir.x * reach, player.y + dir.y * reach)
+  const held = t > 0.2 && t < 1.9
   const fade = t > 2.4 ? 1 - (t - 2.4) / 0.4 : 1
-  // The ghost of you walks while the hand holds (0.4 to 1.9 s), then stands where it stopped.
+  // The ghost of you walks to the finger while it holds (0.4 to 1.9 s), stopping just short, then stands.
   const walk = Math.max(0, Math.min(1, (t - 0.4) / 1.5))
-  const ghost = P(player.x + dir.x * walk * 2.2, player.y + dir.y * walk * 2.2)
+  const ghost = P(player.x + dir.x * walk * (reach - 0.4), player.y + dir.y * walk * (reach - 0.4))
   ctx.save()
   ctx.globalAlpha = fade
-  silhouette(ctx, bodyName("player"), ghost.x, ghost.y, dir.x < 0, GHOST, 0.55)
-  if (!held && t < 2.3) {
+  if (t > 0.2) {
+    pixelLine(ctx, at, goal, "#7fd8ff", 1, 3)
+    silhouette(ctx, bodyName("player"), ghost.x, ghost.y, dir.x < 0, GHOST, 0.55)
+  }
+  if (t >= 1.9 && t < 2.3) {
     const r = 6 + (t - 1.9) * 40
     pixelArc(ctx, ghost, r, r * 0.7, 0, Math.PI * 2, "#7fd8ff", 1)
   }
-  if (t < 0.2) {
-    pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, INK, 3)
-    pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, "#7fd8ff", 1)
+  // The press: a ring where the finger lands.
+  if (t < 0.4) {
+    const k = t / 0.4
+    pixelArc(ctx, goal, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, INK, 3)
+    pixelArc(ctx, goal, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, "#7fd8ff", 1)
   }
-  const sx = P(player.x + dir.x, player.y + dir.y).x - at.x, sy = P(player.x + dir.x, player.y + dir.y).y - at.y, sl = Math.hypot(sx, sy) || 1
-  const tip = { x: start.x + Math.round((sx / sl) * 18 * drag), y: start.y + Math.round((sy / sl) * 18 * drag) - (held ? 0 : Math.round((t - 1.9) * 30)) }
-  if (drag > 0 && held) {
-    pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, INK, 3, 2)
-    pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, "#7fd8ff", 1, 2)
-  }
-  hand(ctx, tip.x, tip.y, held)
-  const label = held ? (touchFirst() ? "HOLD AND DRAG" : "HOLD AN ARROW") : "LET GO: STOP"
-  // Under the hand's lowest point, so nothing ever covers it.
-  hintText(ctx, label, at.x, Math.round(at.y + 32), held ? "#f4efda" : "#7fd8ff")
+  // The hand: its fingertip on the spot, pressed while it holds, lifting away after.
+  const lifted = t >= 1.9 ? Math.round((t - 1.9) * 30) : 0
+  hand(ctx, goal.x, goal.y - lifted, held)
+  const label = held || t < 0.2 ? (touchFirst() ? "HOLD WHERE TO GO" : "HOLD AN ARROW") : "LET GO: STOP"
+  hintText(ctx, label, at.x, Math.round(at.y + 14), held || t < 0.2 ? "#f4efda" : "#7fd8ff")
   ctx.restore()
 }
 
@@ -459,8 +457,14 @@ const cracks = (ctx: CanvasRenderingContext2D, b: Pillar, P: (x: number, y: numb
   }
 }
 
-/** Draws the view; returns where floor points (metres, z up) land on the canvas this frame, for overlays drawn after it. */
-export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): Project => {
+/** How this frame maps the floor to the canvas and back: where a floor point lands, and which floor point a canvas pixel shows. */
+export interface Frame {
+  readonly P: Project
+  readonly floorAt: (sx: number, sy: number) => { readonly x: number; readonly y: number }
+}
+
+/** Draws the view; returns this frame's mapping, for overlays drawn after it and for turning a touch into a floor point. */
+export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): Frame => {
   // Margins are in source pixels, so short desktop/landscape views need smaller ones.
   const TOP = Math.min(32, Math.round(ch * 0.08)), BOTTOM = Math.min(42, Math.round(ch * 0.12))
   const u = unitFor(cw)
@@ -485,6 +489,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const p = project(x, y, z, u)
     return { x: cx + p.x, y: cy + p.y }
   }
+  // Bolts in flight are bullets on a lane: drawn exactly as shots are (body, trail, the dotted path ahead).
+  const shots = [...view.shots, ...view.hazards.flatMap((hz, i) => {
+    if (hz.kind !== "bolt" || !hz.live) return []
+    const len = Math.hypot(hz.bx - hz.ax, hz.by - hz.ay) || 1
+    const speed = SHOTS.bullet.speed
+    return [{ id: -1 - i, kind: "bullet" as const, x: (hz.ax + hz.bx) / 2, y: (hz.ay + hz.by) / 2, radius: SHOTS.bullet.radius, vx: ((hz.bx - hz.ax) / len) * speed, vy: ((hz.by - hz.ay) / len) * speed }]
+  })]
   roomFloor(ctx, cw, ch, view, P)
   roomWalls(ctx, view, P, BACK_WALL)
   ctx.save()
@@ -528,13 +539,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const ctx = glow
     ctx.save()
     ctx.beginPath(); ctx.rect(Math.round(floorStart.x), Math.round(floorStart.y), Math.round(floorEnd.x - floorStart.x), Math.round(floorEnd.y - floorStart.y)); ctx.clip()
-    for (const shot of view.shots) {
+    for (const shot of shots) {
       const start = P(shot.x, shot.y), end = P(shot.x + shot.vx, shot.y + shot.vy)
       shotPath(ctx, start, end)
       const angle = Math.atan2(end.y - start.y, end.x - start.x)
       pathArrow(ctx, { x: start.x + (end.x - start.x) * 0.22, y: start.y + (end.y - start.y) * 0.22 }, angle)
     }
-    for (const shot of view.shots) {
+    for (const shot of shots) {
       const p = P(shot.x, shot.y)
       ctx.fillStyle = "#263234"; ctx.fillRect(Math.round(p.x - 2), Math.round(p.y), 5, 2)
     }
@@ -548,7 +559,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pathArrow(ctx, { x: to.x - Math.cos(l.aim) * 10, y: to.y - Math.sin(l.aim) * 8 }, Math.atan2(to.y - from.y, to.x - from.x))
     }
     // Hazards: a blade's sweep on the floor; a laser gate's beam, faint when off, dashed when about to light, solid when on.
+    // (Bolts are drawn with the shots.)
     for (const hz of view.hazards) {
+      if (hz.kind === "bolt") continue
       if (hz.kind === "blade") {
         const centre = P((hz.ax + hz.bx) / 2, (hz.ay + hz.by) / 2), length = Math.hypot(hz.bx - hz.ax, hz.by - hz.ay) / 2
         pixelArc(ctx, centre, length * erx, length * ery, 0, Math.PI * 2, THREAT, 1, true)
@@ -639,7 +652,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  for (const shot of view.shots) {
+  for (const shot of shots) {
     const paintShot = (ctx: CanvasRenderingContext2D): void => {
       /** A line held at height z from (x, y) toward angle a. */
       const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
@@ -734,6 +747,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     })
   }
   for (const hz of view.hazards) {
+    if (hz.kind === "bolt") continue
     if (hz.kind === "blade") {
       const cxw = (hz.ax + hz.bx) / 2, cyw = (hz.ay + hz.by) / 2
       // The bar is a threat: painted on the glow layer too, so the lighting never hides it.
@@ -897,20 +911,26 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
     }
   }
-  // The first room points the way: chevrons from you to the exit (under the hint's text).
-  if (view.room.index === 0 && view.flow === "playing" && view.player !== null && view.room.goal.kind === "exit") {
-    const g = view.room.goal
-    chevronsToward(ctx, view.player, { x: g.x + g.w / 2, y: g.y + g.h / 2 }, P, presentation?.now ?? 0, "#7dff9a", 8)
+  // The first room points the way: chevrons from you to the next point of its route (the next doorway, then the exit).
+  if (view.room.index === 0 && view.flow === "playing" && view.player !== null) {
+    const me = view.player
+    const route = ROOMS[0]?.route ?? []
+    const next = route.find((pt) => pt.y < me.y - 0.6) ?? route.at(-1)
+    if (next !== undefined) chevronsToward(ctx, me, next, P, presentation?.now ?? 0, "#7dff9a", 8)
   }
   // The first two rooms show the move until you make it: a hand presses, drags and keeps holding while a ghost of
   // you walks ahead; then lets go, and the ghost stops.
   if (view.room.index >= 0 && view.room.index <= 1 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(view.room.index)) {
-    dragHint(ctx, view.player, P, presentation.now)
+    // Toward the next point of the room's route when it has one (First Step's first doorway is to the right), else up.
+    const me = view.player
+    const next = (ROOMS[view.room.index]?.route ?? []).find((pt) => pt.y < me.y - 0.6)
+    const d = next === undefined ? 0 : Math.hypot(next.x - me.x, next.y - me.y) || 1
+    dragHint(ctx, me, P, presentation.now, next === undefined ? { x: 0, y: -1 } : { x: (next.x - me.x) / d, y: (next.y - me.y) / d })
   }
-  // The first room names what is happening, over its blades, as it happens: they spin only while you move.
+  // The first room names what is happening, over its bullet streams, as it happens: they fly only while you move.
   if (view.room.index === 0 && view.flow === "playing") {
     const moving = speedOf(view) > 0.15
-    const rows = [...new Set((ROOMS[0]?.hazards ?? []).map((hz) => (hz.kind === "blade" ? hz.y : -1)).filter((y) => y >= 0))]
+    const rows = [...new Set((ROOMS[0]?.hazards ?? []).map((hz) => (hz.kind === "bolt" ? hz.y1 : -1)).filter((y) => y >= 0))]
     for (const y of rows) {
       // Above each pair, clear of the blades' tips, and drawn after the chevrons and the hand so nothing covers it.
       const at = P(view.room.w / 2, y - 1.6, 0)
@@ -1040,13 +1060,16 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
   }
 
-  // The thumb-stick, faint.
-  if (stick !== null) {
-    pixelArc(ctx, { x: stick.ox, y: stick.oy }, stick.reach, stick.reach, 0, Math.PI * 2, "#899692", 1, true)
-    pixelArc(ctx, stick, 5, 5, 0, Math.PI * 2, "#c6d4df")
+  // Where your finger is: a small target on the floor, and a dotted line from you to it (you walk there while you hold).
+  if (stick !== null && view.player !== null && view.flow === "playing") {
+    const me = P(view.player.x, view.player.y)
+    pixelLine(ctx, me, stick, "#7fd8ff", 1, 3)
+    pixelArc(ctx, stick, 6, 4, 0, Math.PI * 2, INK, 3)
+    pixelArc(ctx, stick, 6, 4, 0, Math.PI * 2, "#e8f6ff", 1)
+    ctx.fillStyle = "#e8f6ff"; ctx.fillRect(Math.round(stick.x) - 1, Math.round(stick.y) - 1, 2, 2)
   }
 
   // Messages: a hit, or a clear with its stars (pixel-styled page elements, see `hud.ts`).
   messages(ctx, view, presentation)
-  return P
+  return { P, floorAt: (sx, sy) => ({ x: (sx - cx) / u, y: (sy - cy) / (u * SQUASH) }) }
 }

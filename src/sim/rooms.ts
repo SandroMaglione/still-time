@@ -9,7 +9,9 @@
  * to it. A room is won by clearing every enemy, or by reaching its exit.
  * `par` is the world seconds a good clear takes, for the third star.
  */
-import type { EnemyKind } from "./tuning.ts"
+import { Ops } from "@typeonce/ritmo"
+
+import { SHOTS, type EnemyKind } from "./tuning.ts"
 
 export interface Pillar { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 
@@ -45,6 +47,8 @@ export interface Plate { readonly x: number; readonly y: number }
 export type Hazard =
   | { readonly kind: "blade"; readonly x: number; readonly y: number; readonly length: number; readonly speed: number; readonly phase: number }
   | { readonly kind: "gate"; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly period: number; readonly on: number; readonly offset: number }
+  /** A bolt: a bullet leaving (x1, y1) every `period` world seconds (shifted by `offset`) and flying to (x2, y2) at bullet speed. */
+  | { readonly kind: "bolt"; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly period: number; readonly offset: number }
 
 export interface Door extends Pillar { readonly lock: Lock }
 
@@ -80,9 +84,21 @@ export interface Room {
   readonly par: number
   /** One line shown under the room, for rooms that teach something. */
   readonly tip?: string
+  /** For a room that teaches the way: the points to walk through in order (doorways, then the goal), for a guide drawn on the floor. */
+  readonly route?: ReadonlyArray<{ readonly x: number; readonly y: number }>
 }
 
 const crate = (x: number, y: number, size = 1.2): Pillar => ({ x: x - size / 2, y: y - size / 2, w: size, h: size })
+
+/**
+ * A stream of bolts along one lane, one leaving every `every` world seconds: as many bolts as are in the air at once,
+ * each on the stream's full cycle, staggered by `every`.
+ */
+const stream = (x1: number, y1: number, x2: number, y2: number, every: number, offset = 0): ReadonlyArray<Hazard> => {
+  const flight = Ops.hypot(x2 - x1, y2 - y1) / SHOTS.bullet.speed
+  const count = Math.ceil(flight / every) + 1
+  return Array.from({ length: count }, (_, i) => ({ kind: "bolt" as const, x1, y1, x2, y2, period: count * every, offset: offset + i * every }))
+}
 /** A wooden crate that splinters under fire. */
 const box = (x: number, y: number, size = 1.2): Cover => ({ ...crate(x, y, size), breaks: "crate" })
 
@@ -107,24 +123,29 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
-    // The first lesson, the whole idea on a straight walk: blades spin along both walls, only while you move, and
-    // labels over them say so as it happens. Walk up the middle to the exit; the blades stay out of reach of it.
+    // The first lesson: the whole rule, where it cannot be skipped. Three aisles in a zig-zag, joined by doorways, and
+    // across each a stream of bullets. Rush straight through and one usually finds you; stop, and they hang where they
+    // are (labels over each stream say so as it happens), so you pick a gap and cross.
     name: "First Step",
-    w: 10,
-    h: 22,
-    start: { x: 5, y: 20 },
-    pillars: [],
+    w: 12,
+    h: 26,
+    start: { x: 2, y: 24.5 },
+    pillars: [
+      // Aisle 1 (bottom) opens into aisle 2 at the right; aisle 2 into aisle 3 at the left.
+      { x: 0, y: 18.6, w: 9.4, h: 0.8 },
+      { x: 2.6, y: 11.6, w: 9.4, h: 0.8 }
+    ],
     doors: [],
     hazards: [
-      { kind: "blade", x: 1.5, y: 15, length: 1.1, speed: 2.4, phase: 0.3 },
-      { kind: "blade", x: 8.5, y: 15, length: 1.1, speed: -2.4, phase: 1.9 },
-      { kind: "blade", x: 1.5, y: 8.5, length: 1.1, speed: -2.4, phase: 1.1 },
-      { kind: "blade", x: 8.5, y: 8.5, length: 1.1, speed: 2.4, phase: 2.6 }
+      ...stream(12, 22, 0, 22, 0.3),
+      ...stream(0, 15.5, 12, 15.5, 0.3, 0.13),
+      ...stream(12, 6, 0, 6, 0.35, 0.21)
     ],
     enemies: [],
-    goal: { kind: "exit", x: 3.5, y: 0.7, w: 3, h: 2.2 },
-    par: 5,
-    tip: "walk to the exit, and watch the blades"
+    goal: { kind: "exit", x: 8.5, y: 0.7, w: 3, h: 2.2 },
+    par: 6,
+    tip: "cross the bullets to the exit",
+    route: [{ x: 10.7, y: 19 }, { x: 1.3, y: 12 }, { x: 10, y: 1.8 }]
   },
   {
     // The second lesson, the freeze, with nothing to fight: a blade bar as wide as the only gap turns only while you move.

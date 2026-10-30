@@ -8,14 +8,14 @@ Time moves only when you move: read a frozen room full of bullets and blades, th
 
 **Still Time** is a one-hit, one-cut assassin game where time nearly stops while you stand still (×0.04) and runs as fast as you move. Every room is a puzzle you read from a frozen frame: bullets hanging in the air, a brute's blade raised, a sniper's laser tracking you. Then you move, and the whole world speeds up with you.
 
-Speed is the choice you make, not a stat: push hard and you dash through the gaps at full speed, ease off and the world crawls so you can thread a bullet by a pixel. Across 26 torch-lit dungeon rooms you face gunners, archers, knife throwers, snipers whose lasers lock before they fire, brutes, shield-bearers, grenadiers, a clockwork enemy that ignores the freeze and a stalker that moves only while you're still. Alongside them come plates, laser gates, spinning blades and conveyor belts. The music and sound slow down and go muffled whenever time freezes.
+Speed is the choice you make, not a stat: reach far and you dash through the gaps at full speed, reach close and the world crawls so you can thread a bullet by a pixel. Across 26 torch-lit dungeon rooms you face gunners, archers, knife throwers, snipers whose lasers lock before they fire, brutes, shield-bearers, grenadiers, a clockwork enemy that ignores the freeze and a stalker that moves only while you're still. Alongside them come plates, laser gates, spinning blades and conveyor belts. The music and sound slow down and go muffled whenever time freezes.
 
 Made for phones in portrait (720×1280) and playable in the browser with touch or keyboard.
 
 ## Controls
 
 **Touch (phone):**
-- Drag anywhere to move: the further you drag, the faster you go, and the faster time runs.
+- Hold a finger where you want to go: you walk there, and the further away it is, the faster you go and the faster time runs.
 - Lift your thumb to freeze time.
 - Tap to continue after a clear or a hit. ☰ pauses: resume, restart, the rooms, or home.
 

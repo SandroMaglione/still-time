@@ -3,7 +3,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { canSee, clearLine } from "./geometry.ts"
 import { hazardAt, type HazardShape } from "./hazards.ts"
-import { ROOMS, type Belt, type Goal, type Lock, type Pillar } from "./rooms.ts"
+import { ROOMS, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
 import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
 import { BELT, BOMB, COVER, LOCKS, MELEE, RUNNER, STALKER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
@@ -127,7 +127,7 @@ export interface FightView {
   readonly bombs: ReadonlyArray<BombView>
   readonly plates: ReadonlyArray<PlateView>
   /** Hazards where they are now: a blade's bar, or a laser gate's beam with its state. */
-  readonly hazards: ReadonlyArray<{ readonly kind: "blade" | "gate" } & HazardShape>
+  readonly hazards: ReadonlyArray<{ readonly kind: Hazard["kind"] } & HazardShape>
   /** Conveyor belts: their strip, their direction, and how far their tread has run (metres, real time) for drawing. */
   readonly belts: ReadonlyArray<Belt & { readonly run: number }>
   /** Blasts just gone off, with `age` from 0 to 1 (gone), and their reach. */

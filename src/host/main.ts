@@ -1,5 +1,5 @@
 /**
- * The page: one canvas drawing the fight view, a hidden floating thumb-stick
+ * The page: one canvas drawing the fight view, a follow-the-finger touch control
  * (and keys for desktop) feeding the thumb source, the menus, the device's
  * saved progress (through Effect), and the fixed-step loop.
  */
@@ -9,7 +9,7 @@ import { Effect, Layer, ManagedRuntime } from "effect"
 
 import { STEP, createFight, updateSchedule, type Thumb } from "../sim/simulation.ts"
 import { continueRoom, type Best } from "../sim/progress.ts"
-import { Camera, draw, screenToWorld, type Stick } from "./draw.ts"
+import { Camera, draw, screenToWorld } from "./draw.ts"
 import { Menu } from "./menu.ts"
 import { Progress, layer as progressLayer } from "./progress.ts"
 import { storageLayer } from "./storage.ts"
@@ -46,6 +46,12 @@ class ThumbSource {
     const world = screenToWorld(dx, dy)
     const len = Math.hypot(world.x, world.y) || 1
     this.push = { x: (world.x / len) * strength, y: (world.y / len) * strength }
+  }
+
+  /** A push already in world terms (the follow-the-finger control): a direction and a 0..1 strength. */
+  setWorldPush(dx: number, dy: number, strength: number): void {
+    const len = Math.hypot(dx, dy)
+    this.push = strength === 0 || len === 0 ? { x: 0, y: 0 } : { x: (dx / len) * strength, y: (dy / len) * strength }
   }
 
   tap(): void {
@@ -99,11 +105,12 @@ el("pause").addEventListener("click", () => menu.show("pause", fight.view()))
 el("rooms-after").addEventListener("click", () => menu.show("rooms", fight.view()))
 el("title-after").addEventListener("click", () => menu.show("title", fight.view()))
 
-// The floating stick starts wherever the finger lands. Within DEAD_ZONE px of
-// the press point you stand still; at REACH px you run at top speed.
-const DEAD_ZONE = 8
-const REACH = 72
-let stick: Stick | null = null
+// Follow the finger: while a finger is down, you walk toward the floor point under it. Far away is full speed (and
+// so full-speed time), closer is slower, and within NEAR metres you stand still; lift and you stop. (Playtests: people
+// grab the character and drag it where they want it, so the control does what they already try.)
+const NEAR = 0.25, FULL = 2.5
+/** The finger, in CSS pixels, while it is down on the field. */
+let finger: { x: number; y: number } | null = null
 let consumed = false
 
 canvas.addEventListener("pointerdown", (e) => {
@@ -113,27 +120,23 @@ canvas.addEventListener("pointerdown", (e) => {
     consumed = true
     return
   }
-  stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, reach: REACH }
+  finger = { x: e.clientX, y: e.clientY }
 })
 canvas.addEventListener("pointermove", (e) => {
-  if (stick === null || consumed) return
-  let dx = e.clientX - stick.ox
-  let dy = e.clientY - stick.oy
-  let len = Math.hypot(dx, dy)
-  // The press point follows the thumb past full reach, so turning stays quick.
-  if (len > REACH) {
-    stick.ox = e.clientX - (dx / len) * REACH
-    stick.oy = e.clientY - (dy / len) * REACH
-    dx = e.clientX - stick.ox
-    dy = e.clientY - stick.oy
-    len = REACH
-  }
-  stick.x = e.clientX
-  stick.y = e.clientY
-  thumb.setScreenPush(dx, dy, Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE))))
+  if (finger === null || consumed) return
+  finger.x = e.clientX
+  finger.y = e.clientY
 })
+/** Each frame, the finger becomes a push toward the floor point under it (the camera may have moved since it last did). */
+const followFinger = (toFloor: (sx: number, sy: number) => { readonly x: number; readonly y: number }): void => {
+  const p = fight.view().player
+  if (finger === null || p === null) return
+  const at = toFloor(finger.x / cssPerPixel, finger.y / cssPerPixel)
+  const dx = at.x - p.x, dy = at.y - p.y, d = Math.hypot(dx, dy)
+  thumb.setWorldPush(dx, dy, Math.max(0, Math.min(1, (d - NEAR) / (FULL - NEAR))))
+}
 function lift(): void {
-  stick = null
+  finger = null
   consumed = false
   thumb.setScreenPush(0, 0, 0)
 }
@@ -247,8 +250,9 @@ FixedLoop.start({
     hud.update(view, frame.elapsedSeconds)
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     const k = 1 / cssPerPixel
-    const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
-    draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
+    const mark = finger === null ? null : { ox: finger.x * k, oy: finger.y * k, x: finger.x * k, y: finger.y * k, reach: 0 }
+    const drawn = draw(ctx, canvas.width, canvas.height, view, mark, camera, presentation, lit)
+    followFinger(drawn.floorAt)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

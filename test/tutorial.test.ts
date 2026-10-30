@@ -8,7 +8,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Fight } from "../src/sim/simulation.ts"
-import { fightIn, runUntil } from "./helpers.ts"
+import { fightIn, runUntil, type ScriptedThumb } from "./helpers.ts"
 
 /** The blade bar's angle, folded to [0, π): it is a line through its hub. */
 const barAngle = (fight: Fight): number => {
@@ -18,17 +18,55 @@ const barAngle = (fight: Fight): number => {
   return ((a % Math.PI) + Math.PI) % Math.PI
 }
 
-test("First Step: the blades spin only while you move, and a straight walk up the middle reaches the exit", () => {
+/** Walks toward a floor point at full push until within reach of it (or the attempt ends). */
+const walkTo = (fight: Fight, thumb: ScriptedThumb, x: number, y: number, max = 600): void => {
+  runUntil(fight, max, () => {
+    const p = fight.view().player
+    return p === null || fight.view().flow !== "playing" || Math.hypot(x - p.x, y - p.y) < 0.15
+  }, () => {
+    const p = fight.view().player!
+    const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy) || 1
+    thumb.push = { x: dx / d, y: dy / d }
+  })
+  thumb.push = { x: 0, y: 0 }
+}
+
+/** At a stream's edge, waits (nudging so time runs) for longer and longer, then crosses: the first clean crossing is kept. */
+const crossStream = (fight: Fight, thumb: ScriptedThumb, to: { readonly x: number; readonly y: number }): void => {
+  const saved = fight.runtime.snapshot()
+  if (!saved.ok) throw new Error("snapshot failed")
+  for (let wait = 0; wait < 120; wait += 3) {
+    assert.ok(fight.runtime.restore(saved.value).ok)
+    let flip = 1
+    runUntil(fight, wait, () => false, () => { flip = -flip; thumb.push = { x: flip * 0.4, y: 0 } })
+    walkTo(fight, thumb, to.x, to.y, 200)
+    if (fight.view().flow === "playing" && fight.view().hits === 0) return
+  }
+  assert.fail(`no clean crossing to ${to.x}, ${to.y}`)
+}
+
+test("First Step: three bullet streams across a zig-zag; stopping at each and picking a gap crosses it, to the exit", () => {
   const { fight, thumb } = fightIn("First Step")
   assert.equal(fight.view().room.index, 0, "it is the first room")
   assert.equal(fight.view().enemies.length, 0)
-  assert.ok(fight.view().hazards.length > 0, "blades along the walls")
-  const angle = (): number => { const h = fight.view().hazards[0]!; return Math.atan2(h.by - h.ay, h.bx - h.ax) }
-  const before = angle()
-  runUntil(fight, 120, () => false)
-  assert.ok(Math.abs(angle() - before) < 0.25, "still, they barely turn")
-  // Straight up the middle, never steering: the blades stay out of reach of it.
-  runUntil(fight, 900, () => fight.view().flow !== "playing", () => { thumb.push = { x: 0, y: -1 } })
+  assert.ok(fight.view().hazards.some((h) => h.kind === "bolt"), "bullet streams")
+  // Still, the bullets barely move.
+  const bolt = (): { x: number; y: number } => { const h = fight.view().hazards.find((b) => b.kind === "bolt" && b.live)!; return { x: h.ax, y: h.ay } }
+  const before = bolt()
+  runUntil(fight, 30, () => false)
+  const after = bolt()
+  assert.ok(Math.hypot(after.x - before.x, after.y - before.y) < 0.4, "still, the bullets barely move")
+  // Aisle 1: to the stream's edge below the right doorway, across, through.
+  walkTo(fight, thumb, 10.7, 23.3)
+  crossStream(fight, thumb, { x: 10.7, y: 20.6 })
+  // Aisle 2: through the doorway to the stream's edge, across, then left to the next doorway.
+  walkTo(fight, thumb, 10.7, 16.8)
+  crossStream(fight, thumb, { x: 10.7, y: 14.2 })
+  walkTo(fight, thumb, 1.3, 14.2)
+  // Aisle 3: up through the doorway to the last stream, across, to the exit.
+  walkTo(fight, thumb, 1.3, 7.3)
+  crossStream(fight, thumb, { x: 1.3, y: 4.7 })
+  walkTo(fight, thumb, 10, 1.8)
   assert.equal(fight.view().flow, "cleared")
   assert.equal(fight.view().hits, 0)
 })
