@@ -204,7 +204,7 @@ export class Hud {
     if (view.room.tip !== null) line("tip-text", view.room.tip)
     // The first room teaches only the move; the second, the freeze.
     const keys = window.matchMedia("(pointer: fine)").matches
-    if (view.room.index === 0) line("tip-hint", keys ? "arrows or wasd to move" : "hold where you want to go")
+    if (view.room.index === 0) line("tip-hint", keys ? "arrows or wasd to move" : "drag anywhere to move")
     else if (view.room.index === 1) line("tip-hint", keys ? "let go of the keys to freeze time" : "lift your finger to freeze time")
     return frag
   }

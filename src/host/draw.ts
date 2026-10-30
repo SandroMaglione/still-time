@@ -163,45 +163,69 @@ export const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, presse
 }
 /** Touch or keys: the hint says what this device does. */
 const touchFirst = (): boolean => typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches
+/** A filled pixel disc. */
+const disc = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, colour: string): void => {
+  ctx.fillStyle = colour
+  for (let j = -r; j <= r; j++) {
+    const half = Math.floor(Math.sqrt(r * r - j * j))
+    ctx.fillRect(Math.round(x) - half, Math.round(y) + j, half * 2 + 1, 1)
+  }
+}
+/** The thumb-stick as it looks under your finger and in the lesson: a ring where you pressed, and a knob on a line to it. */
+export const thumbPad = (ctx: CanvasRenderingContext2D, base: { readonly x: number; readonly y: number }, knob: { readonly x: number; readonly y: number }, reach: number): void => {
+  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, INK, 3)
+  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, "#7fd8ff", 1)
+  disc(ctx, base.x, base.y, 2, "#7fd8ff")
+  pixelLine(ctx, base, knob, INK, 3)
+  pixelLine(ctx, base, knob, "#7fd8ff", 1)
+  disc(ctx, knob.x, knob.y, 6, INK)
+  disc(ctx, knob.x, knob.y, 5, "#e8f6ff")
+  disc(ctx, knob.x - 1, knob.y - 1, 2, "#ffffff")
+}
 /**
- * The first rooms' lesson, the move, looped every 2.8 real s: a hand presses on the floor a little ahead of you (a
- * ring) and keeps holding while a ghost of you walks to it; then the hand lets go and the ghost stops dead with a cold
- * ring. Hold where you want to go; let go to stop. The label sits under you, over everything.
+ * The first rooms' lesson, the move, looped every 2.8 real s. On touch, a stick sits in the thumb's corner of the
+ * screen (under the room, where your thumb rests): a hand presses it and pushes the knob toward the way to go, and a
+ * ghost of you walks for as long as the hand holds; then the hand lets go, the knob springs back and the ghost stops
+ * dead with a cold ring. The stick is what you drive, not the ninja. With keys, the ghost walks while "hold an arrow".
  */
 export const dragHint = (
   ctx: CanvasRenderingContext2D, player: { readonly x: number; readonly y: number }, P: Project, now: number,
-  dir: { readonly x: number; readonly y: number } = { x: 0, y: -1 }
+  dir: { readonly x: number; readonly y: number }, pad: { readonly x: number; readonly y: number }
 ): void => {
   const t = now % 2.8
   const at = P(player.x, player.y)
-  const reach = 2.4
-  const goal = P(player.x + dir.x * reach, player.y + dir.y * reach)
   const held = t > 0.2 && t < 1.9
   const fade = t > 2.4 ? 1 - (t - 2.4) / 0.4 : 1
-  // The ghost of you walks to the finger while it holds (0.4 to 1.9 s), stopping just short, then stands.
-  const walk = Math.max(0, Math.min(1, (t - 0.4) / 1.5))
-  const ghost = P(player.x + dir.x * walk * (reach - 0.4), player.y + dir.y * walk * (reach - 0.4))
+  // The ghost of you walks while the hand holds (0.5 to 1.9 s), then stands where it stopped.
+  const walk = Math.max(0, Math.min(1, (t - 0.5) / 1.4))
+  const ghost = P(player.x + dir.x * walk * 2.2, player.y + dir.y * walk * 2.2)
   ctx.save()
   ctx.globalAlpha = fade
-  if (t > 0.2) {
-    pixelLine(ctx, at, goal, "#7fd8ff", 1, 3)
-    silhouette(ctx, bodyName("player"), ghost.x, ghost.y, dir.x < 0, GHOST, 0.55)
-  }
+  if (t > 0.5) silhouette(ctx, bodyName("player"), ghost.x, ghost.y, dir.x < 0, GHOST, 0.55)
   if (t >= 1.9 && t < 2.3) {
     const r = 6 + (t - 1.9) * 40
     pixelArc(ctx, ghost, r, r * 0.7, 0, Math.PI * 2, "#7fd8ff", 1)
   }
-  // The press: a ring where the finger lands.
-  if (t < 0.4) {
-    const k = t / 0.4
-    pixelArc(ctx, goal, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, INK, 3)
-    pixelArc(ctx, goal, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, "#7fd8ff", 1)
+  if (!touchFirst()) {
+    hintText(ctx, held || t < 0.2 ? "HOLD AN ARROW" : "LET GO: STOP", at.x, Math.round(at.y + 14), held || t < 0.2 ? "#f4efda" : "#7fd8ff")
+    ctx.restore()
+    return
   }
-  // The hand: its fingertip on the spot, pressed while it holds, lifting away after.
-  const lifted = t >= 1.9 ? Math.round((t - 1.9) * 30) : 0
-  hand(ctx, goal.x, goal.y - lifted, held)
-  const label = held || t < 0.2 ? (touchFirst() ? "HOLD WHERE TO GO" : "HOLD AN ARROW") : "LET GO: STOP"
-  hintText(ctx, label, at.x, Math.round(at.y + 14), held || t < 0.2 ? "#f4efda" : "#7fd8ff")
+  // The stick: the knob goes out the way the ghost walks (on screen) while held, and springs back on release.
+  const reach = 20
+  const step = P(player.x + dir.x, player.y + dir.y)
+  const sx = step.x - at.x, sy = step.y - at.y, sl = Math.hypot(sx, sy) || 1
+  const out = t < 0.2 ? 0 : t < 0.5 ? (t - 0.2) / 0.3 : held ? 1 : 0
+  const knob = { x: pad.x + Math.round((sx / sl) * reach * out), y: pad.y + Math.round((sy / sl) * reach * out) }
+  // The hand under the knob (fingertip on it while it holds, lifting away after), the knob over the fingertip.
+  hand(ctx, knob.x, knob.y + 2 - (held || t < 0.2 ? 0 : Math.round((t - 1.9) * 30)), held)
+  thumbPad(ctx, pad, knob, reach)
+  if (t < 0.2) {
+    const r = 4 + t * 60
+    pixelArc(ctx, pad, r, r, 0, Math.PI * 2, "#e8f6ff", 1)
+  }
+  const label = held || t < 0.2 ? "DRAG ANYWHERE TO MOVE" : "LET GO: TIME STOPS"
+  hintText(ctx, label, pad.x, pad.y - reach - 12, held || t < 0.2 ? "#f4efda" : "#7fd8ff")
   ctx.restore()
 }
 
@@ -941,7 +965,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const me = view.player
     const next = (ROOMS[view.room.index]?.route ?? []).find((pt) => pt.y < me.y - 0.6)
     const d = next === undefined ? 0 : Math.hypot(next.x - me.x, next.y - me.y) || 1
-    dragHint(ctx, me, P, presentation.now, next === undefined ? { x: 0, y: -1 } : { x: (next.x - me.x) / d, y: (next.y - me.y) / d })
+    dragHint(ctx, me, P, presentation.now, next === undefined ? { x: 0, y: -1 } : { x: (next.x - me.x) / d, y: (next.y - me.y) / d }, { x: Math.round(cw / 2), y: ch - 34 })
   }
   // The first room names what is happening, over its bullet streams, as it happens: they fly only while you move.
   if (view.room.index === 0 && view.flow === "playing") {
@@ -1076,14 +1100,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
   }
 
-  // Where your finger is: a small target on the floor, and a dotted line from you to it (you walk there while you hold).
-  if (stick !== null && view.player !== null && view.flow === "playing") {
-    const me = P(view.player.x, view.player.y)
-    pixelLine(ctx, me, stick, "#7fd8ff", 1, 3)
-    pixelArc(ctx, stick, 6, 4, 0, Math.PI * 2, INK, 3)
-    pixelArc(ctx, stick, 6, 4, 0, Math.PI * 2, "#e8f6ff", 1)
-    ctx.fillStyle = "#e8f6ff"; ctx.fillRect(Math.round(stick.x) - 1, Math.round(stick.y) - 1, 2, 2)
-  }
+  // The thumb-stick under your finger, drawn as the lesson draws it.
+  if (stick !== null && view.flow === "playing") thumbPad(ctx, { x: stick.ox, y: stick.oy }, stick, stick.reach)
 
   // Messages: a hit, or a clear with its stars (pixel-styled page elements, see `hud.ts`).
   messages(ctx, view, presentation)
