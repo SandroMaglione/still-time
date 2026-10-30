@@ -1,6 +1,7 @@
 /**
- * The two first rooms, played headless: First Step teaches the freeze with a
- * blade that turns only while you move; First Cut is one gunner to cut.
+ * The three first rooms, played headless, one lesson each: First Step the
+ * move (nothing can hurt you), The Blade the freeze (a blade that turns only
+ * while you move), First Cut the cut (one gunner).
  */
 import assert from "node:assert/strict"
 import { test } from "node:test"
@@ -16,9 +17,22 @@ const barAngle = (fight: Fight): number => {
   return ((a % Math.PI) + Math.PI) % Math.PI
 }
 
-test("First Step: standing still holds the blade; timed, the gap can be crossed to the exit", () => {
+test("First Step: only the move; walking up round the crates reaches the exit", () => {
   const { fight, thumb } = fightIn("First Step")
   assert.equal(fight.view().room.index, 0, "it is the first room")
+  assert.equal(fight.view().enemies.length, 0)
+  assert.equal(fight.view().hazards.length, 0, "nothing here can hurt you")
+  // Up, then a side-step round whatever is in the way.
+  runUntil(fight, 900, () => fight.view().flow !== "playing", () => {
+    const p = fight.view().player
+    thumb.push = { x: p !== null && p.x < 4.6 ? 1 : p !== null && p.x > 5.4 ? -1 : 0, y: -1 }
+  })
+  assert.equal(fight.view().flow, "cleared")
+})
+
+test("The Blade: standing still holds the blade; timed, the gap can be crossed to the exit", () => {
+  const { fight, thumb } = fightIn("The Blade")
+  assert.equal(fight.view().room.index, 1, "it is the second room")
   const before = barAngle(fight)
   // Two real seconds standing still: at ×0.04 the bar turns about 0.08 rad, where at full speed it would turn 2.
   runUntil(fight, 120, () => false)
@@ -49,7 +63,7 @@ test("First Step: standing still holds the blade; timed, the gap can be crossed 
 
 test("First Cut: one gunner, the only thing to cut", () => {
   const { fight } = fightIn("First Cut")
-  assert.equal(fight.view().room.index, 1)
+  assert.equal(fight.view().room.index, 2)
   assert.deepEqual(fight.view().enemies.map((e) => e.kind), ["gunner"])
   assert.equal(fight.view().room.goal.kind, "clear")
 })

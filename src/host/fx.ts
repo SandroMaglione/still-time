@@ -32,8 +32,8 @@ export interface Stop { readonly x: number; readonly y: number; readonly born: n
 export interface Callout { readonly title: string; readonly line: string; readonly born: number }
 export const STOP_LIFE = 0.5
 export const CALLOUT_LIFE = 1.8
-/** The first rooms name the freeze the first few times it happens. */
-const TEACH_ROOMS = 2, TEACH_TIMES = 3
+/** The rooms that name the freeze (The Blade and First Cut: the first room only teaches the move), and how many times. */
+const TEACH_FROM = 1, TEACH_ROOMS = 3, TEACH_TIMES = 3
 
 /** World speed as 0 (frozen) to 1 (full speed). */
 export const speedOf = (view: FightView): number => Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))
@@ -104,7 +104,7 @@ export class Presentation {
         this.running = false
         this.stops = [...this.stops, { x: p.x, y: p.y, born: this.now }].slice(-3)
         const times = this.taught.get(view.room.index) ?? 0
-        if (view.room.index < TEACH_ROOMS && times < TEACH_TIMES) {
+        if (view.room.index >= TEACH_FROM && view.room.index < TEACH_ROOMS && times < TEACH_TIMES) {
           this.taught.set(view.room.index, times + 1)
           this.callout = { title: "TIME STOPS", line: times === 0 ? "read the room, then move" : "", born: this.now }
         }

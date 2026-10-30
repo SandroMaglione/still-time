@@ -162,17 +162,16 @@ const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, pressed: bool
 /** Touch or keys: the hint says what this device does. */
 const touchFirst = (): boolean => typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches
 /**
- * The first room's lesson, looped every 2.4 real s beside the player: press (a ring), drag up (the hand rises,
- * a dotted trail behind it: "drag to move"), then lift (the hand lets go: "let go = freeze").
+ * The first room's lesson, the move alone, looped every 2 real s beside the player: press (a ring), then drag
+ * up (the hand rises, a dotted trail behind it), then fade. The freeze is the next room's lesson.
  */
 const dragHint = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, now: number): void => {
-  const t = (now % 2.4) / 2.4
+  const t = (now % 2) / 2
   const start = { x: Math.round(at.x + 24), y: Math.round(at.y + 4) }, travel = 34
-  const rise = t < 0.15 ? 0 : t < 0.6 ? (t - 0.15) / 0.45 : 1
+  const rise = t < 0.15 ? 0 : t < 0.7 ? (t - 0.15) / 0.55 : 1
   const eased = 1 - (1 - rise) * (1 - rise)
   const tip = { x: start.x, y: start.y - Math.round(travel * eased) }
-  const pressed = t < 0.62
-  const fade = t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1
+  const fade = t > 0.82 ? 1 - (t - 0.82) / 0.18 : 1
   ctx.save()
   ctx.globalAlpha = fade
   if (t < 0.2) {
@@ -183,15 +182,15 @@ const dragHint = (ctx: CanvasRenderingContext2D, at: { readonly x: number; reado
     pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, INK, 3, 2)
     pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, "#7fd8ff", 1, 2)
   }
-  hand(ctx, tip.x, tip.y, pressed)
+  hand(ctx, tip.x, tip.y, true)
   ctx.textAlign = "center"; ctx.textBaseline = "top"
   ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
-  const label = t < 0.62 ? (touchFirst() ? "DRAG TO MOVE" : "ARROWS TO MOVE") : "LET GO = FREEZE"
+  const label = touchFirst() ? "DRAG TO MOVE" : "ARROWS TO MOVE"
   // Above you, in the open floor you are about to cross.
   const ly = Math.round(at.y - 44)
   ctx.fillStyle = INK
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(label, at.x + dx, ly + dy)
-  ctx.fillStyle = t < 0.62 ? "#f4efda" : "#7fd8ff"
+  ctx.fillStyle = "#f4efda"
   ctx.fillText(label, at.x, ly)
   ctx.restore()
 }

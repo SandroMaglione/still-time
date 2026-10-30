@@ -107,9 +107,22 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
-    // The first lesson, with nothing to fight: a blade bar as wide as the only gap turns only while you move.
-    // Stop, and it stops with you: read where it is, then cross.
+    // The first lesson, only the move: walk round two crates to the exit. Nothing here can hurt you.
     name: "First Step",
+    w: 10,
+    h: 14,
+    start: { x: 5, y: 12 },
+    pillars: [crate(3, 7.5), crate(7, 6)],
+    doors: [],
+    enemies: [],
+    goal: { kind: "exit", x: 3.5, y: 0.7, w: 3, h: 2.2 },
+    par: 4,
+    tip: "nothing here can hurt you"
+  },
+  {
+    // The second lesson, the freeze, with nothing to fight: a blade bar as wide as the only gap turns only while you move.
+    // Stop, and it stops with you: read where it is, then cross.
+    name: "The Blade",
     w: 10,
     h: 16,
     start: { x: 5, y: 14 },
