@@ -9,7 +9,7 @@ pnpm check    # typecheck, oxlint, ritmo-devtools lint, tests (rules + fuzzing)
 pnpm shots    # phone-size screenshots into output/ (with pnpm dev running)
 ```
 
-Controls: hold a finger where you want to go and you walk there (the further away, the faster); lift to freeze time; tap to continue. ☰ opens the rooms. On desktop: arrows or WASD, space to continue, R to restart, M or Escape for the rooms, 1–9 and 0 to jump to rooms 1–10, `[` and `]` for the previous and next room (open rooms only).
+Controls: drag anywhere (the further, the faster); lift to freeze time; tap to continue. ☰ opens the rooms. On desktop: arrows or WASD, space to continue, R to restart, M or Escape for the rooms, 1–9 and 0 to jump to rooms 1–10, `[` and `]` for the previous and next room (open rooms only).
 
 Rooms open one by one; progress (each room's best stars and time) is saved in the browser's local storage under `still-time/`. For testing: `?room=N` opens a room straight away (skipping the title), `?all` opens every room.
 
