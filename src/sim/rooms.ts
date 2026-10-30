@@ -123,12 +123,13 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
-    // The first lesson: the move alone. The room is the page's step-by-step lesson (touch, keep your finger down, slide
-    // a little, slide further, lift): done, the room is cleared. Nothing else is in it.
+    // The first lesson: the move alone. The room is the page's drill (press on the circle, slide up into the near circle
+    // and hold, on to the far one and hold, let go): done, the room is cleared. Nothing else is in it.
     name: "First Step",
     w: 10,
-    h: 14,
-    start: { x: 5, y: 9 },
+    h: 16,
+    // Mid-room, so the drill's caption and circles under you never cover you.
+    start: { x: 5, y: 10 },
     pillars: [],
     doors: [],
     hazards: [],

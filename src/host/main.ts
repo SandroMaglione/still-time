@@ -16,6 +16,7 @@ import { storageLayer } from "./storage.ts"
 import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
 import { Hud } from "./hud.ts"
+import { Drill } from "./drill.ts"
 import { Lesson, type LessonInput } from "./lesson.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
 
@@ -37,6 +38,8 @@ if (canvas === null || canvas === undefined || ctx === null || ctx === undefined
 class ThumbSource {
   private push = { x: 0, y: 0 }
   private tapped = false
+  /** Off, the push does not reach the game (First Step's drill lets it through only while you do its step). */
+  open = true
 
   /** A push on screen (direction and 0..1 strength), stored as the world direction that looks the same. */
   setScreenPush(dx: number, dy: number, strength: number): void {
@@ -54,7 +57,7 @@ class ThumbSource {
   }
 
   snapshot(): Thumb {
-    const thumb = { x: this.push.x, y: this.push.y, tap: this.tapped }
+    const thumb = this.open ? { x: this.push.x, y: this.push.y, tap: this.tapped } : { x: 0, y: 0, tap: this.tapped }
     this.tapped = false
     return thumb
   }
@@ -118,9 +121,14 @@ canvas.addEventListener("pointerdown", (e) => {
     consumed = true
     return
   }
+  usingKeys = false
+  // First Step's drill takes a press only on its circle; the rest of the screen is off until it is done.
+  if (drill.active(fight.view()) && !drill.acceptsPress(e.clientX / cssPerPixel, e.clientY / cssPerPixel)) {
+    consumed = true
+    return
+  }
   stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, reach: REACH }
   stickPush = 0
-  usingKeys = false
 })
 canvas.addEventListener("pointermove", (e) => {
   if (stick === null || consumed) return
@@ -227,6 +235,7 @@ audio.unlockOn(window)
 audio.observe(fight.view())
 const hud = new Hud(canvas)
 const lesson = new Lesson()
+const drill = new Drill()
 /** The thumb as the lesson reads it: a finger (or an arrow) down, and how hard it pushes. */
 const lessonInput = (): LessonInput => {
   if (usingKeys) {
@@ -267,11 +276,19 @@ FixedLoop.start({
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     const k = 1 / cssPerPixel
     const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
-    const drawn = draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
-    // The first rooms' step-by-step lesson, over everything; done, it clears a room whose goal is the lesson.
+    // First Step's drill draws its own stick (on its track), and decides whether the thumb reaches the game.
+    const dirs = [...held].filter((key) => DIRS[key] !== undefined)
+    const drillInput = { stick: pixelStick, keys: usingKeys, upOnly: dirs.length > 0 && dirs.every((key) => key === "ArrowUp" || key === "w"), anyKey: dirs.length > 0 }
+    drill.update(menu.isOpen ? 0 : frame.elapsedSeconds, canvas.width, canvas.height, REACH * k, view, drillInput)
+    const drilling = drill.active(view)
+    thumb.open = !drilling || drill.gate(drillInput)
+    const drawn = draw(ctx, canvas.width, canvas.height, view, drilling ? null : pixelStick, camera, presentation, lit)
+    drill.draw(ctx, canvas.width, view, drillInput)
+    // Done, the drill clears First Step (its goal is the lesson).
+    if (drill.takeFinished() && view.room.goal.kind === "lesson") fight.send({ kind: "lessonDone" })
+    // The Blade's step-by-step lesson, over everything.
     const input = lessonInput()
     lesson.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, input)
-    if (lesson.takeFinished() && view.room.goal.kind === "lesson") fight.send({ kind: "lessonDone" })
     lesson.draw(ctx, canvas.width, canvas.height, view, drawn.P, input)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
