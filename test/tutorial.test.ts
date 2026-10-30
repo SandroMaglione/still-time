@@ -36,10 +36,21 @@ test("Time Door: three time doors open one after another, only as the world cloc
   // Standing still, two real seconds: the world barely runs and every door stays shut.
   runUntil(fight, 120, () => false)
   assert.ok(fight.view().doors.every((d) => !d.open), "still, the doors wait")
-  // Walking up the corridor (pushing on against each shut door) runs the clock: they open in order, and the exit is reached.
+  // Pushing into a shut door is standing still: the clock does not run, and the door stays shut.
+  runUntil(fight, 600, () => { const p = fight.view().player!; return p.y < 25.4 }, () => { thumb.push = { x: 0, y: -1 } })
+  const before = fight.view().world
+  runUntil(fight, 120, () => false, () => { thumb.push = { x: 0, y: -1 } })
+  assert.ok(fight.view().world - before < 0.3, "pushing into the door does not run the clock")
+  assert.equal(fight.view().doors[0]?.open, false)
+  // Walking up the corridor, and stepping side to side at each shut door, runs the clock: they open in order, and the
+  // exit is reached.
   const opened: Array<number> = []
-  runUntil(fight, 3000, () => fight.view().flow !== "playing", () => {
-    thumb.push = { x: 0, y: -1 }
+  let flip = 1
+  runUntil(fight, 4000, () => fight.view().flow !== "playing", () => {
+    const p = fight.view().player!
+    const blocked = fight.view().doors.some((d) => !d.open && p.y - (d.y + d.h) < 0.6 && p.y > d.y)
+    flip = -flip
+    thumb.push = blocked ? { x: flip, y: 0 } : { x: 0, y: -1 }
     fight.view().doors.forEach((d, i) => { if (d.open && !opened.includes(i)) opened.push(i) })
   })
   assert.deepEqual(opened, [0, 1, 2], "in order")
