@@ -15,6 +15,7 @@ import { Progress, layer as progressLayer } from "./progress.ts"
 import { storageLayer } from "./storage.ts"
 import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
+import { Hud } from "./hud.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
 // A CPU-backed canvas: the scene is tiny (about 240 px across) and made of thousands of small draws, which a
@@ -192,7 +193,7 @@ let lastPlayer = -1
 let lastFlow = fight.view().flow
 const presentation = new Presentation()
 presentation.observe(fight.view())
-const roomEl = el("room"), paceEl = el("pace"), tipEl = el("tip"), afterEl = el("rooms-after")
+const hud = new Hud(canvas)
 await loadArt()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
@@ -212,17 +213,12 @@ FixedLoop.start({
     // A clear changes the run's bests: save them.
     if ((view.flow === "cleared" || view.flow === "won") && lastFlow !== view.flow) save(view.best)
     lastFlow = view.flow
-    afterEl.hidden = view.flow !== "cleared" && view.flow !== "won"
     // A new room, or the same one restarted (the player is back at the start), snaps the camera.
     if (view.room.index !== lastRoom || view.player?.id !== lastPlayer) camera.reset()
     lastRoom = view.room.index
     lastPlayer = view.player?.id ?? -1
-    roomEl.textContent = `${view.room.index + 1}/${view.room.count} ${view.room.name}${view.hits > 0 ? ` ✕${view.hits}` : ""}`
-    // The attempt's clock in world seconds against par (it only runs while you move), and the world speed.
-    paceEl.textContent = `${view.world.toFixed(1)}/${view.room.par}s ×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`
-    paceEl.style.color = view.world > view.room.par ? "#ff8a8a" : ""
-    const goal = view.room.goal.kind === "exit" ? "reach the exit" : "down every enemy"
-    tipEl.textContent = view.room.tip === null ? goal : `${goal} · ${view.room.tip}`
+    // The HUD: room, clock against par, the time-freeze gauge, the tip (messages are drawn with the scene, see `draw`).
+    hud.update(view, frame.elapsedSeconds)
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     const k = 1 / cssPerPixel
     const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }

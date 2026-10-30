@@ -9,6 +9,7 @@ import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite } from "./art.ts"
 import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
 import type { Presentation } from "./fx.ts"
+import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
 import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
@@ -77,22 +78,7 @@ export const keyColour = (key: number): string => KEY_COLOURS[key % KEY_COLOURS.
 /** What a door looks like by its lock: steel for a chamber, gold for a captain, the key's colour for a key. */
 const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : lock.kind === "captain" ? "#ffd25a" : keyColour(lock.key))
 
-const GOLD = "#ffd25a"
 const EXIT = "#7dff9a"
-
-/** A star of radius r centred on (x, y), filled or as an outline. */
-export const star = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, filled: boolean): void => {
-  ctx.beginPath()
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5
-    const k = i % 2 === 0 ? r : r * 0.45
-    if (i === 0) ctx.moveTo(x + Math.cos(a) * k, y + Math.sin(a) * k)
-    else ctx.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k)
-  }
-  ctx.closePath()
-  if (filled) { ctx.fillStyle = GOLD; ctx.fill() }
-  ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke()
-}
 
 /** A key glyph in screen pixels: a ring, a shaft, two teeth. */
 const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number, colour: string): void => {
@@ -474,50 +460,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelArc(ctx, stick, 5, 5, 0, Math.PI * 2, "#c6d4df")
   }
 
-  // Messages: a hit, or a clear with its stars.
-  if (view.flow === "dead" && (presentation === null || deathAge >= 0.52)) {
-    // Keep the fall visible. Retry stays available at the simulation's deadline.
-    const y = ch - BOTTOM - 14
-    ctx.fillStyle = "#171c2e"; ctx.fillRect(0, y - 27, cw, 40)
-    title(ctx, "HIT", "#ce4655", cw / 2, y - 8)
-    caption(ctx, view.canRetry ? "tap to retry the room" : "", cw / 2, y + 7)
-  } else if (view.result !== null && (presentation === null || presentation.clearAge < 0 || presentation.clearAge >= 0.4)) {
-    const won = view.flow === "won"
-    if (won) {
-      banner(ctx, cw, ch, 190)
-      const top = ch / 2 - 55
-      title(ctx, "ALL ROOMS CLEAR", "#91c69b", cw / 2, top)
-      for (let i = 0; i < 3; i++) star(ctx, cw / 2 + (i - 1) * 40, top + 38, 15, i < view.result.stars)
-      caption(ctx, `${view.result.world.toFixed(1)} s · par ${view.room.par} s`, cw / 2, top + 76)
-      const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)
-      caption(ctx, `run: ${stars}/${view.best.length * 3} stars · ${view.deaths} deaths`, cw / 2, top + 98)
-      caption(ctx, "tap to go again", cw / 2, top + 120)
-    } else {
-      // The score stays below the action while the final enemy finishes falling.
-      const y = ch - BOTTOM - 17
-      ctx.fillStyle = "#171c2e"; ctx.fillRect(0, y - 28, cw, 55)
-      title(ctx, "CLEAR", "#91c69b", cw / 2, y - 9)
-      for (let i = 0; i < 3; i++) star(ctx, cw / 2 + (i - 1) * 18, y + 2, 5, i < view.result.stars)
-      caption(ctx, `${view.result.world.toFixed(1)} s · par ${view.room.par} s · tap for next`, cw / 2, y + 21)
-    }
-  }
-}
-
-const banner = (ctx: CanvasRenderingContext2D, cw: number, ch: number, height: number): void => {
-  ctx.fillStyle = "#000000c8"
-  ctx.fillRect(0, ch / 2 - height / 2, cw, height)
-}
-
-const title = (ctx: CanvasRenderingContext2D, text: string, colour: string, x: number, y: number): void => {
-  ctx.fillStyle = colour
-  ctx.textAlign = "center"
-  ctx.font = `bold ${Math.min(22, Math.floor((x * 2 - 16) / Math.max(1, text.length * 0.62)))}px ui-monospace, Menlo, monospace`
-  ctx.fillText(text, x, y)
-}
-
-const caption = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void => {
-  ctx.fillStyle = "#e8ecf4"
-  ctx.textAlign = "center"
-  ctx.font = ` ${Math.min(10, Math.floor((x * 2 - 16) / Math.max(1, text.length * 0.62)))}px ui-monospace, Menlo, monospace`
-  ctx.fillText(text, x, y)
+  // Messages: a hit, or a clear with its stars (pixel-styled page elements, see `hud.ts`).
+  messages(ctx, view, presentation)
 }
