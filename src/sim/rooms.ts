@@ -202,18 +202,6 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "archers: fast arrows, slow to reload"
   },
   {
-    name: "Armory",
-    w: 12,
-    h: 20,
-    start: { x: 6, y: 18 },
-    pillars: [crate(3, 11), crate(9, 11), crate(3, 4), crate(9, 4)],
-    doors: [],
-    enemies: [{ kind: "knight", x: 6, y: 6, delay: 0 }],
-    goal: CLEAR,
-    par: 9,
-    tip: "armoured: three hits, and it hits back"
-  },
-  {
     name: "Warehouse",
     w: 20,
     h: 32,
@@ -284,7 +272,7 @@ export const ROOMS: ReadonlyArray<Room> = [
       { kind: "archer", x: 2, y: 12.5, delay: 0.5, chamber: 1 },
       { kind: "gunner", x: 11, y: 13, delay: 0.6, chamber: 1 },
       { kind: "brute", x: 4, y: 22, delay: 0, chamber: 1 },
-      { kind: "knight", x: 11, y: 6.5, delay: 0, chamber: 2, captain: true },
+      { kind: "brute", x: 11, y: 6.5, delay: 0, chamber: 2, captain: true },
       { kind: "thrower", x: 4, y: 5, delay: 0.7, chamber: 2 }
     ],
     goal: { kind: "exit", x: 9.5, y: 0.2, w: 3, h: 2 },

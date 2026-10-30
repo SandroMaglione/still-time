@@ -28,12 +28,12 @@ try {
     await page.screenshot({ path: `${dir}/room-${room}.png` })
   }
   if (round4 || round5) {
-    await page.goto(`${base}/?room=9&all&nolight`)
-    await page.waitForFunction(() => document.querySelector("#room")!.textContent!.includes("Armory"))
+    await page.goto(`${base}/?room=11&all&nolight`)
+    await page.waitForFunction(() => document.querySelector("#room")!.textContent!.includes("Watchtower"))
     await page.waitForTimeout(800)
     await page.keyboard.down("ArrowUp"); await page.waitForTimeout(900); await page.keyboard.up("ArrowUp")
     await page.waitForTimeout(200)
-    await page.screenshot({ path: `${dir}/room-9-nolight.png` })
+    await page.screenshot({ path: `${dir}/room-11-nolight.png` })
   }
   if (round5) {
     await page.setViewportSize({ width: 844, height: 390 })
@@ -66,7 +66,7 @@ try {
         { ...brute, x: 6, y: 4.5, aim: 2.8, melee: { ...melee, phase: "chase" } },
         { ...brute, id: 80, kind: "gunner", x: 3.4, y: 2.8, melee: null, laser: null, charge: 0.7, aim: Math.PI / 2 }
       ] : [
-        { ...brute, kind: "knight", x: 3.2, y: 4.8, aim: 0, melee: { ...melee, phase: "chase", hp: 3, maxHp: 3 } },
+        { ...brute, x: 3.2, y: 4.8, aim: 0, melee: { ...melee, phase: "chase" } },
         { ...brute, id: 81, kind: "shield", x: 5.2, y: 4.8, aim: Math.PI / 2, melee: { ...melee, phase: "chase", shield: true, guarding: true } },
         { ...brute, id: 82, kind: "sniper", x: 7.3, y: 4.8, aim: Math.PI / 2, melee: null, laser: null }
       ]
@@ -119,5 +119,5 @@ try {
     writeFileSync(`${root}/comparison.png`, Buffer.from(comparison, "base64"))
   }
   assert.deepEqual(errors, [])
-  console.log(`Saved ${before ? "baseline fixtures" : round5 ? "5 lit phone captures, unlit Armory, 844x390 landscape and frozen wind-up" : round4 ? "4 lit phone captures, unlit Armory and frozen wind-up" : `${round2 || round3 ? 5 : 4} phone screenshots, frozen wind-up and before/after comparison`}; no console errors.`)
+  console.log(`Saved ${before ? "baseline fixtures" : round5 ? "5 lit phone captures, unlit Watchtower, 844x390 landscape and frozen wind-up" : round4 ? "4 lit phone captures, unlit Watchtower and frozen wind-up" : `${round2 || round3 ? 5 : 4} phone screenshots, frozen wind-up and before/after comparison`}; no console errors.`)
 } finally { await browser.close() }

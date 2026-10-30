@@ -13,7 +13,7 @@ const rect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
 /** Every role has its own silhouette, including the three batch-2 bodies. */
 const BODIES = {
   player: "player-body", gunner: "gunner-body", archer: "archer-body", thrower: "thrower-body", runner: "runner-body",
-  brute: "brute-body", sniper: "sniper-body", knight: "knight-body", shield: "shield-body"
+  brute: "brute-body", sniper: "sniper-body", shield: "shield-body"
 } as const satisfies Record<Death["kind"], Sprite>
 export const bodyName = (kind: Death["kind"]): Sprite => BODIES[kind]
 
@@ -24,7 +24,7 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   const recoil = fired >= 0 && fired < 0.16 ? Math.sin(Math.PI * clamp(fired / 0.16)) : 0
   const windup = m?.phase === "windup" ? m.progress : 0
   const swinging = m?.phase === "swing"
-  const lean = m?.phase === "stagger" ? (Math.floor(m.progress * 10) % 2 === 0 ? -2 : 2) : Math.round((swinging ? Math.sin(m.progress * Math.PI) * 2 : -windup) * side - Math.cos(enemy.aim) * recoil)
+  const lean = Math.round((swinging ? Math.sin(m.progress * Math.PI) * 2 : -windup) * side - Math.cos(enemy.aim) * recoil)
   const sink = m?.phase === "windup" ? 1 : 0
   const screenAngle = Math.atan2(Math.sin(enemy.aim) * 0.78, Math.cos(enemy.aim))
   let angle = screenAngle
@@ -113,15 +113,6 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   posedSprite(ctx, bodyName(enemy.kind), ground.x, ground.y, { flip, lean, sink })
   if (!behind) weapon()
   if (!behind) towerShield()
-  if (m?.phase === "stagger") {
-    for (const sign of [-1, 1]) {
-      const at = { x: ground.x + sign * 12, y: ground.y - 23 + Math.round(Math.sin(m.progress * 10 + sign) * 2) }
-      pixelLine(ctx, { x: at.x - 2, y: at.y }, { x: at.x + 2, y: at.y }, INK, 3)
-      pixelLine(ctx, { x: at.x, y: at.y - 2 }, { x: at.x, y: at.y + 2 }, INK, 3)
-      pixelLine(ctx, { x: at.x - 2, y: at.y }, { x: at.x + 2, y: at.y }, GOLD)
-      pixelLine(ctx, { x: at.x, y: at.y - 2 }, { x: at.x, y: at.y + 2 }, IVORY)
-    }
-  }
 }
 
 export const muzzle = (ctx: CanvasRenderingContext2D, at: Point, angle: number, progress: number): void => {

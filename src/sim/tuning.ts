@@ -24,7 +24,7 @@ export const TUNING = {
 
 export const SHOOTER_KINDS = ["gunner", "archer", "thrower", "sniper"] as const
 export type ShooterKind = (typeof SHOOTER_KINDS)[number]
-export const MELEE_KINDS = ["brute", "knight", "shield"] as const
+export const MELEE_KINDS = ["brute", "shield"] as const
 export type MeleeKind = (typeof MELEE_KINDS)[number]
 export const ENEMY_KINDS = [...SHOOTER_KINDS, ...MELEE_KINDS, "runner"] as const
 export type EnemyKind = (typeof ENEMY_KINDS)[number]
@@ -65,12 +65,9 @@ export const SHOOTERS = {
  * `lock`), swings a wedge in front of it, and recovers. Its front is guarded
  * within `guardArc` of its facing: while it attacks (`guard: "attack"`), or
  * always (`"always"`, the shield-bearer). A guarded front stops your cut and
- * any shot. `hp` hits down it; a hit that does not down it staggers it (see
- * STAGGER).
+ * any shot; any other blow downs it.
  *
- * - brute: fast, one hit, guarded only while it attacks.
- * - knight: slower, armoured (three hits), guarded while it attacks; after
- *   each stagger it counters at once if you stand close.
+ * - brute: fast, guarded only while it attacks.
  * - shield-bearer: slow and slow to turn (circling it within 3 m at full
  *   speed outpaces its turn), its shield always up: go round it.
  */
@@ -95,16 +92,11 @@ export const MELEE = {
     close: 1.6,
     step: 0.7,
     swing: 0.1,
-    recover: 0.8,
-    hp: 1
-  },
-  knight: {
-    radius: 0.5, speed: 3.4, turn: 7, trigger: 2.5, reach: 2.1, arc: 1.05, guard: "attack", guardArc: 1.2,
-    windup: 0.5, lock: 0.35, close: 1.6, step: 0.7, swing: 0.1, recover: 0.8, hp: 3
+    recover: 0.8
   },
   shield: {
     radius: 0.5, speed: 2.6, turn: 1.5, trigger: 2.0, reach: 1.7, arc: 0.8, guard: "always", guardArc: 1.25,
-    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9, hp: 1
+    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9
   }
 } as const satisfies Record<MeleeKind, {
   radius: number
@@ -121,16 +113,7 @@ export const MELEE = {
   step: number
   swing: number
   recover: number
-  hp: number
 }>
-
-/**
- * A hit that does not down a melee enemy staggers it: it is knocked `push`
- * metres away from the blow and stands dazed for `time` world seconds, when
- * no blow lands on it. Dazed time is world time: stand still and it stays
- * dazed, but so does everything else.
- */
-export const STAGGER = { push: 1.8, time: 0.6 } as const
 
 /**
  * Shooters reposition a little: they sidestep when an ally stands in their line
@@ -160,7 +143,7 @@ export const CROWD = {
 } as const
 
 /** How much each kind gives way when two enemies are pushed apart: shooters hold their ground, the melee family is shoved. */
-export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, brute: 1, knight: 0.8, shield: 0.5, runner: 0.6 } as const satisfies Record<EnemyKind, number>
+export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, brute: 1, shield: 0.5, runner: 0.6 } as const satisfies Record<EnemyKind, number>
 
 /**
  * The runner (a thief): it never attacks, carries a key, and runs from you

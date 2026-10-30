@@ -1,5 +1,5 @@
 /** True-size assets; enlargement happens once, on the final canvas. */
-const names = ["player-body", "gunner-body", "archer-body", "thrower-body", "brute-body", "runner-body", "sniper-body", "knight-body", "shield-body", "crown", "cap", "cover-cap-1", "cover-cap-2", "cover-chip", "crate-cap", "crate-face", "masonry", "iron", "banner-red", "banner-moss", "rubble", "pots", "chain", "shadow", "exit-rune", "bullet", "spark", "floor-0", "floor-1", "floor-2", "floor-3", "floor-4", "floor-5", "floor-cracked", "floor-moss", "floor-drain", "rock-0", "rock-1", "rock-2", "brazier-0", "brazier-1"] as const
+const names = ["player-body", "gunner-body", "archer-body", "thrower-body", "brute-body", "runner-body", "sniper-body", "shield-body", "crown", "cap", "cover-cap-1", "cover-cap-2", "cover-chip", "crate-cap", "crate-face", "masonry", "iron", "banner-red", "banner-moss", "rubble", "pots", "chain", "shadow", "exit-rune", "bullet", "spark", "floor-0", "floor-1", "floor-2", "floor-3", "floor-4", "floor-5", "floor-cracked", "floor-moss", "floor-drain", "rock-0", "rock-1", "rock-2", "brazier-0", "brazier-1"] as const
 export type Sprite = typeof names[number]
 const images = new Map<Sprite, HTMLImageElement>()
 const patterns = new WeakMap<CanvasRenderingContext2D, Map<Sprite, CanvasPattern>>()

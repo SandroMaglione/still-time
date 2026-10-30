@@ -1,6 +1,5 @@
 /**
- * Batch 2's enemies, played headless: the knight (three hits, each a
- * knock-back and a daze, then a counter), the shield-bearer (a front that
+ * Batch 2's enemies, played headless: the shield-bearer (a front that
  * stops cuts and shots), and the sniper (a laser that charges only in
  * sight, locks, then fires along the locked line).
  */
@@ -8,9 +7,9 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Fight } from "../src/sim/simulation.ts"
-import { MELEE, SHOOTERS, STAGGER, TUNING } from "../src/sim/tuning.ts"
+import { SHOOTERS, TUNING } from "../src/sim/tuning.ts"
 import type { EnemyView } from "../src/sim/view.ts"
-import { fightIn, placePlayer, pushToward, runUntil, spawnShot, type ScriptedThumb } from "./helpers.ts"
+import { fightIn, placePlayer, runUntil, spawnShot, type ScriptedThumb } from "./helpers.ts"
 
 const find = (fight: Fight, kind: EnemyView["kind"]): EnemyView | undefined => fight.view().enemies.find((e) => e.kind === kind)
 
@@ -24,77 +23,6 @@ const jiggle = (thumb: ScriptedThumb, strength = 1): (() => void) => {
   let flip = 1
   return () => { flip = -flip; thumb.push = { x: flip * strength, y: 0 } }
 }
-
-test("a knight takes three hits: each knocks it back out of reach and dazes it", () => {
-  const { fight, thumb } = fightIn("Armory")
-  const knight = () => find(fight, "knight")
-  const k0 = knight()
-  assert.ok(k0 !== undefined && k0.melee !== null)
-  assert.equal(k0.melee.hp, 3)
-  // Idle, its guard is down: cut it from the front.
-  placeBeside(fight, k0, Math.PI / 2)
-  fight.tick()
-  const k1 = knight()
-  const me = fight.view().player
-  assert.ok(k1 !== undefined && k1.melee !== null && me !== null)
-  assert.equal(k1.melee.hp, 2)
-  assert.equal(k1.melee.phase, "stagger")
-  assert.ok(Math.hypot(k1.x - me.x, k1.y - me.y) > TUNING.attackRange, "knocked out of your reach")
-  // Dazed: a blow in that time does nothing.
-  placeBeside(fight, k1, Math.PI / 2)
-  fight.tick()
-  assert.equal(knight()?.melee?.hp, 2)
-  // Each further hit from its open back, until the last downs it.
-  for (const hp of [1, 0]) {
-    runUntil(fight, 600, () => knight()?.melee?.phase !== "stagger", jiggle(thumb))
-    thumb.push = { x: 0, y: 0 }
-    const k = knight()
-    assert.ok(k !== undefined)
-    placeBeside(fight, k, k.aim + Math.PI)
-    fight.tick()
-    assert.equal(knight()?.melee?.hp, hp === 0 ? undefined : hp)
-  }
-  assert.equal(knight(), undefined)
-  assert.equal(fight.view().flow, "cleared")
-})
-
-test("the brute's dodge beats a knight too: back off when its swing commits, close in otherwise", () => {
-  const { fight, thumb } = fightIn("Armory")
-  runUntil(fight, 3000, () => fight.view().flow !== "playing", () => {
-    const k = find(fight, "knight")
-    const m = k?.melee
-    if (k === undefined || m === null || m === undefined) return
-    thumb.push = pushToward(fight, k.x, k.y, (m.phase === "windup" && m.locked) || m.phase === "swing")
-  })
-  assert.equal(fight.view().flow, "cleared")
-  assert.equal(fight.view().hits, 0)
-})
-
-test("coming out of its daze, a knight counters at once if you stand close", () => {
-  const { fight, thumb } = fightIn("Armory")
-  const k0 = find(fight, "knight")
-  assert.ok(k0 !== undefined)
-  placeBeside(fight, k0, Math.PI / 2)
-  fight.tick()
-  const k1 = find(fight, "knight")
-  assert.ok(k1 !== undefined)
-  // Stand inside its trigger but out of your own reach, and let the daze run out.
-  placeBeside(fight, k1, Math.PI / 2, MELEE.knight.trigger - 0.3)
-  runUntil(fight, 600, () => find(fight, "knight")?.melee?.phase !== "stagger", jiggle(thumb, 0.4))
-  assert.equal(find(fight, "knight")?.melee?.phase, "windup")
-  assert.equal(find(fight, "knight")?.melee?.guarding, true)
-})
-
-test("a stray shot costs a knight a hit too", () => {
-  const { fight } = fightIn("Armory")
-  const k = find(fight, "knight")
-  assert.ok(k !== undefined)
-  // Close by, so it lands before the knight (which has seen you) walks off the line.
-  spawnShot(fight, { kind: "bullet", x: k.x + 0.8, y: k.y, vx: -9, vy: 0 })
-  runUntil(fight, 2000, () => fight.view().shots.length === 0)
-  assert.equal(find(fight, "knight")?.melee?.hp, 2)
-  assert.equal(find(fight, "knight")?.melee?.phase, "stagger")
-})
 
 test("the shield-bearer's front stops your cut; its back does not", () => {
   const { fight } = fightIn("Shieldwall")
@@ -214,14 +142,3 @@ test("standing on the locked line, the sniper's slug hits you", () => {
   assert.equal(fight.view().flow, "dead")
 })
 
-test("staggers last their world time: standing still keeps a knight dazed", () => {
-  const { fight } = fightIn("Armory")
-  const k = find(fight, "knight")
-  assert.ok(k !== undefined)
-  placeBeside(fight, k, Math.PI / 2)
-  fight.tick()
-  // A real second of standing still is a few hundredths of a world second.
-  runUntil(fight, 60, () => false)
-  assert.equal(find(fight, "knight")?.melee?.phase, "stagger")
-  assert.ok(STAGGER.time > 60 / 60 * TUNING.slow)
-})

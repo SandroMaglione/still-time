@@ -35,17 +35,6 @@ actor('sniper', (r, p) => {
   r(17, 13, 5, 3, 0); r(18, 14, 3, 1, 3); r(18, 16, 1, 1, 0)
   r(10, 19, 2, 1, 6); r(17, 19, 2, 1, 6)
 })
-actor('knight', r => {
-  r(4, 19, 6, 4, 0); r(15, 19, 6, 4, 0); r(5, 21, 4, 1, 3); r(16, 21, 4, 1, 3)
-  r(2, 12, 20, 9, 0); r(3, 13, 18, 6, 8); r(6, 14, 13, 7, 2)
-  r(7, 14, 10, 5, 3); r(8, 15, 7, 1, 5); r(10, 17, 4, 3, 11)
-  r(1, 12, 5, 6, 0); r(18, 12, 5, 6, 0); r(2, 13, 4, 3, 5); r(18, 13, 4, 3, 3)
-  r(2, 13, 3, 1, 4); r(19, 13, 2, 1, 5); r(3, 17, 3, 2, 8); r(18, 17, 3, 2, 8)
-  r(4, 2, 16, 12, 0); r(5, 3, 14, 10, 3); r(5, 3, 9, 3, 5); r(6, 3, 7, 1, 4)
-  r(17, 4, 2, 8, 2); r(6, 7, 12, 4, 0); r(7, 8, 4, 1, 10); r(13, 8, 4, 1, 10)
-  r(11, 7, 2, 6, 5); r(10, 2, 4, 4, 11); r(11, 1, 2, 4, 11)
-  r(7, 12, 3, 1, 5); r(14, 12, 3, 1, 2); r(6, 20, 12, 1, 11)
-}, r => { r(21, 14, 3, 9, 0); r(22, 14, 1, 6, 5); r(20, 19, 4, 1, 11); r(21, 20, 2, 2, 7) })
 actor('shield', (r, p) => {
   r(6, 20, 5, 3, 0); r(14, 20, 5, 3, 0); r(7, 21, 3, 1, 3); r(15, 21, 3, 1, 3)
   r(5, 12, 15, 9, 0); r(6, 13, 13, 6, 14); r(8, 13, 9, 7, 1); r(10, 14, 4, 5, 2)
@@ -62,4 +51,4 @@ actor('shield', (r, p) => {
 })
 const atlas = Array.from({ length: 24 }, (_, y) => sheet.flatMap(pixels => pixels[y]))
 writeFileSync('assets/art/source/batch2.sprite.txt', `palette\n. transparent\n${palette.map((c, i) => `${keys[i]} ${c}`).join('\n')}\n\npixels\n${atlas.map(row => row.map(c => c < 0 ? '.' : keys[c]).join('')).join('\n')}\n`)
-writeFileSync('public/art/batch2.json', JSON.stringify({ image: 'batch2.png', frameSize: [24, 24], anchor: [12, 23], frames: { sniper: { x: 0, y: 0, w: 24, h: 24 }, knight: { x: 24, y: 0, w: 24, h: 24 }, shield: { x: 48, y: 0, w: 24, h: 24 } } }, null, 2) + '\n')
+writeFileSync('public/art/batch2.json', JSON.stringify({ image: 'batch2.png', frameSize: [24, 24], anchor: [12, 23], frames: { sniper: { x: 0, y: 0, w: 24, h: 24 }, shield: { x: 24, y: 0, w: 24, h: 24 } } }, null, 2) + '\n')

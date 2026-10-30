@@ -8,7 +8,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 import { unlocked } from "../progress.ts"
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
 import { Blade, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult } from "../schema.ts"
-import { CROWD, LOCKS, MELEE, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
+import { CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, roomOf } from "./queries.ts"
 
 /** The first room of the run: built once by the setup schedule. */
@@ -76,7 +76,7 @@ export const BuildRoomSystem = Game.System(
       const toStart = Ops.atan2(room.start.y - e.y, room.start.x - e.x)
       if (isMelee(kind)) {
         const pace = CROWD.paces[walkers++ % CROWD.paces.length] ?? 1
-        const melee = { facing: toStart, pace, hp: MELEE[kind].hp }
+        const melee = { facing: toStart, pace }
         commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Melee, melee], [Blade, { _tag: "idle" }]))
       } else if (kind === "runner") {
         const key = e.key ?? 0

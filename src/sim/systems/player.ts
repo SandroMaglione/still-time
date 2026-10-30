@@ -8,7 +8,7 @@ import { settle } from "../geometry.ts"
 import { TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { Doors, Enemy, Flow, Game, Input, Pace, Run, Slashes, Time } from "../schema.ts"
 import { blow } from "./blows.ts"
-import { EnemyRead, MeleeQuery, PlayerQuery, PlayerRead, RunnerRead, ShooterRead, roomOf, wallsOf } from "./queries.ts"
+import { EnemyRead, MeleeRead, PlayerQuery, PlayerRead, RunnerRead, ShooterRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
@@ -65,28 +65,20 @@ export const MovePlayerSystem = Game.System(
 )
 
 /**
- * You cut every enemy within reach. Shooters and runners fall. A melee enemy
- * takes the blow by its kind (see blows.ts): its guarded front stops it, and
- * an armoured one is staggered until its last hit.
+ * You cut every enemy within reach. Shooters and runners fall; a melee enemy
+ * falls unless its guarded front stops the blow (see blows.ts).
  */
 export const CutSystem = Game.System(
   "Slap/Cut",
   {
     when: playing,
-    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeQuery },
-    resources: {
-      time: Game.System.readResource(Time),
-      run: Game.System.readResource(Run),
-      doors: Game.System.readResource(Doors),
-      slashes: Game.System.writeResource(Slashes)
-    },
+    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeRead },
+    resources: { time: Game.System.readResource(Time), slashes: Game.System.writeResource(Slashes) },
     commands: Game.System.commands(Game.System.despawns(Enemy))
   },
   ({ queries, resources, commands }) => {
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
-    const room = roomOf(resources.run.get().room)
-    const walls = wallsOf(room, resources.doors.get())
     const born = resources.time.get().step
     const cuts: Array<{ x: number; y: number; angle: number; born: number; blocked: boolean }> = []
     const inReach = (at: { x: number; y: number }): boolean => Ops.hypot(at.x - me.x, at.y - me.y) <= TUNING.attackRange
@@ -101,9 +93,9 @@ export const CutSystem = Game.System(
       const at = data.body.get()
       const kind = data.enemy.get().kind
       if (!inReach(at) || !isMelee(kind)) continue
-      const result = blow(kind, data, me, room, walls)
-      if (result === "down") commands.despawn(entity)
-      if (result === "down" || result === "staggered") cutAt(at)
+      if (blow(kind, data.blade.get()._tag, data.melee.get().facing, Ops.atan2(me.y - at.y, me.x - at.x)) === "guarded") continue
+      commands.despawn(entity)
+      cutAt(at)
     }
     if (cuts.length > 0) resources.slashes.set([...resources.slashes.get(), ...cuts])
   }

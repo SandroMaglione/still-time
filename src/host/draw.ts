@@ -226,11 +226,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       } else if (m.phase === "chase" || m.phase === "idle") {
         pixelArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, "#ad7950", 1, true)
       }
-      // Guard up: a steel front and a gold open back. Dazed: a turning white ring, open all round and no blow lands.
-      // Recovering: open all round. Idle/chasing melee bodies need no foot dashes.
-      if (m.phase === "stagger") {
-        ring(m.progress * 6, m.progress * 6 + Math.PI * 2, "#f4efda", 1, true)
-      } else if (m.guarding) {
+      // Guard up: a steel front and a gold open back. Recovering: open all round. Idle/chasing melee bodies need no foot dashes.
+      if (m.guarding) {
         ring(e.aim - m.guardArc, e.aim + m.guardArc, "#c6d4df")
         ring(e.aim + m.guardArc, e.aim + Math.PI * 2 - m.guardArc, "#edc66c")
       } else if (m.phase !== "idle" && m.phase !== "chase") {
@@ -258,16 +255,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const resting = view.flow !== "playing" && e.melee !== null ? { ...e, melee: { ...e.melee, phase: "idle" as const, progress: 0 } } : e
         combatActor(ctx, resting, ground, view.flow === "playing" ? presentation?.firing(e, view.world) ?? -1 : -1)
         if (view.flow === "playing" && e.melee !== null) attackWave(ctx, e, P(e.x, e.y, 0.45), e.melee.reach * erx, e.melee.reach * ery)
-        const m = e.melee
-        if (m !== null && m.maxHp > 1) {
-          // Hit points over its head: one pip per hit it can still take.
-          const y = ground.y - (e.captain ? 33 : 26)
-          for (let i = 0; i < m.maxHp; i++) {
-            const x = Math.round(ground.x + (i - (m.maxHp - 1) / 2) * 5) - 1
-            ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, 5, 5)
-            ctx.fillStyle = i < m.hp ? "#ce4655" : "#3a4048"; ctx.fillRect(x, y, 3, 3)
-          }
-        }
         if (e.captain) {
           sprite(ctx, "crown", ground.x, ground.y - 17)
         }

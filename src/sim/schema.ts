@@ -58,36 +58,27 @@ export const Post = Descriptor.ConstructedComponent(codec(S.Struct({
   strafe: S.Literals([1, -1])
 })))("Slap/Post", { meta: { hx: { unit: "m" }, hy: { unit: "m" } } })
 
-/** A melee enemy's body: where its blade faces, its walking pace as a share of top speed, and the hits it can still take. */
-export const Melee = Descriptor.ConstructedComponent(codec(S.Struct({ facing: S.Number, pace: S.Number, hp: S.Int.check(S.isGreaterThanOrEqualTo(1)) })))("Slap/Melee", {
+/** A melee enemy's body: where its blade faces, and its walking pace as a share of top speed. */
+export const Melee = Descriptor.ConstructedComponent(codec(S.Struct({ facing: S.Number, pace: S.Number })))("Slap/Melee", {
   meta: {
     facing: { unit: "rad" },
-    pace: { unit: "share", range: [0.5, 1], hint: "Share of its kind's top speed." },
-    hp: { unit: "hits", range: [1, 3] }
+    pace: { unit: "share", range: [0.5, 1], hint: "Share of its kind's top speed." }
   }
 })
 
 /**
  * What a melee enemy is doing: waiting to see you, chasing (toward where it
- * last saw you), winding up, swinging, recovering, or staggered by a hit it
- * survived. `left` is world seconds left in the phase.
+ * last saw you), winding up, swinging, or recovering. `left` is world
+ * seconds left in the phase.
  */
 export const Blade = Descriptor.EntityState("Slap/Blade", {
   idle: {},
   chase: codec(point),
   windup: codec(left),
   swing: codec(left),
-  recover: codec(left),
-  stagger: codec(left)
+  recover: codec(left)
 }, {
-  transitions: {
-    idle: ["chase", "windup", "stagger"],
-    chase: ["windup", "stagger"],
-    windup: ["swing", "stagger"],
-    swing: ["recover", "stagger"],
-    recover: ["chase", "stagger"],
-    stagger: ["chase", "windup"]
-  }
+  transitions: { idle: ["chase", "windup"], chase: ["windup"], windup: ["swing"], swing: ["recover"], recover: ["chase"] }
 })
 
 /** Something flying: its kind and velocity in metres per world second. */

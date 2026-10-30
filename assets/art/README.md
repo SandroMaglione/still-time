@@ -5,11 +5,10 @@ Character bodies and equipped exports are native 24×24 sprites on the shared
 The original v2 roles keep their role colors and proportions. Batch 2 adds:
 
 - Sniper: pointed violet hood and a long rifle with a raised scope.
-- Knight: a wider, square full helm, plate shoulders and gold armour trim.
 - Shield-bearer: teal crest and a tall tower shield that turns with its aim.
 
 `scripts/batch2-art.mjs` authors the new source files, full equipped PNGs and
-the three-frame `batch2` atlas. Runtime weapon/body layering remains in
+the two-frame `batch2` atlas. Runtime weapon/body layering remains in
 `src/host/combat-art.ts`; each role has its own body. Every living body gets
 a one-source-pixel light rim inside the renderer, outside its dark outline.
 
@@ -52,7 +51,7 @@ use world time. Retry, room changes and rewinds clear presentation records.
 
 Danger paths and committed attacks are red/orange with ink outlines;
 projectiles have larger bright heads. Idle/chase reach is a dim orange 1px
-dash without ink. Idle/chasing knights have no extra ring under their boots.
+dash without ink. Idle/chasing melee enemies have no extra ring under their boots.
 Reload is a 2px red raster band with 1px ink edges at the feet. Guard arcs use
 steel and gold in a compact foot ellipse, leaving the tower shield to carry
 the silhouette. The player's reach uses teal. Tracking lasers are dashed and

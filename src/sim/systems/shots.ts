@@ -5,13 +5,13 @@ import { insidePillar } from "../geometry.ts"
 import { Doors, Enemy, Flow, Game, Pace, PlayerHit, Run, Shot, Slashes, Time } from "../schema.ts"
 import { SHOTS, TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { blow, type BlowResult } from "./blows.ts"
-import { MeleeQuery, PlayerRead, RunnerRead, ShooterRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
+import { MeleeRead, PlayerRead, RunnerRead, ShooterRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
 
 export const ShotsSystem = Game.System(
   "Slap/Shots",
   {
     when: [Game.Condition.inState(Flow, "Playing")],
-    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeQuery, shots: ShotQuery },
+    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeRead, shots: ShotQuery },
     resources: {
       time: Game.System.readResource(Time),
       pace: Game.System.readResource(Pace),
@@ -29,7 +29,7 @@ export const ShotsSystem = Game.System(
     const walls = wallsOf(room, resources.doors.get())
     const time = resources.time.get()
     const dt = time.dt * resources.pace.get().scale
-    // Each target: where it stands, and what a shot does to it. Shooters and runners fall; melee enemies take a blow.
+    // Each target: where it stands, and what a shot from angle `from` does to it. Shooters and runners fall; a guarded front stops it.
     const targets = [
       ...[...queries.shooters.each(), ...queries.runners.each()].map((m) => ({
         id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind),
@@ -40,8 +40,8 @@ export const ShotsSystem = Game.System(
         if (!isMelee(kind)) return []
         return [{
           id: m.entity.id, at: m.data.body.get(), radius: radiusOf(kind),
-          struck: (from: { x: number; y: number }): BlowResult => {
-            const result = blow(kind, m.data, from, room, walls)
+          struck: (from: number): BlowResult => {
+            const result = blow(kind, m.data.blade.get()._tag, m.data.melee.get().facing, from)
             if (result === "down") commands.despawn(m.entity)
             return result
           }
@@ -65,12 +65,12 @@ export const ShotsSystem = Game.System(
       const victim = targets.find((t) => !downed.has(t.id) && Ops.hypot(nx - t.at.x, ny - t.at.y) < t.radius + sr)
       if (victim === undefined) continue
       // The blow comes from where the shot flew in.
-      const result = victim.struck({ x: nx - s.vx, y: ny - s.vy })
+      const result = victim.struck(Ops.atan2(-s.vy, -s.vx))
       if (result === "down") downed.add(victim.id)
       commands.despawn(entity)
       const angle = Ops.atan2(s.vy, s.vx)
       if (result === "guarded") marks.push({ x: nx, y: ny, angle, born: time.step, blocked: true })
-      else if (result !== "dazed") marks.push({ x: victim.at.x, y: victim.at.y, angle, born: time.step, blocked: false })
+      else marks.push({ x: victim.at.x, y: victim.at.y, angle, born: time.step, blocked: false })
     }
     if (hit) events.hit.emit({ by: "shot" })
     if (marks.length > 0) resources.slashes.set([...resources.slashes.get(), ...marks])

@@ -5,11 +5,11 @@ import { canSee, clearLine } from "./geometry.ts"
 import { ROOMS, type Goal, type Lock, type Pillar } from "./rooms.ts"
 import { Blade, Body, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Player, Reload, Run, Shot, Slashes, Time } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
-import { MELEE, RUNNER, SHOOTERS, SHOTS, STAGGER, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
+import { MELEE, RUNNER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
-export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover" | "stagger"
+export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover"
 
-/** A melee enemy's blade: its phase, how far through it (0 to 1), its guard and hit points, and the shapes to draw. */
+/** A melee enemy's blade: its phase, how far through it (0 to 1), its guard, and the shapes to draw. */
 export interface MeleeView {
   readonly phase: MeleePhase
   readonly progress: number
@@ -24,8 +24,6 @@ export interface MeleeView {
   readonly guarding: boolean
   /** True for a shield always up (the shield-bearer), false for a guard raised only to attack. */
   readonly shield: boolean
-  readonly hp: number
-  readonly maxHp: number
 }
 
 /** A scoped shooter's laser: where it points, how far it reaches (to you, or to the first wall), and whether it is locked. */
@@ -200,11 +198,11 @@ export const FightViewInspector = Game.Inspector(
       const spec = MELEE[kind]
       const at = data.body.get()
       const blade = data.blade.get()
-      const { facing, hp } = data.melee.get()
-      const phaseLength = { idle: 1, chase: 1, windup: spec.windup, swing: spec.swing, recover: spec.recover, stagger: STAGGER.time } as const satisfies Record<MeleePhase, number>
+      const { facing } = data.melee.get()
+      const phaseLength = { idle: 1, chase: 1, windup: spec.windup, swing: spec.swing, recover: spec.recover, } as const satisfies Record<MeleePhase, number>
       const left = blade._tag === "idle" || blade._tag === "chase" ? 0 : blade.left
       const progress = left === 0 ? 0 : Math.max(0, Math.min(1, 1 - left / phaseLength[blade._tag]))
-      const guarding = spec.guard === "always" ? blade._tag !== "stagger" : blade._tag === "windup" || blade._tag === "swing"
+      const guarding = spec.guard === "always" || blade._tag === "windup" || blade._tag === "swing"
       return [{
         id: entity.id, kind, x: at.x, y: at.y, radius: spec.radius,
         charge: blade._tag === "windup" ? progress : 0,
@@ -214,7 +212,7 @@ export const FightViewInspector = Game.Inspector(
         captain: data.enemy.get().captain, key: null,
         melee: {
           phase: blade._tag, progress, locked: blade._tag === "windup" && blade.left <= spec.lock, lockShare: spec.lock / spec.windup,
-          reach: spec.reach, arc: spec.arc, guardArc: spec.guardArc, guarding, shield: spec.guard === "always", hp, maxHp: spec.hp
+          reach: spec.reach, arc: spec.arc, guardArc: spec.guardArc, guarding, shield: spec.guard === "always"
         },
         laser: null
       }]

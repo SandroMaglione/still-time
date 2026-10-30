@@ -2,9 +2,8 @@
  * The enemies, in world time (slowed with the world):
  * - shooters reload, sidestep an ally in their line of fire, creep toward
  *   where they last saw you, and fire only with sight and a clear line;
- * - the melee family (brute, knight, shield-bearer) chases you round its
- *   allies, winds up (tracking, then committed), swings a wedge, and
- *   recovers; a blow it survives staggers it;
+ * - the melee family (brute, shield-bearer) chases you round its allies,
+ *   winds up (tracking, then committed), swings a wedge, and recovers;
  * - runners flee while they can see you, toward the way out that keeps
  *   them furthest from you;
  * - every enemy is solid: overlaps are pushed apart.
@@ -131,7 +130,7 @@ export const MeleeSystem = Game.System(
       if (!isMelee(kind)) continue
       const spec = MELEE[kind]
       const at = data.body.get()
-      const { facing, pace, hp } = data.melee.get()
+      const { facing, pace } = data.melee.get()
       const blade = data.blade.get()
       const toYou = Ops.atan2(me.y - at.y, me.x - at.x)
       const dist = Ops.hypot(me.x - at.x, me.y - at.y)
@@ -168,7 +167,7 @@ export const MeleeSystem = Game.System(
           const ml = Ops.hypot(mx, my) || 1
           const step = Ops.hypot(target.x - at.x, target.y - at.y) > 0.3 ? spec.speed * pace * dt : 0
           data.body.set(settle(at.x + (mx / ml) * step, at.y + (my / ml) * step, spec.radius, room.w, room.h, walls))
-          data.melee.set({ facing: turnToward(facing, want, spec.turn * dt), pace, hp })
+          data.melee.set({ facing: turnToward(facing, want, spec.turn * dt), pace })
           if (blade._tag === "idle") data.blade.transition({ from: "idle", to: "chase", data: target })
           else data.blade.update({ state: "chase", data: () => target })
           break
@@ -177,7 +176,7 @@ export const MeleeSystem = Game.System(
           // Tracks you and steps in until the last `lock` seconds, then commits to its facing.
           const tracking = blade.left > spec.lock
           if (tracking) {
-            data.melee.set({ facing: turnToward(facing, toYou, spec.turn * dt), pace, hp })
+            data.melee.set({ facing: turnToward(facing, toYou, spec.turn * dt), pace })
             if (dist > spec.close) {
               const step = Math.min(dist - spec.close, spec.speed * spec.step * dt)
               data.body.set(settle(at.x + Ops.cos(toYou) * step, at.y + Ops.sin(toYou) * step, spec.radius, room.w, room.h, walls))
@@ -195,15 +194,6 @@ export const MeleeSystem = Game.System(
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "swing", data: () => ({ left }) })
           else data.blade.transition({ from: "swing", to: "recover", data: { left: spec.recover } })
-          break
-        }
-        case "stagger": {
-          // Dazed: it stands where the blow sent it. Coming to, it counters at once if you stand close.
-          // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
-          const left = blade.left - dt
-          if (left > 0) data.blade.update({ state: "stagger", data: () => ({ left }) })
-          else if (sees && dist <= spec.trigger) data.blade.transition({ from: "stagger", to: "windup", data: { left: spec.windup } })
-          else data.blade.transition({ from: "stagger", to: "chase", data: { x: me.x, y: me.y } })
           break
         }
         case "recover": {

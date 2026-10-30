@@ -18,10 +18,9 @@ Speed is the choice the player makes: every move speeds the whole world up with 
 - **Shooters** (gunner: bullets; archer: fast arrows; thrower: a fan of three knives; sniper, below) fire only with line of sight within 13 m, 0.25 s after you step out of cover if already reloaded. They hold fire and sidestep when an ally is in any line of their shot, creep toward where they last saw you, and stay within 3.5 m of their post.
 - **Brutes** stand until they see you, then chase faster than you (5.5 m/s, a 180° turn in about 0.3 s). Within 2.5 m they wind up for 0.5 s: they track you and step in to 1.6 m, then commit for the last 0.35 s. They swing a 2 m wedge of ±57° and recover for 0.8 s. Their front (±69°) is guarded only while they attack: step out of the swing, then cut back in during the recovery, even from the front.
 - **The melee family** shares the brute's cycle (chase, wind-up tracking then committed, swing, recover) with its own numbers in `MELEE`. A guarded front stops your cut **and shots**.
-- **Knight:** slower than the brute (3.4 m/s), guarded while it attacks like the brute, and armoured: **three hits**, shown as pips over its helm. A hit it survives knocks it 1.8 m back (out of your reach) and **dazes** it for 0.6 world s: a wobbling white ring, and no blow lands. Coming to with you close, it counters at once. The brute's dodge (back off when the swing commits, cut in otherwise) beats it.
 - **Shield-bearer:** slow (2.6 m/s) and slow to turn (1.5 rad/s), its shield always up (±72°): a steel plate in front. Circling it within 3 m at full speed outpaces its turn; its back is open. Shots on the shield throw a spark.
 - **Sniper:** sees 24 m (others 13), holds its post. While it sees you a dashed laser tracks you and charges (1.5 world s); hiding starts it over. For the last 0.4 s the laser **locks** (solid, blinking) and stops tracking: step off the line. Then one fast slug (30 m/s) down the locked line. It starts uncharged.
-- **Friendly fire:** any shot kills any enemy it touches (a knight loses a hit; a shield blocks it from the front).
+- **Friendly fire:** any shot kills any enemy it touches (a guarded front blocks it: a shield always, a brute while it attacks).
 - **Score:** each attempt has a clock in **world** seconds, so it only runs while you move. A clear earns up to three stars: one for the clear, one for no hit in the room since you came into it (retries count), one for beating the room's par. The run keeps each room's best; the last screen totals them.
 - **Goals:** `clear` (down every enemy) or `exit` (stand on the glowing pad; enemies left standing don't matter).
 - **Doors** are walls until their lock is met, then open for the rest of the attempt (a retry shuts them). Locks: a **chamber** cleared (steel door, one red pip per enemy it still waits on), the chamber's **captain** down (gold door with a crown), or its **key** brought to it (a door in the key's colour; it opens when you reach it holding the key, and keeps the key). Closed doors block movement, sight and shots for everyone.
@@ -45,9 +44,9 @@ Progress is saved on the device, in the browser's local storage (itch.io has no 
 
 Each room adds one thing, with few enemies, and the rooms grow from there:
 
-1. Duel: one brute. 2. Two Blades: two brutes. 3. Courtyard: the first shooters (two gunners), sight and cover. 4. Friendly Fire: a thrower at the back of a line of two gunners. 5. Gatehouse: the first door (clear this side to open it), gunners and a brute. 6. Throne: the captain, and the first exit. 7. Thief: the runner and its key. 8. Market: two chambers, and the first archers. 9. Armory: one knight. 10. Warehouse: a thief among shelves. 11. Shieldwall: a shield-bearer guarding a gunner. 12. Watchtower: one sniper down a long room of cover. 13. Fortress: yard gate, keep key, and a crowned knight at the captain's door.
+1. Duel: one brute. 2. Two Blades: two brutes. 3. Courtyard: the first shooters (two gunners), sight and cover. 4. Friendly Fire: a thrower at the back of a line of two gunners. 5. Gatehouse: the first door (clear this side to open it), gunners and a brute. 6. Throne: the captain, and the first exit. 7. Thief: the runner and its key. 8. Market: two chambers, and the first archers. 9. Warehouse: a thief among shelves. 10. Shieldwall: a shield-bearer guarding a gunner. 11. Watchtower: one sniper down a long room of cover. 12. Fortress: yard gate, keep key, and a crowned brute at the captain's door.
 
-Pars are first guesses (a scripted dodge clears the Duel in 2.0 world s against a par of 4, and the Armory's knight in 5.6 against 9); tune them from play.
+Pars are first guesses (a scripted dodge clears the Duel in 2.0 world s against a par of 4); tune them from play.
 
 ## How it was found (prototype rounds, October 2026)
 
@@ -65,7 +64,7 @@ Pars are first guesses (a scripted dodge clears the Duel in 2.0 world s against 
 Ordered so each batch builds on the last, extensions before exceptions:
 
 1. **Doors (done):** score and stars, doors and chambers, the captain, the runner and its key.
-2. **Tougher enemies (done):** the knight (three hits, a daze in world time, a counter), the shield-bearer (a front that also blocks shots), the sniper (a laser that charges in sight, locks, then fires).
+2. **Tougher enemies (done):** the shield-bearer (a front that also blocks shots), the sniper (a laser that charges in sight, locks, then fires). The knight (three hits with a daze) was built and cut: one cut kills, always.
 3. **Things that break:** cracked walls a brute's swing breaks, the grenadier (a fuse ring; the blast kills allies and breaks walls), crates that shots wear down, the splitter.
 4. **Puzzles and pressure:** switches (one, then numbered sequences), survive-N-world-seconds rooms, timed hazards, alarms and chain bonuses.
 5. **Rule-breakers:** the clockwork enemy (real time), the stalker (moves only while you are still), conveyors.
