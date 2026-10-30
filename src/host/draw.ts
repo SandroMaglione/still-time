@@ -195,6 +195,65 @@ const dragHint = (ctx: CanvasRenderingContext2D, at: { readonly x: number; reado
   ctx.restore()
 }
 
+/** One line of hint text in the pixel font, outlined in ink, centred on x. */
+const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, colour: string): void => {
+  ctx.save()
+  ctx.textAlign = "center"; ctx.textBaseline = "top"
+  ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
+  ctx.fillStyle = INK
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(text, Math.round(x) + dx, Math.round(y) + dy)
+  ctx.fillStyle = colour; ctx.fillText(text, Math.round(x), Math.round(y))
+  ctx.restore()
+}
+
+/**
+ * First Cut's lesson, drawn in the room until the gunner falls: target brackets on it ("run into it to cut"),
+ * your blade's reach pulsing gold at your feet until you first move ("your blade: touch = cut"), teal chevrons
+ * from you toward it, and, while a shot is coming and you have frozen, "step out of the red line" over you.
+ */
+const cutHint = (
+  ctx: CanvasRenderingContext2D, view: FightView, P: (x: number, y: number, z?: number) => { x: number; y: number },
+  erx: number, ery: number, now: number, fresh: boolean
+): void => {
+  const p = view.player
+  const target = view.enemies[0]
+  if (p === null || target === undefined) return
+  const me = P(p.x, p.y), them = P(target.x, target.y)
+  const pulse = Math.floor(now * 4) % 2
+  // Target brackets round the enemy, breathing by a pixel.
+  const half = 12 + pulse, top = them.y - 27 - pulse, bottom = them.y + 3 + pulse
+  for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
+    const cx = Math.round(them.x + sx * half), cy = Math.round(sy)
+    const v = sy === top ? 4 : -4
+    pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
+    pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, "#edc66c"); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, "#edc66c")
+  }
+  hintText(ctx, "RUN INTO IT TO CUT", them.x, top - 12, "#edc66c")
+  // Chevrons from you toward it, marching in real time: go this way. A shot in the air comes first: they give way.
+  const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy)
+  if (d > 2 && view.shots.length === 0) {
+    const ux = dx / d, uy = dy / d, a = Math.atan2(uy * SQUASH, ux)
+    const shift = (now * 1.5) % 0.7
+    for (let k = 1.2 + shift; k < Math.min(d - 1.2, 4.6); k += 0.7) {
+      const c = P(p.x + ux * k, p.y + uy * k)
+      const tipPt = { x: c.x + Math.cos(a) * 2, y: c.y + Math.sin(a) * 2 }
+      for (const side of [-1, 1]) {
+        const end = { x: c.x - Math.cos(a) * 2 + Math.sin(a) * side * 3, y: c.y - Math.sin(a) * 2 - Math.cos(a) * side * 3 }
+        pixelLine(ctx, tipPt, end, INK, 3); pixelLine(ctx, tipPt, end, "#64b6b3")
+      }
+    }
+  }
+  // Your blade's reach, pulsing gold until you first move.
+  if (fresh) {
+    const r = p.attackRange + (pulse ? 0.06 : 0)
+    pixelArc(ctx, me, r * erx, r * ery, 0, Math.PI * 2, INK, 3)
+    pixelArc(ctx, me, r * erx, r * ery, 0, Math.PI * 2, "#edc66c", 1)
+    hintText(ctx, "YOUR BLADE: TOUCH = CUT", me.x, me.y + Math.round(p.attackRange * ery) + 4, "#edc66c")
+  }
+  // A shot on its way while you stand still: say what the freeze is for.
+  if (view.shots.length > 0 && view.scale < 0.2) hintText(ctx, "STEP OUT OF THE RED LINE", me.x, me.y - 40, "#ff6845")
+}
+
 /** The speed effect's colours: afterimages, the aura's outline and its hot core. */
 const GHOST = "#5ff0ff", AURA = "#7ff6ff", AURA_CORE = "#e8ffff"
 
@@ -630,6 +689,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // The first room shows what to do until you do it: a hand presses beside you and drags, then lets go.
   if (view.room.index === 0 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(0)) {
     dragHint(ctx, P(view.player.x, view.player.y), presentation.now)
+  }
+  // The cut's room shows the cut: what to run into, how far your blade reaches, and when to step aside.
+  if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
+    cutHint(ctx, view, P, erx, ery, presentation.now, !presentation.hasMoved(view.room.index))
   }
   // In the first rooms, the freeze is named the first times it happens.
   const callout = presentation?.callout ?? null
