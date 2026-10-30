@@ -3,15 +3,14 @@
  * covers neither you nor what it is about, each step waiting until you have done it, and the thumb let through only
  * as far as the step asks.
  *
- * The Blade (the clock): look at the blade (you cannot move yet: it waits for you); slide up (it turns); let go (it stops with you); then cross when it is open, free. First Cut (the cut): that's an enemy,
- * walk into it to cut; while a shot is in the air, the red line is the shot: step out of it.
+ * The Blade (the clock): one caption, free hands: it moves with you; slide less to go slower. First Cut (the cut):
+ * that's an enemy, walk into it to cut; while a shot is in the air, the red line is the shot: step out of it.
  */
 import { ROOMS } from "../sim/rooms.ts"
 import type { FightView } from "../sim/view.ts"
 import { TUNING } from "../sim/tuning.ts"
 import { buzz, caption, zoneOf, type Zone } from "./drill.ts"
 import type { Project, Stick } from "./draw.ts"
-import { pixelLine } from "./pixels.ts"
 
 export interface GuideInput {
   readonly stick: Stick | null
@@ -39,31 +38,19 @@ interface Step {
   /** The step is done once this has held for `need` real seconds (added up while it holds). */
   readonly ok: (s: Sense) => boolean
   readonly need: number
-  /** Brackets round the blade while this step is about it. */
-  readonly markBlade?: boolean
 }
 
 const INK = "#171c2e", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda", RED = "#ff6845"
-const still = (s: Sense): boolean => s.speed < 0.05
-const moving = (s: Sense): boolean => s.speed > 0.15
 const bladeOf = (room: number): { readonly x: number; readonly y: number; readonly length: number } | null => {
   for (const hz of ROOMS[room]?.hazards ?? []) if (hz.kind === "blade") return hz
   return null
 }
 
+// One caption and free hands: it says what the room is about and how to go slow (a playtest found the steps, the
+// gates and the marks too much at once).
 const BLADE: ReadonlyArray<Step> = [
-  { title: () => "LOOK AT THE BLADE", sub: () => "IT WAITS FOR YOU", gate: () => false, ok: still, need: 1.6, markBlade: true },
   {
-    // Any slide up lets you through (a walk-only step tripped people up: they slide all the way).
-    title: (s) => (s.keys ? "HOLD UP ARROW" : s.zone !== "none" ? "KEEP MOVING" : "SLIDE UP"),
-    sub: () => "THE BLADE TURNS",
-    colour: (s) => (moving(s) ? GOLD : WHITE),
-    gate: (s) => (s.keys ? s.upOnly : s.zone !== "none"),
-    ok: moving, need: 1, markBlade: true
-  },
-  { title: () => "LET GO", sub: () => "IT STOPS WITH YOU", gate: () => false, ok: (s) => !s.down && still(s), need: 0.8, markBlade: true },
-  {
-    title: () => "CROSS WHEN IT'S OPEN", sub: () => "MOVE, STOP, LOOK",
+    title: () => "IT MOVES WITH YOU", sub: () => "SLIDE LESS: GO SLOWER",
     gate: () => true,
     ok: (s) => { const b = bladeOf(1); return b !== null && s.view.player !== null && s.view.player.y < b.y - b.length - 0.4 }, need: 0
   }
@@ -139,7 +126,6 @@ export class Guide {
     if (blade !== null) {
       const hub = P(blade.x, blade.y, 0.45), r = Math.round(blade.length * cw / 10)
       avoid.push({ top: hub.y - r * 0.6 - 6, bottom: hub.y + r * 0.6 + 6 })
-      if (step?.markBlade === true) brackets(ctx, hub, r, Math.floor(this.now * 4) % 2)
     }
     for (const e of view.enemies) { const at = P(e.x, e.y); avoid.push({ top: at.y - 34, bottom: at.y + 8 }) }
     const fits = (y: number): boolean => avoid.every((a) => y + 44 < a.top || y - 12 > a.bottom)
@@ -160,18 +146,6 @@ export class Guide {
       ctx.fillStyle = INK; ctx.fillRect(left - 1, y - 1, w + 2, 5)
       ctx.fillStyle = "#29334b"; ctx.fillRect(left, y, w, 3)
       ctx.fillStyle = GOLD; ctx.fillRect(left, y, Math.round(w * Math.min(1, this.held / step.need)), 3)
-    }
-  }
-}
-
-/** Gold corner brackets round something, breathing by a pixel. */
-const brackets = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, r: number, pulse: number): void => {
-  const half = r + 4 + pulse, vert = Math.round(r * 0.6) + 4 + pulse
-  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-    const cx = Math.round(at.x + sx * half), cy = Math.round(at.y + sy * vert)
-    for (const [colour, width] of [[INK, 3], [GOLD, 1]] as const) {
-      pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 6, y: cy }, colour, width)
-      pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy - sy * 6 }, colour, width)
     }
   }
 }

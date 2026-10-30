@@ -104,9 +104,10 @@ el("rooms-after").addEventListener("click", () => menu.show("rooms", fight.view(
 el("title-after").addEventListener("click", () => menu.show("title", fight.view()))
 
 // The floating stick starts wherever the finger lands. Within DEAD_ZONE px of
-// the press point you stand still; at REACH px you run at top speed.
-const DEAD_ZONE = 8
-const REACH = 72
+// the press point you stand still; at REACH px you run at top speed. (A long reach: with a short one, a slow walk
+// was a few millimetres of thumb, so playtesters tapped in micro-moves rather than hold a small slide.)
+const DEAD_ZONE = 10
+const REACH = 110
 let stick: Stick | null = null
 /** Which control you last used: the first rooms' drill and guides teach that one. */
 let usingKeys = window.matchMedia("(pointer: fine)").matches

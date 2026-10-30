@@ -874,16 +874,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
     }
   }
-  // After the first room, the tutorial shows the clock you drive: a pause sign over you while you are still, a play
-  // sign while you move, and the same sign on the blade's hub: you play the world.
-  if (view.room.index >= 1 && view.room.index <= 2 && view.flow === "playing" && view.player !== null) {
-    const running = speedOf(view) > 0.15
-    const me = P(view.player.x, view.player.y)
-    clockSign(ctx, me.x, me.y - 40, running, presentation?.now ?? 0)
+  // The Blade shows the clock you drive on the blade itself: a pause sign on its hub while you are still, a play
+  // sign while you move.
+  if (view.room.index === 1 && view.flow === "playing" && view.player !== null) {
     const blade = (ROOMS[view.room.index]?.hazards ?? []).find((hz): hz is Blade => hz.kind === "blade")
     if (blade !== undefined) {
       const hub = P(blade.x, blade.y, 0.45)
-      clockSign(ctx, hub.x, hub.y - 30, running, presentation?.now ?? 0)
+      clockSign(ctx, hub.x, hub.y - 30, speedOf(view) > 0.15, presentation?.now ?? 0)
     }
   }
   // The cut's room marks what to run into.

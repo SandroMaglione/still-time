@@ -44,7 +44,8 @@ export const zoneOf = (stick: Stick | null): Zone => {
   if (stick === null) return "none"
   const dx = stick.x - stick.ox, dy = stick.y - stick.oy, len = Math.hypot(dx, dy)
   if (len === 0 || -dy / len < 0.7) return "none"
-  const dead = stick.reach / 9
+  // The same dead zone as the page's stick (10 px of its 110).
+  const dead = stick.reach / 11
   const push = Math.max(0, Math.min(1, (len - dead) / (stick.reach - dead)))
   return push >= 0.85 ? "run" : push >= 0.12 ? "walk" : "none"
 }
