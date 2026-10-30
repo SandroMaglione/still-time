@@ -1,8 +1,8 @@
 /**
  * First Step's drill: the stick taught the way puzzle games teach a gesture, one exact move at a time, with every
  * other input switched off while you do it. A circle in the thumb's area (press there; presses elsewhere are
- * ignored); slide up a little and hold (you walk, and only while you are in that band); slide all the way and hold
- * (you run); then let go (you stop). Lifting early goes back to the press. Your finger covers the spot it is on, so
+ * ignored); slide up all the way and hold (you run, and only while you are in that band: the slide people make
+ * anyway, so it comes first); slide back down to the walk band and hold (you walk); then let go (you stop). Lifting early goes back to the press. Your finger covers the spot it is on, so
  * the stick is mirrored big under the caption, high on the screen: its walk and run circles, your knob where your
  * finger is, and the step's circle filling; the phone buzzes as you enter a band and finish a step. Done, the page
  * clears the room (its goal is the lesson). With keys: hold up, then let go.
@@ -26,7 +26,7 @@ export interface DrillInput {
 type Phase = "press" | "slow" | "fast" | "release" | "done"
 
 /** Sizes in canvas px: the press circle, and the mirror of the stick up by the caption (its length, its circles). */
-const PRESS_R = 16, MIRROR = 64, MIRROR_R = 10
+const PRESS_R = 16, MIRROR = 52, MIRROR_R = 10
 /** Where the walk and the run sit on the stick, as a share of its reach from the press point (see `zoneOf`). */
 const WALK_AT = 0.44, RUN_AT = 1
 const SLOW_HOLD = 1.4, FAST_HOLD = 1, KEY_HOLD = 1.5
@@ -81,8 +81,9 @@ export class Drill {
   gate(input: DrillInput): boolean {
     if (input.keys) return (this.phase === "press" || this.phase === "release") && input.upOnly
     const zone = zoneOf(input.stick)
+    if (this.phase === "fast") return zone === "run"
     if (this.phase === "slow") return zone === "walk"
-    if (this.phase === "fast" || this.phase === "release") return zone === "run"
+    if (this.phase === "release") return zone !== "none"
     return false
   }
 
@@ -105,7 +106,7 @@ export class Drill {
     }
     const stick = input.stick
     if (this.phase === "press") {
-      if (stick !== null) { this.phase = "slow"; this.held = 0; buzz(15) }
+      if (stick !== null) { this.phase = "fast"; this.held = 0; buzz(15) }
       return
     }
     // Lifting before the end starts the drill over.
@@ -120,10 +121,10 @@ export class Drill {
     this.zone = zone
     if (this.phase === "slow" && zone === "walk") {
       this.held += dt
-      if (this.held >= SLOW_HOLD) { this.phase = "fast"; this.held = 0; buzz(40) }
+      if (this.held >= SLOW_HOLD) { this.phase = "release"; this.held = 0; buzz(40) }
     } else if (this.phase === "fast" && zone === "run") {
       this.held += dt
-      if (this.held >= FAST_HOLD) { this.phase = "release"; this.held = 0; buzz(40) }
+      if (this.held >= FAST_HOLD) { this.phase = "slow"; this.held = 0; buzz(40) }
     }
   }
 
@@ -143,7 +144,7 @@ export class Drill {
     if (view.room.index !== 0 || view.flow !== "playing") return
     const x = Math.round(cw / 2)
     // The caption sits high on the screen, far from the thumb, so the finger never covers it; under it, the mirror.
-    const labelY = Math.round(ch * 0.2)
+    const labelY = Math.round(ch * 0.18)
     if (this.phase === "done") {
       if (this.now - this.doneAt < CLEAR_AFTER + 0.5) caption(ctx, x, labelY, "GOT IT!", "NOW YOU CAN MOVE", GREEN)
       return
@@ -165,8 +166,13 @@ export class Drill {
       return
     }
     const zone = zoneOf(stick)
-    if (this.phase === "slow") caption(ctx, x, labelY, zone === "walk" ? "HOLD IT THERE" : "SLIDE UP", zone === "walk" ? "YOU WALK" : "A LITTLE", zone === "walk" ? GOLD : WHITE)
-    else if (this.phase === "fast") caption(ctx, x, labelY, zone === "run" ? "HOLD IT THERE" : "SLIDE FURTHER", zone === "run" ? "FASTER: YOU RUN" : "ALL THE WAY UP", zone === "run" ? GOLD : WHITE)
+    // The run first (the slide people make anyway), then the walk: bring it back down to the walk circle.
+    if (this.phase === "fast") caption(ctx, x, labelY, zone === "run" ? "HOLD IT THERE" : "SLIDE UP", zone === "run" ? "ALL THE WAY: YOU RUN" : "ALL THE WAY", zone === "run" ? GOLD : WHITE)
+    else if (this.phase === "slow") {
+      if (zone === "walk") caption(ctx, x, labelY, "HOLD IT THERE", "A LITTLE: YOU WALK", GOLD)
+      else if (zone === "run") caption(ctx, x, labelY, "NOW SLIDE BACK", "TO THE WALK CIRCLE", WHITE)
+      else caption(ctx, x, labelY, "SLIDE UP A LITTLE", "TO THE WALK CIRCLE", WHITE)
+    }
     else caption(ctx, x, labelY, "NOW LET GO", "YOU STOP", WHITE)
     // The track sits a little left of centre so it and its WALK / RUN labels are centred together.
     this.mirror(ctx, { x: x - 14, y: labelY + 64 + MIRROR }, stick, zone)
@@ -191,11 +197,12 @@ export class Drill {
     ctx.fillStyle = "rgba(41, 51, 75, 0.94)"; ctx.fillRect(left, top, 100, base.y - top + 10)
     pixelLine(ctx, base, run, INK, 3, 3)
     pixelLine(ctx, base, run, ICE, 1, 3)
-    const walkDone = this.phase !== "slow", runDone = this.phase === "release"
-    target(ctx, walk, MIRROR_R, walkDone ? 1 : this.held / SLOW_HOLD, walkDone ? GREEN : zone === "walk" ? GOLD : ICE)
-    target(ctx, run, MIRROR_R, runDone ? 1 : this.phase === "fast" ? this.held / FAST_HOLD : 0, runDone ? GREEN : zone === "run" ? GOLD : this.phase === "fast" ? ICE : DIM)
-    smallText(ctx, "WALK", walk.x + MIRROR_R + 6, walk.y - 4, walkDone ? GREEN : zone === "walk" ? GOLD : WHITE)
-    smallText(ctx, "RUN", run.x + MIRROR_R + 6, run.y - 4, runDone ? GREEN : zone === "run" ? GOLD : this.phase === "fast" ? WHITE : DIM)
+    // The run is the first circle to fill, the walk the second (dim until its turn).
+    const runDone = this.phase !== "fast", walkDone = this.phase === "release"
+    target(ctx, run, MIRROR_R, runDone ? 1 : this.held / FAST_HOLD, runDone ? GREEN : zone === "run" ? GOLD : ICE)
+    target(ctx, walk, MIRROR_R, walkDone ? 1 : this.phase === "slow" ? this.held / SLOW_HOLD : 0, walkDone ? GREEN : zone === "walk" && this.phase === "slow" ? GOLD : this.phase === "slow" ? ICE : DIM)
+    smallText(ctx, "RUN", run.x + MIRROR_R + 6, run.y - 4, runDone ? GREEN : zone === "run" ? GOLD : WHITE)
+    smallText(ctx, "WALK", walk.x + MIRROR_R + 6, walk.y - 4, walkDone ? GREEN : this.phase === "slow" ? (zone === "walk" ? GOLD : WHITE) : DIM)
     if (stick === null) return
     // Your finger, mirrored: the same offset from where you pressed, scaled to this track.
     const dx = stick.x - stick.ox, dy = stick.y - stick.oy, len = Math.hypot(dx, dy)
@@ -203,8 +210,9 @@ export class Drill {
     const knob = { x: base.x + Math.round(dx * k), y: base.y + Math.round(dy * k) }
     thumbPad(ctx, base, knob, 3)
     // While you are not in the step's circle, a ghost hand shows the slide in the mirror.
+    // (Back down from the run circle to the walk one, when that is the way.)
     const want = this.phase === "slow" ? "walk" : this.phase === "fast" ? "run" : "none"
-    if (want !== "none" && zone !== want) ghostSlide(ctx, base, want === "walk" ? walk : run, this.now)
+    if (want !== "none" && zone !== want) ghostSlide(ctx, want === "walk" && zone === "run" ? run : base, want === "walk" ? walk : run, this.now)
   }
 }
 

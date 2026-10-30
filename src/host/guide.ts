@@ -55,9 +55,10 @@ const bladeOf = (room: number): { readonly x: number; readonly y: number; readon
 const BLADE: ReadonlyArray<Step> = [
   { title: () => "LOOK AT THE BLADE", sub: () => "IT WAITS FOR YOU", gate: () => false, ok: still, need: 1.6, markBlade: true },
   {
-    title: (s) => s.keys ? "HOLD UP ARROW" : s.zone === "walk" ? "HOLD IT THERE" : "SLIDE UP A LITTLE",
-    sub: () => "THE BLADE TURNS",
-    colour: (s) => (moving(s) ? GOLD : WHITE),
+    // Slid too far (a run), the walk-only step lets nothing through: say so, in red, rather than stand still.
+    title: (s) => s.keys ? "HOLD UP ARROW" : s.zone === "walk" ? "HOLD IT THERE" : s.zone === "run" ? "TOO FAR" : "SLIDE UP A LITTLE",
+    sub: (s) => (!s.keys && s.zone === "run" ? "SLIDE LESS: A LITTLE" : "THE BLADE TURNS"),
+    colour: (s) => (!s.keys && s.zone === "run" ? RED : moving(s) ? GOLD : WHITE),
     gate: (s) => (s.keys ? s.upOnly : s.zone === "walk"),
     ok: moving, need: 1, markBlade: true
   },

@@ -127,9 +127,9 @@ export const ROOMS: ReadonlyArray<Room> = [
     // and hold, on to the far one and hold, let go): done, the room is cleared. Nothing else is in it.
     name: "First Step",
     w: 10,
-    h: 16,
-    // Mid-room, so the drill's caption and circles under you never cover you.
-    start: { x: 5, y: 10 },
+    // A long corridor, so the camera follows you (kept mid-screen, under the drill's caption and its stick).
+    h: 40,
+    start: { x: 5, y: 34 },
     pillars: [],
     doors: [],
     hazards: [],
