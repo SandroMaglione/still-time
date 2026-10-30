@@ -99,7 +99,7 @@ test("a door holds until its chamber is clear, then opens", () => {
   const { fight, thumb } = fightIn("Gatehouse")
   const door = () => fight.view().doors[0]
   assert.equal(door()?.open, false)
-  assert.equal(door()?.waiting, 3)
+  assert.equal(door()?.waiting, 2)
   // Walking into the shut door: it is a wall.
   placePlayer(fight, 7, 14.5)
   thumb.push = { x: 0, y: -1 }
@@ -107,7 +107,6 @@ test("a door holds until its chamber is clear, then opens", () => {
   assert.ok((fight.view().player?.y ?? 0) >= 13.4 + TUNING.player.radius - 0.01, `walked through the door to ${fight.view().player?.y}`)
   thumb.push = { x: 0, y: 0 }
   cutDown(fight, (e) => e.kind === "brute")
-  cutDown(fight, (e) => e.kind === "gunner" && e.x < 7)
   assert.equal(door()?.open, false)
   assert.equal(door()?.waiting, 1)
   cutDown(fight, (e) => e.kind === "gunner" && e.y > 13)

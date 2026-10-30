@@ -33,7 +33,9 @@ The iso and steeper tilts were tried and rejected ("too isometric").
 
 ## Rooms
 
-1. Duel: one brute. 2. Two Blades. 3. Courtyard: sight and cover. 4. Friendly Fire. 5. Gatehouse: the first door (clear this side to open it). 6. Throne: the captain, and the first exit. 7. Thief: the runner and its key. 8. Market: two chambers. 9. Warehouse: a thief among shelves. 10. Fortress: yard gate, keep key, captain's door.
+Each room adds one thing, with few enemies, and the rooms grow from there:
+
+1. Duel: one brute. 2. Two Blades: two brutes. 3. Courtyard: the first shooters (two gunners), sight and cover. 4. Friendly Fire: a thrower at the back of a line of two gunners. 5. Gatehouse: the first door (clear this side to open it), gunners and a brute. 6. Throne: the captain, and the first exit. 7. Thief: the runner and its key. 8. Market: two chambers, and the first archers. 9. Warehouse: a thief among shelves. 10. Fortress: yard gate, keep key, captain's door.
 
 Pars are first guesses (a scripted dodge clears the Duel in 2.0 world s against a par of 4); tune them from play.
 

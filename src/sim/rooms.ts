@@ -92,11 +92,11 @@ export const ROOMS: ReadonlyArray<Room> = [
     doors: [],
     enemies: [
       { kind: "brute", x: 3, y: 9, delay: 0 },
-      { kind: "brute", x: 11, y: 9, delay: 0 },
-      { kind: "gunner", x: 7, y: 2.5, delay: 0.5 }
+      { kind: "brute", x: 11, y: 9, delay: 0 }
     ],
     goal: CLEAR,
-    par: 7
+    par: 5,
+    tip: "two at once: take them one at a time"
   },
   {
     name: "Courtyard",
@@ -107,12 +107,10 @@ export const ROOMS: ReadonlyArray<Room> = [
     doors: [],
     enemies: [
       { kind: "gunner", x: 2.5, y: 12, delay: 0.3 },
-      { kind: "gunner", x: 11.5, y: 12, delay: 0.7 },
-      { kind: "gunner", x: 7, y: 2.5, delay: 0.5 },
-      { kind: "archer", x: 1.5, y: 2, delay: 1.0 }
+      { kind: "gunner", x: 11.5, y: 12, delay: 0.7 }
     ],
     goal: CLEAR,
-    par: 9,
+    par: 6,
     tip: "they only shoot what they can see"
   },
   {
@@ -123,15 +121,13 @@ export const ROOMS: ReadonlyArray<Room> = [
     pillars: [crate(4, 19), crate(12, 19), crate(8, 15, 1.4), { x: 1, y: 9, w: 3, h: 0.8 }, { x: 12, y: 9, w: 3, h: 0.8 }],
     doors: [],
     enemies: [
-      // Lined up: make the far ones shoot the near ones.
-      { kind: "gunner", x: 8, y: 2, delay: 0.3 },
+      // Lined up: make the thrower at the back shoot the gunners in front of it.
+      { kind: "thrower", x: 8, y: 2, delay: 0.6 },
       { kind: "gunner", x: 8, y: 5.5, delay: 0.7 },
-      { kind: "gunner", x: 8, y: 9, delay: 0.5 },
-      { kind: "thrower", x: 2, y: 13, delay: 0.6 },
-      { kind: "thrower", x: 14, y: 13, delay: 0.9 }
+      { kind: "gunner", x: 8, y: 9, delay: 0.5 }
     ],
     goal: CLEAR,
-    par: 9,
+    par: 7,
     tip: "any shot kills anyone it touches"
   },
   {
@@ -143,14 +139,12 @@ export const ROOMS: ReadonlyArray<Room> = [
     doors: [gatehouse.door],
     enemies: [
       { kind: "gunner", x: 2.5, y: 15.5, delay: 0.4 },
-      { kind: "gunner", x: 11.5, y: 15.5, delay: 0.8 },
       { kind: "brute", x: 7, y: 16, delay: 0 },
-      { kind: "archer", x: 2, y: 2, delay: 0.6, chamber: 1 },
-      { kind: "archer", x: 12, y: 2, delay: 1.0, chamber: 1 },
-      { kind: "thrower", x: 7, y: 5, delay: 0.8, chamber: 1 }
+      { kind: "gunner", x: 2, y: 2, delay: 0.6, chamber: 1 },
+      { kind: "gunner", x: 12, y: 2, delay: 1.0, chamber: 1 }
     ],
     goal: CLEAR,
-    par: 11,
+    par: 8,
     tip: "a door opens once its side is clear"
   },
   {
@@ -163,13 +157,10 @@ export const ROOMS: ReadonlyArray<Room> = [
     enemies: [
       { kind: "gunner", x: 8, y: 6.5, delay: 0.6, captain: true },
       { kind: "gunner", x: 2.5, y: 13, delay: 0.3 },
-      { kind: "gunner", x: 13.5, y: 13, delay: 0.7 },
-      { kind: "brute", x: 5, y: 17, delay: 0 },
-      { kind: "brute", x: 11, y: 17, delay: 0 },
-      { kind: "thrower", x: 8, y: 10.5, delay: 0.9 }
+      { kind: "brute", x: 11, y: 17, delay: 0 }
     ],
     goal: { kind: "exit", x: 6.5, y: 0.7, w: 3, h: 2.2 },
-    par: 8,
+    par: 7,
     tip: "down the crowned captain to open the gate"
   },
   {
@@ -181,11 +172,10 @@ export const ROOMS: ReadonlyArray<Room> = [
     doors: [thief.door],
     enemies: [
       { kind: "runner", x: 8, y: 10, delay: 0, key: 0 },
-      { kind: "brute", x: 3, y: 6, delay: 0 },
       { kind: "gunner", x: 13, y: 5.5, delay: 0.8 }
     ],
     goal: { kind: "exit", x: 6.5, y: 0.7, w: 3, h: 2.2 },
-    par: 10,
+    par: 8,
     tip: "catch the thief: it drops the key"
   },
   {
@@ -202,15 +192,14 @@ export const ROOMS: ReadonlyArray<Room> = [
     doors: [market.door],
     enemies: [
       { kind: "gunner", x: 3, y: 15.5, delay: 0.3 },
-      { kind: "gunner", x: 15, y: 15.5, delay: 0.6 },
       { kind: "brute", x: 9, y: 16, delay: 0 },
-      { kind: "thrower", x: 9, y: 9, delay: 0.8, chamber: 1 },
       { kind: "archer", x: 2, y: 3, delay: 0.5, chamber: 1 },
       { kind: "archer", x: 16, y: 3, delay: 0.9, chamber: 1 },
       { kind: "gunner", x: 9, y: 1.5, delay: 0.4, chamber: 1 }
     ],
     goal: CLEAR,
-    par: 14
+    par: 11,
+    tip: "archers: fast arrows, slow to reload"
   },
   {
     name: "Warehouse",
@@ -229,14 +218,11 @@ export const ROOMS: ReadonlyArray<Room> = [
       { kind: "runner", x: 10, y: 16, delay: 0, key: 0 },
       { kind: "archer", x: 1.5, y: 5, delay: 0.4 },
       { kind: "archer", x: 18.5, y: 5, delay: 0.8 },
-      { kind: "gunner", x: 6, y: 16, delay: 0.3 },
       { kind: "gunner", x: 14, y: 16, delay: 0.5 },
-      { kind: "thrower", x: 10, y: 5.5, delay: 0.7 },
-      { kind: "brute", x: 6, y: 22, delay: 0 },
-      { kind: "brute", x: 14, y: 10, delay: 0 }
+      { kind: "brute", x: 6, y: 22, delay: 0 }
     ],
     goal: { kind: "exit", x: 8.5, y: 0.5, w: 3, h: 2.2 },
-    par: 14
+    par: 12
   },
   {
     name: "Fortress",
@@ -255,18 +241,14 @@ export const ROOMS: ReadonlyArray<Room> = [
       { kind: "gunner", x: 2.5, y: 30, delay: 0.3 },
       { kind: "gunner", x: 19.5, y: 30, delay: 0.6 },
       { kind: "brute", x: 7, y: 32, delay: 0 },
-      { kind: "brute", x: 15, y: 32, delay: 0 },
-      { kind: "thrower", x: 11, y: 29, delay: 0.8 },
       { kind: "runner", x: 11, y: 18, delay: 0, chamber: 1, key: 0 },
       { kind: "archer", x: 2, y: 12.5, delay: 0.5, chamber: 1 },
-      { kind: "archer", x: 20, y: 12.5, delay: 0.9, chamber: 1 },
       { kind: "gunner", x: 11, y: 13, delay: 0.6, chamber: 1 },
       { kind: "brute", x: 4, y: 22, delay: 0, chamber: 1 },
       { kind: "brute", x: 11, y: 6.5, delay: 0, chamber: 2, captain: true },
-      { kind: "thrower", x: 4, y: 5, delay: 0.7, chamber: 2 },
-      { kind: "thrower", x: 18, y: 5, delay: 1.0, chamber: 2 }
+      { kind: "thrower", x: 4, y: 5, delay: 0.7, chamber: 2 }
     ],
     goal: { kind: "exit", x: 9.5, y: 0.2, w: 3, h: 2 },
-    par: 22
+    par: 18
   }
 ]
