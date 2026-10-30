@@ -13,6 +13,8 @@ import { Camera, draw, screenToWorld, type Stick } from "./draw.ts"
 import { Menu } from "./menu.ts"
 import { Progress, layer as progressLayer } from "./progress.ts"
 import { storageLayer } from "./storage.ts"
+import { loadArt } from "./art.ts"
+import { Presentation } from "./fx.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
 const ctx = canvas?.getContext("2d")
@@ -164,37 +166,53 @@ window.addEventListener("keyup", (e) => {
   if (held.delete(key)) keyPush()
 })
 
+const scene = document.createElement("canvas")
+const sceneCtx = scene.getContext("2d")!
+let pixelScale = 1
 const resize = (): void => {
   const dpr = Math.min(window.devicePixelRatio || 1, 3)
   canvas.width = Math.round(window.innerWidth * dpr)
   canvas.height = Math.round(window.innerHeight * dpr)
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  pixelScale = Math.max(1, Math.floor(canvas.width / 240))
+  scene.width = Math.ceil(canvas.width / pixelScale)
+  scene.height = Math.ceil(canvas.height / pixelScale)
+  ctx.imageSmoothingEnabled = false
+  sceneCtx.imageSmoothingEnabled = false
 }
 window.addEventListener("resize", resize)
 resize()
 
 const camera = new Camera()
 let lastRoom = -1
-let lastDeaths = 0
+let lastPlayer = -1
 let lastFlow = fight.view().flow
+const presentation = new Presentation()
+presentation.observe(fight.view())
 const roomEl = el("room"), paceEl = el("pace"), tipEl = el("tip"), afterEl = el("rooms-after")
+await loadArt()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
   step: STEP,
   maxFrameSeconds: 0.25,
   maxStepsPerFrame: 5,
   // A menu pauses the game.
-  update: () => (menu.isOpen ? Result.success(undefined) : fight.runtime.tick(updateSchedule)),
+  update: () => {
+    if (menu.isOpen) return Result.success(undefined)
+    const result = fight.runtime.tick(updateSchedule)
+    if (result.ok) presentation.observe(fight.view())
+    return result
+  },
   render: (frame) => {
     const view = fight.view()
+    presentation.advance(frame.elapsedSeconds)
     // A clear changes the run's bests: save them.
     if ((view.flow === "cleared" || view.flow === "won") && lastFlow !== view.flow) save(view.best)
     lastFlow = view.flow
     afterEl.hidden = view.flow !== "cleared" && view.flow !== "won"
     // A new room, or the same one restarted (the player is back at the start), snaps the camera.
-    if (view.room.index !== lastRoom || view.deaths !== lastDeaths) camera.reset()
+    if (view.room.index !== lastRoom || view.player?.id !== lastPlayer) camera.reset()
     lastRoom = view.room.index
-    lastDeaths = view.deaths
+    lastPlayer = view.player?.id ?? -1
     roomEl.textContent = `${view.room.index + 1}/${view.room.count} ${view.room.name}${view.hits > 0 ? ` ✕${view.hits}` : ""}`
     // The attempt's clock in world seconds against par (it only runs while you move), and the world speed.
     paceEl.textContent = `${view.world.toFixed(1)}/${view.room.par}s ×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`
@@ -202,7 +220,11 @@ FixedLoop.start({
     const goal = view.room.goal.kind === "exit" ? "reach the exit" : "down every enemy"
     tipEl.textContent = view.room.tip === null ? goal : `${goal} · ${view.room.tip}`
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
-    draw(ctx, window.innerWidth, window.innerHeight, view, stick, camera)
+    const sx = canvas.width / window.innerWidth / pixelScale
+    const sy = canvas.height / window.innerHeight / pixelScale
+    const pixelStick = stick === null ? null : { ox: stick.ox * sx, oy: stick.oy * sy, x: stick.x * sx, y: stick.y * sy, reach: stick.reach * sx }
+    draw(sceneCtx, scene.width, scene.height, view, pixelStick, camera, presentation)
+    ctx.drawImage(scene, 0, 0, scene.width * pixelScale, scene.height * pixelScale)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

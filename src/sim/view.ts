@@ -36,6 +36,7 @@ export interface LaserView {
 }
 
 export interface EnemyView {
+  readonly id: number
   readonly kind: EnemyKind
   readonly x: number
   readonly y: number
@@ -78,6 +79,8 @@ export interface ResultView {
 }
 
 export interface FightView {
+  /** Stable simulation step; presentation observes every tick, including despawns. */
+  readonly step: number
   readonly room: {
     readonly index: number
     readonly count: number
@@ -106,11 +109,11 @@ export interface FightView {
   readonly scale: number
   /** World speed while you are still, for drawing how frozen time is. */
   readonly slow: number
-  readonly player: { readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number; readonly attackRange: number } | null
+  readonly player: { readonly id: number; readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number; readonly attackRange: number } | null
   readonly enemies: ReadonlyArray<EnemyView>
-  readonly shots: ReadonlyArray<{ readonly kind: ShotKind; readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number }>
+  readonly shots: ReadonlyArray<{ readonly id: number; readonly kind: ShotKind; readonly x: number; readonly y: number; readonly radius: number; readonly vx: number; readonly vy: number }>
   /** Cut marks, with `age` from 0 (just cut) to 1 (gone); `blocked` for a blow a guarded front stopped. */
-  readonly slashes: ReadonlyArray<{ readonly x: number; readonly y: number; readonly angle: number; readonly age: number; readonly blocked: boolean }>
+  readonly slashes: ReadonlyArray<{ readonly born: number; readonly x: number; readonly y: number; readonly angle: number; readonly age: number; readonly blocked: boolean }>
 }
 
 /** How far a line from (x, y) along angle `a` runs before a wall, up to `max`. */
@@ -151,13 +154,13 @@ export const FightViewInspector = Game.Inspector(
     const room = ROOMS[run.room] ?? ROOMS[0]
     if (room === undefined) throw new Error("Slap: no rooms")
     const p = queries.players.each()[0]
-    const player = p === undefined ? null : { ...p.data.body.get(), radius: TUNING.player.radius, vx: p.data.player.get().vx, vy: p.data.player.get().vy, attackRange: TUNING.attackRange }
+    const player = p === undefined ? null : { id: p.entity.id, ...p.data.body.get(), radius: TUNING.player.radius, vx: p.data.player.get().vx, vy: p.data.player.get().vy, attackRange: TUNING.attackRange }
     const open = resources.doors.get()
     const walls = wallsOf(room, open)
     const sees = (at: { x: number; y: number }): boolean => player !== null && canSee(at.x, at.y, player.x, player.y, TUNING.sight, walls)
     const shut = room.doors.filter((_, i) => open[i] !== true)
     const sealed = (at: { x: number; y: number }): boolean => player !== null && shut.length > 0 && !clearLine(at.x, at.y, player.x, player.y, shut)
-    const shooters = queries.shooters.each().flatMap(({ data }): Array<EnemyView> => {
+    const shooters = queries.shooters.each().flatMap(({ entity, data }): Array<EnemyView> => {
       const { kind, captain } = data.enemy.get()
       if (!isShooter(kind)) return []
       const at = data.body.get()
@@ -169,7 +172,7 @@ export const FightViewInspector = Game.Inspector(
       const laser = !spec.scoped || !seesYou || player === null ? null
         : { aim, locked, length: locked ? rayLength(at.x, at.y, aim, spec.sight, walls) : Ops.hypot(player.x - at.x, player.y - at.y) }
       return [{
-        kind, x: at.x, y: at.y, radius: spec.radius,
+        id: entity.id, kind, x: at.x, y: at.y, radius: spec.radius,
         charge: Math.max(0, Math.min(1, 1 - reload.left / spec.period)),
         aim,
         sees: seesYou,
@@ -179,10 +182,10 @@ export const FightViewInspector = Game.Inspector(
         laser
       }]
     })
-    const runners = queries.runners.each().map(({ data }): EnemyView => {
+    const runners = queries.runners.each().map(({ entity, data }): EnemyView => {
       const at = data.body.get()
       return {
-        kind: "runner", x: at.x, y: at.y, radius: RUNNER.radius, charge: 0,
+        id: entity.id, kind: "runner", x: at.x, y: at.y, radius: RUNNER.radius, charge: 0,
         aim: player === null ? Math.PI / 2 : Ops.atan2(at.y - player.y, at.x - player.x),
         sees: sees(at),
         sealed: sealed(at),
@@ -191,7 +194,7 @@ export const FightViewInspector = Game.Inspector(
         laser: null
       }
     })
-    const melee = queries.melee.each().flatMap(({ data }): Array<EnemyView> => {
+    const melee = queries.melee.each().flatMap(({ entity, data }): Array<EnemyView> => {
       const kind = data.enemy.get().kind
       if (!isMelee(kind)) return []
       const spec = MELEE[kind]
@@ -203,7 +206,7 @@ export const FightViewInspector = Game.Inspector(
       const progress = left === 0 ? 0 : Math.max(0, Math.min(1, 1 - left / phaseLength[blade._tag]))
       const guarding = spec.guard === "always" ? blade._tag !== "stagger" : blade._tag === "windup" || blade._tag === "swing"
       return [{
-        kind, x: at.x, y: at.y, radius: spec.radius,
+        id: entity.id, kind, x: at.x, y: at.y, radius: spec.radius,
         charge: blade._tag === "windup" ? progress : 0,
         aim: facing,
         sees: sees(at),
@@ -228,6 +231,7 @@ export const FightViewInspector = Game.Inspector(
       : k.state === "held" && player !== null ? [{ key: k.key, state: "held", x: player.x, y: player.y }]
       : [])
     return {
+      step: time.step,
       room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null },
       doors,
       keys,
@@ -244,12 +248,12 @@ export const FightViewInspector = Game.Inspector(
       slow: TUNING.slow,
       player,
       enemies: [...shooters, ...melee, ...runners],
-      shots: queries.shots.each().map(({ data }) => {
+      shots: queries.shots.each().map(({ entity, data }) => {
         const at = data.body.get()
         const shot = data.shot.get()
-        return { kind: shot.kind, x: at.x, y: at.y, radius: SHOTS[shot.kind].radius, vx: shot.vx, vy: shot.vy }
+        return { id: entity.id, kind: shot.kind, x: at.x, y: at.y, radius: SHOTS[shot.kind].radius, vx: shot.vx, vy: shot.vy }
       }),
-      slashes: resources.slashes.get().map((s) => ({ x: s.x, y: s.y, angle: s.angle, age: Math.min(1, (time.step - s.born) / TUNING.slashSteps), blocked: s.blocked }))
+      slashes: resources.slashes.get().map((s) => ({ born: s.born, x: s.x, y: s.y, angle: s.angle, age: Math.min(1, (time.step - s.born) / TUNING.slashSteps), blocked: s.blocked }))
     }
   }
 )

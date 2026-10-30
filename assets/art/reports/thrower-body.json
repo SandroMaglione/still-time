@@ -1,0 +1,38 @@
+{
+  "file": "assets/art/source/thrower-body.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×24, 6 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 24,
+    "height": 24
+  },
+  "output": {
+    "width": 24,
+    "height": 24,
+    "colors": 6
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "7 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 7,
+      "at": [
+        [5, 8],
+        [4, 15],
+        [5, 15],
+        [6, 16],
+        [15, 17],
+        [9, 19],
+        [16, 21]
+      ]
+    }
+  ],
+  "files": {
+    "png": "public/art/thrower-body.png",
+    "scaled": "public/art/thrower-body@8x.png",
+    "svg": "public/art/thrower-body.svg",
+    "preview": "public/art/thrower-body.preview.png"
+  }
+}

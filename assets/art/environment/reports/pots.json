@@ -1,0 +1,22 @@
+{
+  "file": "assets/art/environment/source/pots.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 16×16, 5 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 16,
+    "height": 16
+  },
+  "output": {
+    "width": 16,
+    "height": 16,
+    "colors": 5
+  },
+  "issues": [],
+  "files": {
+    "png": "public/art/pots.png",
+    "scaled": "public/art/pots@4x.png",
+    "svg": "public/art/pots.svg",
+    "preview": "public/art/pots.preview.png"
+  }
+}

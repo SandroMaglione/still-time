@@ -1,0 +1,30 @@
+{
+  "file": "assets/art/environment/source/floor-0.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×16, 3 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 24,
+    "height": 16
+  },
+  "output": {
+    "width": 24,
+    "height": 16,
+    "colors": 3
+  },
+  "issues": [
+    {
+      "rule": "near-duplicate-colors",
+      "severity": "warning",
+      "message": "1 pair of colors too close to tell apart (#3c4848/#344142): merge them",
+      "count": 1,
+      "at": []
+    }
+  ],
+  "files": {
+    "png": "public/art/floor-0.png",
+    "scaled": "public/art/floor-0@4x.png",
+    "svg": "public/art/floor-0.svg",
+    "preview": "public/art/floor-0.preview.png"
+  }
+}

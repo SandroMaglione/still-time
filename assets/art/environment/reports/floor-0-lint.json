@@ -1,0 +1,14 @@
+{
+  "file": "public/art/floor-0.png",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×16, 3 colors.",
+  "issues": [
+    {
+      "rule": "near-duplicate-colors",
+      "severity": "warning",
+      "message": "1 pair of colors too close to tell apart (#3c4848/#344142): merge them",
+      "count": 1,
+      "at": []
+    }
+  ]
+}

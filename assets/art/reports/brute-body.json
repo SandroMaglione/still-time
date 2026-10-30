@@ -1,0 +1,37 @@
+{
+  "file": "assets/art/source/brute-body.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×24, 9 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 24,
+    "height": 24
+  },
+  "output": {
+    "width": 24,
+    "height": 24,
+    "colors": 9
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "6 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 6,
+      "at": [
+        [13, 8],
+        [12, 11],
+        [6, 12],
+        [3, 15],
+        [13, 17],
+        [5, 20]
+      ]
+    }
+  ],
+  "files": {
+    "png": "public/art/brute-body.png",
+    "scaled": "public/art/brute-body@8x.png",
+    "svg": "public/art/brute-body.svg",
+    "preview": "public/art/brute-body.preview.png"
+  }
+}

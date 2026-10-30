@@ -1,0 +1,22 @@
+{
+  "file": "assets/art/source/floor.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 16×16, 2 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 16,
+    "height": 16
+  },
+  "output": {
+    "width": 16,
+    "height": 16,
+    "colors": 2
+  },
+  "issues": [],
+  "files": {
+    "png": "public/art/floor.png",
+    "scaled": "public/art/floor@8x.png",
+    "svg": "public/art/floor.svg",
+    "preview": "public/art/floor.preview.png"
+  }
+}

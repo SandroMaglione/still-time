@@ -1,0 +1,22 @@
+{
+  "file": "assets/art/environment/source/spark.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 16×16, 2 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 16,
+    "height": 16
+  },
+  "output": {
+    "width": 16,
+    "height": 16,
+    "colors": 2
+  },
+  "issues": [],
+  "files": {
+    "png": "public/art/spark.png",
+    "scaled": "public/art/spark@4x.png",
+    "svg": "public/art/spark.svg",
+    "preview": "public/art/spark.preview.png"
+  }
+}

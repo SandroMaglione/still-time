@@ -4,6 +4,8 @@
   "type": "module",
   "packageManager": "pnpm@10.17.1",
   "scripts": {
+    "art": "node scripts/art.mjs && node scripts/environment.mjs",
+    "art:environment": "node scripts/environment.mjs",
     "dev": "vite --host --port 5301",
     "build": "vite build",
     "preview": "vite preview",
@@ -12,7 +14,9 @@
     "lint:sim": "ritmo-devtools lint src/lint.ts",
     "test": "node --test \"test/*.test.ts\"",
     "check": "pnpm typecheck && pnpm lint && pnpm lint:sim && pnpm test",
-    "shots": "node scripts/shots.ts"
+    "shots": "node scripts/shots.ts",
+    "shots:art": "node scripts/art-shots.ts",
+    "record:fx": "node scripts/fx-record.ts"
   },
   "dependencies": {
     "@effect/platform-browser": "4.0.4",
@@ -23,6 +27,7 @@
   "devDependencies": {
     "@typeonce/oxlint-plugin-ritmo": "0.19.1",
     "@typeonce/ritmo-devtools": "0.19.1",
+    "@typeonce/ritmo-tools": "0.19.1",
     "@types/node": "25.5.0",
     "oxlint": "^1.90.0",
     "playwright": "1.64.0",

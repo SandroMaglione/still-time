@@ -1,0 +1,41 @@
+{
+  "file": "assets/art/source/archer-body.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×24, 11 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 24,
+    "height": 24
+  },
+  "output": {
+    "width": 24,
+    "height": 24,
+    "colors": 11
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "10 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 10,
+      "at": [
+        [7, 11],
+        [12, 11],
+        [18, 12],
+        [6, 13],
+        [6, 14],
+        [9, 19],
+        [10, 19],
+        [12, 19],
+        [15, 19],
+        [14, 20]
+      ]
+    }
+  ],
+  "files": {
+    "png": "public/art/archer-body.png",
+    "scaled": "public/art/archer-body@8x.png",
+    "svg": "public/art/archer-body.svg",
+    "preview": "public/art/archer-body.preview.png"
+  }
+}

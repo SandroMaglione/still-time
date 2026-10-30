@@ -1,0 +1,37 @@
+{
+  "file": "assets/art/source/player.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×24, 8 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 24,
+    "height": 24
+  },
+  "output": {
+    "width": 24,
+    "height": 24,
+    "colors": 8
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "6 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 6,
+      "at": [
+        [10, 8],
+        [9, 9],
+        [8, 10],
+        [14, 17],
+        [10, 20],
+        [18, 20]
+      ]
+    }
+  ],
+  "files": {
+    "png": "public/art/player.png",
+    "scaled": "public/art/player@8x.png",
+    "svg": "public/art/player.svg",
+    "preview": "public/art/player.preview.png"
+  }
+}

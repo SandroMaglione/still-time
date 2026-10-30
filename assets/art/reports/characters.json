@@ -1,0 +1,51 @@
+{
+  "file": "assets/art/source/characters.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 72×48, 16 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 72,
+    "height": 48
+  },
+  "output": {
+    "width": 72,
+    "height": 48,
+    "colors": 16
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "39 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 39,
+      "at": [
+        [10, 8],
+        [9, 9],
+        [8, 10],
+        [55, 11],
+        [60, 11],
+        [28, 12],
+        [40, 12],
+        [41, 12],
+        [54, 13],
+        [66, 13],
+        [54, 14],
+        [67, 14],
+        [42, 15],
+        [14, 17],
+        [41, 18],
+        [29, 19],
+        [57, 19],
+        [58, 19],
+        [60, 19],
+        [63, 19]
+      ]
+    }
+  ],
+  "files": {
+    "png": "public/art/characters.png",
+    "scaled": "public/art/characters@8x.png",
+    "svg": "public/art/characters.svg",
+    "preview": "public/art/characters.preview.png"
+  }
+}

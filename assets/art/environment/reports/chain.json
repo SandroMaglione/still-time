@@ -1,0 +1,34 @@
+{
+  "file": "assets/art/environment/source/chain.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 16×24, 4 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 16,
+    "height": 24
+  },
+  "output": {
+    "width": 16,
+    "height": 24,
+    "colors": 4
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "3 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 3,
+      "at": [
+        [6, 16],
+        [4, 17],
+        [11, 17]
+      ]
+    }
+  ],
+  "files": {
+    "png": "public/art/chain.png",
+    "scaled": "public/art/chain@4x.png",
+    "svg": "public/art/chain.svg",
+    "preview": "public/art/chain.preview.png"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "file": "public/art/floor-2.png",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×16, 4 colors.",
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "2 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 2,
+      "at": [
+        [15, 3],
+        [16, 7]
+      ]
+    },
+    {
+      "rule": "near-duplicate-colors",
+      "severity": "warning",
+      "message": "1 pair of colors too close to tell apart (#3c4848/#344142): merge them",
+      "count": 1,
+      "at": []
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "file": "public/art/gunner.png",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×24, 10 colors.",
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "6 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 6,
+      "at": [
+        [4, 12],
+        [16, 12],
+        [17, 12],
+        [18, 15],
+        [17, 18],
+        [5, 19]
+      ]
+    }
+  ]
+}

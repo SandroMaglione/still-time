@@ -1,0 +1,22 @@
+{
+  "file": "assets/art/environment/source/banner-moss.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 16×24, 5 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 16,
+    "height": 24
+  },
+  "output": {
+    "width": 16,
+    "height": 24,
+    "colors": 5
+  },
+  "issues": [],
+  "files": {
+    "png": "public/art/banner-moss.png",
+    "scaled": "public/art/banner-moss@4x.png",
+    "svg": "public/art/banner-moss.svg",
+    "preview": "public/art/banner-moss.preview.png"
+  }
+}

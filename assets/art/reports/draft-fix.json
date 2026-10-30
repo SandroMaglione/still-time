@@ -1,0 +1,160 @@
+{
+  "file": "assets/art/source/characters-generated-v2.png",
+  "verdict": "needs-person",
+  "summary": "Unsure of the grid (fit 85%): look at the preview, or set the grid by hand.",
+  "kind": "upscaled",
+  "source": {
+    "width": 1536,
+    "height": 1024
+  },
+  "grid": {
+    "cellWidth": 21.333,
+    "cellHeight": 21.333,
+    "offsetX": 0,
+    "offsetY": 0,
+    "fit": 0.848
+  },
+  "output": {
+    "width": 72,
+    "height": 48,
+    "colors": 16
+  },
+  "palette": {
+    "name": "Custom",
+    "lost": [
+      {
+        "color": "#a5b5cc",
+        "became": "#c6d4df",
+        "pixels": 52
+      },
+      {
+        "color": "#c5852c",
+        "became": "#e98a49",
+        "pixels": 50
+      },
+      {
+        "color": "#db602a",
+        "became": "#ce4655",
+        "pixels": 46
+      },
+      {
+        "color": "#f9bf93",
+        "became": "#edc66c",
+        "pixels": 10
+      },
+      {
+        "color": "#7f4f44",
+        "became": "#80354d",
+        "pixels": 9
+      },
+      {
+        "color": "#72809a",
+        "became": "#171c2e",
+        "pixels": 7
+      },
+      {
+        "color": "#573647",
+        "became": "#29334b",
+        "pixels": 7
+      },
+      {
+        "color": "#b1bdcb",
+        "became": "#c6d4df",
+        "pixels": 7
+      },
+      {
+        "color": "#3a2f2e",
+        "became": "#171c2e",
+        "pixels": 6
+      },
+      {
+        "color": "#373b4a",
+        "became": "#171c2e",
+        "pixels": 5
+      },
+      {
+        "color": "#3b9ba0",
+        "became": "#8996b0",
+        "pixels": 5
+      },
+      {
+        "color": "#e6936f",
+        "became": "#edc66c",
+        "pixels": 4
+      },
+      {
+        "color": "#ae3948",
+        "became": "#ce4655",
+        "pixels": 4
+      },
+      {
+        "color": "#3c6351",
+        "became": "#465477",
+        "pixels": 3
+      },
+      {
+        "color": "#5a7c59",
+        "became": "#a76c68",
+        "pixels": 3
+      },
+      {
+        "color": "#b9642f",
+        "became": "#171c2e",
+        "pixels": 2
+      },
+      {
+        "color": "#827372",
+        "became": "#171c2e",
+        "pixels": 2
+      },
+      {
+        "color": "#27524e",
+        "became": "#465477",
+        "pixels": 2
+      },
+      {
+        "color": "#683c74",
+        "became": "#171c2e",
+        "pixels": 2
+      }
+    ]
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "39 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 39,
+      "at": [
+        [10, 9],
+        [9, 10],
+        [8, 11],
+        [55, 12],
+        [60, 12],
+        [28, 13],
+        [40, 13],
+        [41, 13],
+        [14, 14],
+        [54, 14],
+        [66, 14],
+        [54, 15],
+        [67, 15],
+        [42, 16],
+        [14, 18],
+        [41, 19],
+        [29, 20],
+        [57, 20],
+        [58, 20],
+        [60, 20]
+      ]
+    }
+  ],
+  "files": {
+    "png": "assets/art/characters-fixed.png",
+    "svg": "assets/art/characters-fixed.svg",
+    "map": "assets/art/characters-fixed.json",
+    "sprite": "assets/art/characters-fixed.sprite.txt",
+    "recipe": "assets/art/characters-fixed.recipe.json",
+    "preview": "assets/art/characters-fixed.preview.png"
+  }
+}

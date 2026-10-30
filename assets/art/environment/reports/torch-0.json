@@ -1,0 +1,22 @@
+{
+  "file": "assets/art/environment/source/torch-0.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 16×24, 6 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 16,
+    "height": 24
+  },
+  "output": {
+    "width": 16,
+    "height": 24,
+    "colors": 6
+  },
+  "issues": [],
+  "files": {
+    "png": "public/art/torch-0.png",
+    "scaled": "public/art/torch-0@4x.png",
+    "svg": "public/art/torch-0.svg",
+    "preview": "public/art/torch-0.preview.png"
+  }
+}

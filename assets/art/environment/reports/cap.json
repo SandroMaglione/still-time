@@ -1,0 +1,34 @@
+{
+  "file": "assets/art/environment/source/cap.sprite.txt",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 16×16, 5 colors.",
+  "kind": "pixel-art",
+  "source": {
+    "width": 16,
+    "height": 16
+  },
+  "output": {
+    "width": 16,
+    "height": 16,
+    "colors": 5
+  },
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "3 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 3,
+      "at": [
+        [10, 3],
+        [11, 4],
+        [12, 5]
+      ]
+    }
+  ],
+  "files": {
+    "png": "public/art/cap.png",
+    "scaled": "public/art/cap@4x.png",
+    "svg": "public/art/cap.svg",
+    "preview": "public/art/cap.preview.png"
+  }
+}

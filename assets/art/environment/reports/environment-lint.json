@@ -1,0 +1,34 @@
+{
+  "file": "public/art/environment.png",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 144×96, 16 colors.",
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "12 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 12,
+      "at": [
+        [63, 3],
+        [64, 7],
+        [74, 26],
+        [10, 27],
+        [11, 28],
+        [12, 29],
+        [25, 30],
+        [85, 37],
+        [33, 38],
+        [126, 64],
+        [124, 65],
+        [131, 65]
+      ]
+    },
+    {
+      "rule": "near-duplicate-colors",
+      "severity": "warning",
+      "message": "2 pairs of colors too close to tell apart (#3c4848/#344142, #4b5d50/#526060): merge them",
+      "count": 2,
+      "at": []
+    }
+  ]
+}

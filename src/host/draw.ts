@@ -1,15 +1,19 @@
 /**
  * Drawing the fight view onto a 2D canvas in a projected, standing-up view:
  * the floor and decals flat on the ground, crates and walls as boxes, people
- * as small cylinders, all painted back to front. The simulation stays flat
+ * as 24-pixel sprites, all painted back to front. The simulation stays flat
  * 2D; only this file knows about height.
  */
 import type { Lock, Pillar } from "../sim/rooms.ts"
 import type { FightView } from "../sim/view.ts"
+import { posedSprite, sprite } from "./art.ts"
+import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
+import type { Presentation } from "./fx.ts"
+import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
+import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
-const TOP = 44, BOTTOM = 64
 const PILLAR_HEIGHT = 1.2
 const BACK_WALL = 1.6
 
@@ -19,8 +23,9 @@ const BACK_WALL = 1.6
  * fronts. Floor depth is squashed to SQUASH; heights are drawn at RISE of
  * their size.
  */
-const SQUASH = 0.86
-const RISE = 0.5
+const SQUASH = 0.78
+const INK = "#171c2e"
+const RISE = 0.65
 
 /** Screen offset in px of a world point (metres, z up) for unit u (px per metre). */
 const project = (x: number, y: number, z: number, u: number): { readonly x: number; readonly y: number } => ({ x: x * u, y: y * u * SQUASH - z * u * RISE })
@@ -63,17 +68,6 @@ export class Camera {
   }
 }
 
-const mix = (a: readonly [number, number, number], b: readonly [number, number, number], t: number, alpha = 1): string =>
-  `rgba(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)},${alpha})`
-
-const ENEMY_COLOURS = {
-  gunner: "#e8484a", archer: "#ff7a3d", thrower: "#d24a9a", sniper: "#e2365b",
-  brute: "#b8323a", knight: "#8e2c48", shield: "#c45a2c",
-  runner: "#f2c14e"
-} as const satisfies Record<FightView["enemies"][number]["kind"], string>
-
-const STEEL = "#dfe8ff"
-
 /** Each key and its door share a colour. */
 const KEY_COLOURS = ["#5fd4ff", "#c18cff", "#7dff9a"] as const
 export const keyColour = (key: number): string => KEY_COLOURS[key % KEY_COLOURS.length] ?? "#5fd4ff"
@@ -100,32 +94,25 @@ export const star = (ctx: CanvasRenderingContext2D, x: number, y: number, r: num
 
 /** A key glyph in screen pixels: a ring, a shaft, two teeth. */
 const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number, colour: string): void => {
-  ctx.strokeStyle = "#000000a0"; ctx.lineWidth = s * 0.55; ctx.lineCap = "round"
-  const path = (): void => {
-    ctx.beginPath(); ctx.arc(x - s * 0.55, y, s * 0.42, 0, Math.PI * 2)
-    ctx.moveTo(x - s * 0.13, y); ctx.lineTo(x + s, y)
-    ctx.moveTo(x + s * 0.55, y); ctx.lineTo(x + s * 0.55, y + s * 0.4)
-    ctx.moveTo(x + s * 0.9, y); ctx.lineTo(x + s * 0.9, y + s * 0.45)
+  const cx = Math.round(x - s * 0.55), cy = Math.round(y), r = Math.max(2, Math.round(s * 0.42))
+  ctx.fillStyle = "#171c2e"; ctx.fillRect(cx - r - 1, cy - r - 1, r * 2 + 3, r * 2 + 3)
+  ctx.fillStyle = colour; ctx.fillRect(cx - r, cy - r, r * 2 + 1, r * 2 + 1)
+  ctx.fillStyle = "#171c2e"; ctx.fillRect(cx - r + 1, cy - r + 1, r * 2 - 1, r * 2 - 1)
+  const end = Math.round(x + s)
+  pixelLine(ctx, { x: cx + r + 1, y: cy }, { x: end, y: cy }, "#171c2e", 4)
+  pixelLine(ctx, { x: cx + r + 1, y: cy }, { x: end, y: cy }, colour, 2)
+  for (const xx of [end - 3, end]) {
+    pixelLine(ctx, { x: xx, y: cy }, { x: xx, y: cy + 3 }, "#171c2e", 3)
+    pixelLine(ctx, { x: xx, y: cy }, { x: xx, y: cy + 3 }, colour)
   }
-  path(); ctx.stroke()
-  ctx.strokeStyle = colour; ctx.lineWidth = s * 0.26
-  path(); ctx.stroke()
-  ctx.lineCap = "butt"
 }
 
 /** A crown glyph in screen pixels, its base centred on (x, y). */
-const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void => {
-  ctx.beginPath()
-  ctx.moveTo(x - s, y)
-  ctx.lineTo(x - s, y - s * 0.9); ctx.lineTo(x - s * 0.5, y - s * 0.4)
-  ctx.lineTo(x, y - s * 1.15); ctx.lineTo(x + s * 0.5, y - s * 0.4)
-  ctx.lineTo(x + s, y - s * 0.9); ctx.lineTo(x + s, y)
-  ctx.closePath()
-  ctx.fillStyle = GOLD; ctx.fill()
-  ctx.strokeStyle = "#5a3a00"; ctx.lineWidth = 1.5; ctx.stroke()
-}
+const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void => sprite(ctx, "crown", x, y + 3)
 
-export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera): void => {
+export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null): void => {
+  // Margins are in source pixels, so short desktop/landscape views need smaller ones.
+  const TOP = Math.min(32, Math.round(ch * 0.08)), BOTTOM = Math.min(42, Math.round(ch * 0.12))
   const u = unitFor(cw)
   // Screen semi-axes in px of a ground circle of 1 m radius.
   const erx = u, ery = u * SQUASH
@@ -140,247 +127,138 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const from = hi - max - margin, to = lo - min + margin
     return from > to ? (from + to) / 2 : Math.max(from, Math.min(to, want))
   }
-  const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx))
+  const deathAge = presentation?.playerDeathAge ?? -1
+  const shake = deathAge >= 0 && deathAge < 0.12 ? Math.round(Math.sin(deathAge * 90) * (1 - deathAge / 0.12)) : 0
+  const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx)) + shake
   const cy = fit(TOP + (ch - TOP - BOTTOM) / 2 - centre.y, TOP, ch - BOTTOM, Math.min(...sy), Math.max(...sy))
   const P = (x: number, y: number, z = 0): { x: number; y: number } => {
     const p = project(x, y, z, u)
     return { x: cx + p.x, y: cy + p.y }
   }
-  const moveTo = (x: number, y: number, z = 0): void => { const p = P(x, y, z); ctx.moveTo(p.x, p.y) }
-  const lineTo = (x: number, y: number, z = 0): void => { const p = P(x, y, z); ctx.lineTo(p.x, p.y) }
-  /** A world arc on the ground (or at height z), optionally closed through its centre as a wedge. */
-  const arcPath = (x: number, y: number, r: number, a0: number, a1: number, wedge: boolean, z = 0): void => {
-    ctx.beginPath()
-    if (wedge) moveTo(x, y, z)
-    const n = Math.max(8, Math.ceil(Math.abs(a1 - a0) * 10))
-    for (let i = 0; i <= n; i++) {
-      const a = a0 + ((a1 - a0) * i) / n
-      if (i === 0 && !wedge) moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r, z)
-      else lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r, z)
-    }
-    if (wedge) ctx.closePath()
-  }
-  // 0 when time is frozen, 1 at real time.
-  const live = Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))
+  roomFloor(ctx, cw, ch, view, P)
+  roomWalls(ctx, view, P, BACK_WALL)
+  ctx.save()
+  const floorStart = P(0, 0), floorEnd = P(w, h)
+  ctx.beginPath(); ctx.rect(Math.round(floorStart.x), Math.round(floorStart.y), Math.round(floorEnd.x - floorStart.x), Math.round(floorEnd.y - floorStart.y)); ctx.clip()
 
-  ctx.fillStyle = "#06070a"
-  ctx.fillRect(0, 0, cw, ch)
-
-  // Back walls, then the floor and its grid: cold when frozen, warm when moving.
-  ctx.beginPath(); moveTo(0, 0); lineTo(w, 0); lineTo(w, 0, BACK_WALL); lineTo(0, 0, BACK_WALL); ctx.closePath()
-  ctx.fillStyle = mix([30, 40, 60], [56, 40, 36], live)
-  ctx.fill()
-  ctx.beginPath(); moveTo(0, 0); lineTo(w, 0); lineTo(w, h); lineTo(0, h); ctx.closePath()
-  ctx.fillStyle = mix([22, 30, 46], [44, 30, 28], live)
-  ctx.fill()
-  ctx.strokeStyle = mix([60, 84, 120], [110, 70, 60], live, 0.25)
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  for (let i = 1; i < w; i++) { moveTo(i, 0); lineTo(i, h) }
-  for (let j = 1; j < h; j++) { moveTo(0, j); lineTo(w, j) }
-  ctx.stroke()
-  ctx.strokeStyle = mix([120, 160, 220], [240, 150, 110], live, 0.7)
-  ctx.lineWidth = 3
-  ctx.beginPath(); moveTo(0, 0); lineTo(w, 0); lineTo(w, h); lineTo(0, h); ctx.closePath(); ctx.stroke()
-
-  // The exit: a glowing pad with arrows, dim until you can reach it.
+  // A carved threshold with a fixed-size pixel rune.
   const goal = view.room.goal
   if (goal.kind === "exit") {
-    const pulse = 0.5 + 0.5 * Math.sin(view.world * 6)
-    ctx.beginPath(); moveTo(goal.x, goal.y); lineTo(goal.x + goal.w, goal.y); lineTo(goal.x + goal.w, goal.y + goal.h); lineTo(goal.x, goal.y + goal.h); ctx.closePath()
-    ctx.fillStyle = `rgba(125,255,154,${0.16 + 0.12 * pulse})`; ctx.fill()
-    ctx.strokeStyle = EXIT; ctx.lineWidth = 2; ctx.stroke()
-    ctx.strokeStyle = "rgba(125,255,154,0.75)"; ctx.lineWidth = 3
-    const mx = goal.x + goal.w / 2
-    for (let k = 0; k < 2; k++) {
-      const yy = goal.y + goal.h * (0.42 + k * 0.32)
-      ctx.beginPath(); moveTo(mx - 0.5, yy + 0.3); lineTo(mx, yy - 0.2); lineTo(mx + 0.5, yy + 0.3); ctx.stroke()
-    }
-    const label = P(mx, goal.y + goal.h * 0.18)
-    ctx.fillStyle = EXIT; ctx.textAlign = "center"; ctx.font = "bold 11px ui-monospace, Menlo, monospace"
-    ctx.fillText("EXIT", label.x, label.y + 4)
+    const a = P(goal.x, goal.y), b = P(goal.x + goal.w, goal.y + goal.h)
+    ctx.fillStyle = "#263234"; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
+    pixelLine(ctx, a, { x: b.x, y: a.y }, EXIT)
+    pixelLine(ctx, { x: a.x, y: b.y }, b, EXIT)
+    pixelLine(ctx, a, { x: a.x, y: b.y }, "#4b5d50")
+    pixelLine(ctx, { x: b.x, y: a.y }, b, "#4b5d50")
+    sprite(ctx, "exit-rune", (a.x + b.x) / 2, (a.y + b.y) / 2 + 12)
   }
   // Open doors: a threshold in the lock's colour.
   for (const d of view.doors) {
     if (!d.open) continue
-    ctx.beginPath(); moveTo(d.x, d.y); lineTo(d.x + d.w, d.y); lineTo(d.x + d.w, d.y + d.h); lineTo(d.x, d.y + d.h); ctx.closePath()
-    ctx.fillStyle = "#ffffff10"; ctx.fill()
-    ctx.strokeStyle = lockColour(d.lock); ctx.globalAlpha = 0.6; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke()
-    ctx.setLineDash([]); ctx.globalAlpha = 1
+    const a = P(d.x, d.y), b = P(d.x + d.w, d.y + d.h)
+    pixelLine(ctx, a, { x: b.x, y: a.y }, lockColour(d.lock), 1, 3)
+    pixelLine(ctx, { x: a.x, y: b.y }, b, "#647373", 1, 3)
   }
   // Keys on the floor: a ring that pulls the eye.
   for (const k of view.keys) {
     if (k.state !== "floor") continue
-    const pulse = 0.5 + 0.5 * Math.sin(view.world * 8)
-    ctx.strokeStyle = keyColour(k.key); ctx.globalAlpha = 0.4 + 0.4 * pulse; ctx.lineWidth = 2
-    arcPath(k.x, k.y, 0.45 + 0.1 * pulse, 0, Math.PI * 2, false); ctx.stroke()
-    ctx.globalAlpha = 1
+    const p = P(k.x, k.y)
+    pixelArc(ctx, p, 10, 5, 0, Math.PI * 2, keyColour(k.key), 1, true)
   }
 
   // Ground decals: where shots will pass, what each enemy covers, your reach.
-  ctx.lineWidth = 1.5
-  ctx.setLineDash([4, 6])
-  for (const shot of view.shots) {
-    ctx.strokeStyle = `rgba(255,90,90,${0.45 * (1 - live) + 0.08})`
-    ctx.beginPath(); moveTo(shot.x, shot.y); lineTo(shot.x + shot.vx, shot.y + shot.vy); ctx.stroke()
-  }
-  ctx.setLineDash([])
-  for (const shot of view.shots) {
-    const p = P(shot.x, shot.y)
-    ctx.fillStyle = "#00000060"
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, shot.radius * erx, shot.radius * ery, 0, 0, Math.PI * 2); ctx.fill()
-  }
-  // Snipers' lasers: a thin line that tracks you while it charges, solid and blinking once locked.
-  for (const e of view.enemies) {
-    const l = e.laser
-    if (l === null) continue
-    const ex = e.x + Math.cos(l.aim) * l.length, ey = e.y + Math.sin(l.aim) * l.length
-    if (l.locked) {
-      const blink = Math.sin(view.world * 60) > 0 ? 1 : 0.55
-      ctx.strokeStyle = `rgba(255,40,80,${0.9 * blink})`; ctx.lineWidth = 3
-    } else {
-      ctx.strokeStyle = `rgba(255,60,90,${0.2 + 0.5 * e.charge})`; ctx.lineWidth = 1.5; ctx.setLineDash([8, 6])
+  if (view.flow === "playing") {
+    for (const shot of view.shots) {
+      pixelLine(ctx, P(shot.x, shot.y), P(shot.x + shot.vx, shot.y + shot.vy), "#947058", 1, 4)
     }
-    ctx.beginPath(); moveTo(e.x, e.y, 0.6); lineTo(ex, ey, 0.6); ctx.stroke(); ctx.setLineDash([])
-  }
-  for (const e of view.enemies) {
-    const m = e.melee
-    if (e.kind === "runner") {
-      // Harmless: a soft ring, bright while it sees you (and runs).
-      ctx.strokeStyle = e.sees ? "rgba(242,193,78,0.7)" : "rgba(242,193,78,0.3)"
-      ctx.lineWidth = 2; ctx.setLineDash([3, 4])
-      arcPath(e.x, e.y, e.radius + 0.18, 0, Math.PI * 2, false); ctx.stroke(); ctx.setLineDash([])
-      continue
+    for (const shot of view.shots) {
+      const p = P(shot.x, shot.y)
+      ctx.fillStyle = "#263234"; ctx.fillRect(Math.round(p.x - 2), Math.round(p.y), 5, 2)
     }
-    if (m === null) {
-      // The reload ring on the floor.
-      ctx.strokeStyle = `rgba(255,80,80,${0.25 + e.charge * 0.6})`
-      ctx.lineWidth = 3
-      arcPath(e.x, e.y, e.radius + 0.18, -Math.PI / 2, -Math.PI / 2 + e.charge * Math.PI * 2, false)
-      ctx.stroke()
-      continue
+    // Snipers' lasers: a dotted line that tracks you while it charges, solid and blinking once locked.
+    for (const e of view.enemies) {
+      const l = e.laser
+      if (l === null) continue
+      const from = P(e.x, e.y, 0.6), to = P(e.x + Math.cos(l.aim) * l.length, e.y + Math.sin(l.aim) * l.length, 0.6)
+      if (l.locked) {
+        pixelLine(ctx, from, to, INK, 3)
+        pixelLine(ctx, from, to, Math.sin(view.world * 60) > 0 ? "#ff4d6a" : "#ce4655", 1)
+      } else pixelLine(ctx, from, to, e.charge > 0.6 ? "#ce4655" : "#80354d", 1, 3)
     }
-    const lockStart = 1 - m.lockShare
-    if (m.phase === "windup" && !m.locked) {
-      arcPath(e.x, e.y, m.reach, e.aim - m.arc, e.aim + m.arc, true)
-      ctx.fillStyle = "rgba(255,60,60,0.1)"; ctx.fill()
-      ctx.strokeStyle = "rgba(255,90,90,0.8)"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([])
-    } else if (m.phase === "windup") {
-      const k = (m.progress - lockStart) / (1 - lockStart)
-      arcPath(e.x, e.y, m.reach, e.aim - m.arc, e.aim + m.arc, true)
-      ctx.fillStyle = `rgba(255,60,60,${0.2 + 0.35 * k})`; ctx.fill()
-      ctx.strokeStyle = "rgba(255,90,90,0.9)"; ctx.lineWidth = 2; ctx.stroke()
-      arcPath(e.x, e.y, m.reach * k, e.aim - m.arc, e.aim + m.arc, true)
-      ctx.fillStyle = "rgba(255,60,60,0.35)"; ctx.fill()
-    } else if (m.phase === "swing") {
-      arcPath(e.x, e.y, m.reach, e.aim - m.arc, e.aim + m.arc, true)
-      ctx.fillStyle = "rgba(255,240,240,0.85)"; ctx.fill()
-    } else if (m.phase === "recover") {
-      arcPath(e.x, e.y, m.reach, e.aim - m.arc, e.aim + m.arc, true)
-      ctx.fillStyle = `rgba(200,200,220,${0.15 * (1 - m.progress)})`; ctx.fill()
-    } else {
-      arcPath(e.x, e.y, m.reach, e.aim - m.arc, e.aim + m.arc, true)
-      ctx.strokeStyle = m.phase === "chase" ? "rgba(255,90,90,0.25)" : "rgba(255,90,90,0.12)"
-      ctx.lineWidth = 1; ctx.setLineDash([4, 5]); ctx.stroke(); ctx.setLineDash([])
+    for (const e of view.enemies) {
+      const m = e.melee
+      const centre = P(e.x, e.y)
+      const ring = (start: number, end: number, colour: string, width = 1, segmented = false): void =>
+        pixelArc(ctx, centre, (e.radius + 0.18) * erx, (e.radius + 0.18) * ery, start, end, colour, width, segmented)
+      if (e.kind === "runner") {
+        ring(0, Math.PI * 2, e.sees ? "#edc66c" : "#947058", 1, true)
+        continue
+      }
+      if (m === null) {
+        ring(-Math.PI / 2, -Math.PI / 2 + e.charge * Math.PI * 2, e.charge > 0.8 ? "#edc66c" : "#ce4655")
+        continue
+      }
+      const rx = m.reach * erx, ry = m.reach * ery
+      const active = m.phase === "windup" || m.phase === "swing"
+      if (active) {
+        const colour = m.phase === "swing" ? "#f4efda" : "#ce4655"
+        pixelSector(ctx, centre, rx, ry, e.aim, m.arc, m.phase === "swing" ? "#edc66c" : "#80354d", m.locked ? 4 : 8)
+        pixelArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, colour, m.locked ? 2 : 1, !m.locked)
+        for (const a of [e.aim - m.arc, e.aim + m.arc]) pixelLine(ctx, centre, P(e.x + Math.cos(a) * m.reach, e.y + Math.sin(a) * m.reach), colour, 1, m.locked ? 0 : 3)
+        // The advancing line shows progress without covering the character art.
+        if (m.phase === "windup" && m.locked) {
+          const progress = Math.max(0, (m.progress - (1 - m.lockShare)) / m.lockShare)
+          pixelArc(ctx, centre, rx * progress, ry * progress, e.aim - m.arc, e.aim + m.arc, "#e98a49")
+        }
+      } else if (m.phase === "chase") {
+        pixelArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, "#6d5448", 1, true)
+      }
+      // Guard up: a steel front and a gold open back. Dazed: a turning white ring, open all round and no blow lands.
+      // Otherwise a gold ring: open all round.
+      if (m.phase === "stagger") {
+        ring(m.progress * 6, m.progress * 6 + Math.PI * 2, "#f4efda", 1, true)
+      } else if (m.guarding) {
+        ring(e.aim - m.guardArc, e.aim + m.guardArc, "#c6d4df", 2)
+        ring(e.aim + m.guardArc, e.aim + Math.PI * 2 - m.guardArc, "#edc66c")
+      } else {
+        ring(0, Math.PI * 2, m.phase === "recover" ? "#edc66c" : "#947058", 1, m.phase !== "recover")
+      }
     }
-    // Guard up: a steel front and a gold open back. Dazed: a wobbling white ring, open all round and no blow lands.
-    // Otherwise a gold ring: open all round.
-    if (m.phase === "stagger") {
-      ctx.lineWidth = 2; ctx.strokeStyle = "#ffffffb0"; ctx.setLineDash([3, 4])
-      arcPath(e.x, e.y, e.radius + 0.14, m.progress * 6, m.progress * 6 + Math.PI * 2, false); ctx.stroke(); ctx.setLineDash([])
-    } else if (m.guarding) {
-      ctx.lineWidth = 4
-      ctx.strokeStyle = STEEL
-      arcPath(e.x, e.y, e.radius + 0.12, e.aim - m.guardArc, e.aim + m.guardArc, false); ctx.stroke()
-      ctx.lineWidth = 2
-      ctx.strokeStyle = "#ffd25a"
-      arcPath(e.x, e.y, e.radius + 0.12, e.aim + m.guardArc, e.aim + Math.PI * 2 - m.guardArc, false); ctx.stroke()
-    } else {
-      ctx.lineWidth = m.phase === "recover" ? 3 : 2
-      ctx.strokeStyle = m.phase === "recover" ? "#ffd25a" : "#ffd25a80"
-      arcPath(e.x, e.y, e.radius + 0.12, 0, Math.PI * 2, false); ctx.stroke()
+    if (view.player !== null) {
+      pixelArc(ctx, P(view.player.x, view.player.y), view.player.attackRange * erx, view.player.attackRange * ery, 0, Math.PI * 2, view.scale < 0.15 ? "#64b6b3" : "#647373", 1, true)
     }
   }
-  if (view.player !== null) {
-    ctx.strokeStyle = "#ffffff22"; ctx.lineWidth = 1; ctx.setLineDash([3, 5])
-    arcPath(view.player.x, view.player.y, view.player.attackRange, 0, Math.PI * 2, false); ctx.stroke()
-    ctx.setLineDash([])
-  }
+  ctx.restore()
 
   // Everything standing, painted back to front; crates and walls by the box rule.
   type Thing = { readonly x: number; readonly y: number; readonly paint: () => void }
   const actors: Array<Thing> = []
-  /** A standing cylinder: shadow, body, lighter top. */
-  const cylinder = (x: number, y: number, r: number, height: number, body: string, top: string): void => {
-    const g = P(x, y), t = P(x, y, height)
-    ctx.fillStyle = "#00000070"
-    ctx.beginPath(); ctx.ellipse(g.x, g.y, r * erx * 1.1, r * ery * 1.1, 0, 0, Math.PI * 2); ctx.fill()
-    ctx.fillStyle = body
-    ctx.beginPath()
-    ctx.ellipse(g.x, g.y, r * erx, r * ery, 0, 0, Math.PI)
-    ctx.lineTo(t.x - r * erx, t.y)
-    ctx.ellipse(t.x, t.y, r * erx, r * ery, 0, Math.PI, Math.PI * 2)
-    ctx.closePath()
-    ctx.fill()
-    ctx.fillStyle = top
-    ctx.beginPath(); ctx.ellipse(t.x, t.y, r * erx, r * ery, 0, 0, Math.PI * 2); ctx.fill()
-  }
   /** A line held at height z from (x, y) toward angle a. */
   const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
-    ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.lineCap = "round"
-    ctx.beginPath(); moveTo(x + Math.cos(a) * from, y + Math.sin(a) * from, z); lineTo(x + Math.cos(a) * to, y + Math.sin(a) * to, z); ctx.stroke()
-    ctx.lineCap = "butt"
+    const start = P(x + Math.cos(a) * from, y + Math.sin(a) * from, z)
+    const end = P(x + Math.cos(a) * to, y + Math.sin(a) * to, z)
+    pixelLine(ctx, start, end, "#171c2e", width + 2)
+    pixelLine(ctx, start, end, colour, width)
   }
   for (const e of view.enemies) {
     actors.push({
       x: e.x, y: e.y, paint: () => {
+        const ground = P(e.x, e.y)
+        const resting = view.flow !== "playing" && e.melee !== null ? { ...e, melee: { ...e.melee, phase: "idle" as const, progress: 0 } } : e
+        combatActor(ctx, resting, ground, view.flow === "playing" ? presentation?.firing(e, view.world) ?? -1 : -1)
+        if (view.flow === "playing" && e.melee !== null) attackWave(ctx, e, P(e.x, e.y, 0.45), e.melee.reach * erx, e.melee.reach * ery)
         const m = e.melee
-        const height = e.kind === "runner" ? 0.8 : m === null ? 0.95 : 1.15
-        const colour = ENEMY_COLOURS[e.kind]
-        // The knight wears a steel helm.
-        cylinder(e.x, e.y, e.radius, height, colour, e.kind === "knight" ? "#c9d2e6" : "#ffffff30")
-        if (e.captain) {
-          const c = P(e.x, e.y, height)
-          crownGlyph(ctx, c.x, c.y - 2, e.radius * erx * 0.75)
-        }
         if (m !== null && m.maxHp > 1) {
           // Hit points over its head: one pip per hit it can still take.
-          const c = P(e.x, e.y, height + (e.captain ? 0.55 : 0.3))
-          const gap = u * 0.2
+          const y = ground.y - (e.captain ? 33 : 26)
           for (let i = 0; i < m.maxHp; i++) {
-            ctx.beginPath(); ctx.arc(c.x + (i - (m.maxHp - 1) / 2) * gap, c.y, u * 0.065, 0, Math.PI * 2)
-            ctx.fillStyle = i < m.hp ? "#ff6a6a" : "#00000060"; ctx.fill()
-            ctx.strokeStyle = "#000000a0"; ctx.lineWidth = 1; ctx.stroke()
+            const x = Math.round(ground.x + (i - (m.maxHp - 1) / 2) * 5) - 1
+            ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, 5, 5)
+            ctx.fillStyle = i < m.hp ? "#ce4655" : "#3a4048"; ctx.fillRect(x, y, 3, 3)
           }
         }
-        if (e.kind === "runner") {
-          // A hood that points the way it runs.
-          held(e.x, e.y, e.aim, 0, e.radius + 0.12, height * 0.85, "#7a5a10", 4)
-          return
-        }
-        // What each kind wears on top: gunner a flat cap, archer a point, thrower a band.
-        const t = P(e.x, e.y, height)
-        if (e.kind === "archer") {
-          const tip = P(e.x, e.y, height + 0.35)
-          ctx.fillStyle = colour
-          ctx.beginPath(); ctx.moveTo(t.x - e.radius * erx * 0.7, t.y); ctx.lineTo(tip.x, tip.y); ctx.lineTo(t.x + e.radius * erx * 0.7, t.y); ctx.fill()
-        } else if (e.kind === "thrower") {
-          ctx.strokeStyle = "#ffffffb0"; ctx.lineWidth = 2
-          const b = P(e.x, e.y, height * 0.75)
-          ctx.beginPath(); ctx.ellipse(b.x, b.y, e.radius * erx, e.radius * ery, 0, 0, Math.PI); ctx.stroke()
-        }
-        if (m === null) {
-          // A sniper's long barrel; everyone else a short one.
-          held(e.x, e.y, e.aim, e.radius * 0.6, e.radius + (e.kind === "sniper" ? 0.8 : 0.35), 0.6, e.sees ? "#ffffffdd" : "#ffffff40", e.kind === "sniper" ? 2 : 3)
-        } else {
-          if (m.shield) {
-            // The shield: a steel plate across its front, held at chest height.
-            ctx.strokeStyle = m.guarding ? STEEL : "#9aa3b8"; ctx.lineWidth = 7; ctx.lineCap = "round"
-            arcPath(e.x, e.y, e.radius + 0.12, e.aim - m.guardArc * 0.75, e.aim + m.guardArc * 0.75, false, 0.55); ctx.stroke()
-            ctx.lineCap = "butt"
-          }
-          const bladeAngle = m.phase === "windup" ? -m.arc * m.progress : m.phase === "swing" ? -m.arc + 2 * m.arc * m.progress : m.phase === "recover" ? m.arc : 0
-          held(e.x, e.y, e.aim + bladeAngle, e.radius * 0.8, m.reach * 0.85, m.phase === "recover" || m.phase === "stagger" ? 0.25 : 0.7, "#f4f6ff", 3)
+        if (e.captain) {
+          sprite(ctx, "crown", ground.x, ground.y - 17)
         }
       }
     })
@@ -391,31 +269,40 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const a = Math.atan2(shot.vy, shot.vx)
         const z = 0.6
         if (shot.kind === "bullet") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.5, z, "#ffd25a50", shot.radius * erx * 1.2)
+          held(shot.x, shot.y, a + Math.PI, 0, 0.35, z, "#947058", 1)
           const p = P(shot.x, shot.y, z)
-          ctx.fillStyle = "#ffd25a"
-          ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(3, shot.radius * erx), 0, Math.PI * 2); ctx.fill()
+          sprite(ctx, "bullet", p.x, p.y + 8)
         } else if (shot.kind === "slug") {
-          held(shot.x, shot.y, a + Math.PI, 0, 1.2, z, "#ff4d7a80", 3)
-          held(shot.x, shot.y, a, 0, 0.1, z, "#ffffff", 5)
+          held(shot.x, shot.y, a + Math.PI, 0, 1.0, z, "#ce4655", 1)
+          held(shot.x, shot.y, a, -0.08, 0.1, z, "#f4efda", 2)
         } else if (shot.kind === "arrow") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.55, z, "#cfe8ff", 2)
-          held(shot.x, shot.y, a, 0, 0.12, z, "#ffffff", 4)
+          held(shot.x, shot.y, a + Math.PI, 0, 0.48, z, "#947058", 1)
+          held(shot.x, shot.y, a, -0.05, 0.12, z, "#f4efda", 2)
+          for (const side of [-0.6, 0.6]) held(shot.x, shot.y, a + Math.PI + side, 0.35, 0.5, z, "#c6d4df", 1)
         } else {
-          held(shot.x, shot.y, a, -0.12, 0.2, z, "#e6e6e6", 4)
+          held(shot.x, shot.y, a, -0.15, 0.15, z, "#c6d4df", 2)
+          held(shot.x, shot.y, a, -0.23, -0.15, z, "#edc66c", 2)
         }
       }
     })
   }
-  if (view.player !== null) {
+  if (view.player !== null && view.flow !== "dead") {
     const p = view.player
     actors.push({
       x: p.x, y: p.y, paint: () => {
         const speed = Math.hypot(p.vx, p.vy)
-        if (speed > 0) held(p.x, p.y, Math.atan2(-p.vy, -p.vx), 0, speed * 0.06, 0.5, "#ffffff40", p.radius * erx * 1.4)
-        cylinder(p.x, p.y, p.radius, 1, view.flow === "dead" ? "#ff5050" : "#e4e8f4", "#ffffff")
+        const ground = P(p.x, p.y)
+        sprite(ctx, "shadow", ground.x + 2, ground.y + 3)
+        const bob = speed > 0.1 ? Math.round(Math.sin((p.x + p.y) * 9)) : 0
+        posedSprite(ctx, bodyName("player"), ground.x, ground.y - bob, { flip: p.vx < 0 })
       }
     })
+  }
+  for (const death of presentation?.deaths ?? []) {
+    actors.push({ x: death.x, y: death.y, paint: () => dyingActor(ctx, death, P(death.x, death.y), presentation!.now - death.born) })
+  }
+  for (const impact of presentation?.impacts ?? []) {
+    actors.push({ x: impact.x, y: impact.y + 0.01, paint: () => impactBurst(ctx, impact, P(impact.x, impact.y, 0.55), presentation!.now - impact.born) })
   }
   for (const k of view.keys) {
     // Carried over a runner's head, held over yours, or lying on the floor.
@@ -427,26 +314,27 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  type Box = Pillar & { readonly front: string; readonly top: string; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null }
+  type Box = Pillar & { readonly material: Material; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null }
   const doorBoxes = view.doors.flatMap((d): Array<Box> => {
     if (d.open) return []
     const colour = lockColour(d.lock)
     const emblem = (x: number, y: number): void => {
       if (d.lock.kind === "key") keyGlyph(ctx, x - u * 0.14, y, u * 0.26, colour)
-      else if (d.lock.kind === "captain") crownGlyph(ctx, x, y + u * 0.14, u * 0.22)
+      else if (d.lock.kind === "captain") crownGlyph(ctx, x, y + u * 0.14)
       else {
         // One pip per enemy the door still waits on.
         const n = d.waiting, gap = u * 0.24
         for (let i = 0; i < n; i++) {
-          ctx.fillStyle = "#ff6a6a"; ctx.strokeStyle = "#00000080"; ctx.lineWidth = 1
-          ctx.beginPath(); ctx.arc(x + (i - (n - 1) / 2) * gap, y, u * 0.075, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+          const px = Math.round(x + (i - (n - 1) / 2) * gap), py = Math.round(y)
+          ctx.fillStyle = "#171c2e"; ctx.fillRect(px - 2, py - 2, 5, 5)
+          ctx.fillStyle = "#ce4655"; ctx.fillRect(px - 1, py - 1, 3, 3)
         }
       }
     }
-    return [{ x: d.x, y: d.y, w: d.w, h: d.h, front: "#232838", top: "#363d52", edge: colour, emblem }]
+    return [{ x: d.x, y: d.y, w: d.w, h: d.h, material: "gate", edge: colour, emblem }]
   })
   const boxes: Array<Box> = [
-    ...view.room.pillars.map((p): Box => ({ ...p, front: "#1b1e28", top: "#2c3140", edge: "#ffffff28", emblem: null })),
+    ...view.room.pillars.map((p, i): Box => ({ ...p, material: p.w < 2 && p.h < 2 && decorationHash(i, 0, view.room.index) % 3 === 0 ? "wood" : "stone", edge: "#899692", emblem: null })),
     ...doorBoxes
   ].sort((a, b) => a.y + a.h - (b.y + b.h))
   // Each actor goes right after the last box it stands in front of.
@@ -462,14 +350,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   paintAll(first)
   boxes.forEach((b, i) => {
-    // The front face, then the top.
-    ctx.beginPath(); moveTo(b.x, b.y + b.h); lineTo(b.x + b.w, b.y + b.h); lineTo(b.x + b.w, b.y + b.h, PILLAR_HEIGHT); lineTo(b.x, b.y + b.h, PILLAR_HEIGHT); ctx.closePath()
-    ctx.fillStyle = b.front
-    ctx.fill()
-    if (b.emblem !== null) { ctx.strokeStyle = b.edge; ctx.lineWidth = 2; ctx.stroke() }
-    ctx.beginPath(); moveTo(b.x, b.y, PILLAR_HEIGHT); lineTo(b.x + b.w, b.y, PILLAR_HEIGHT); lineTo(b.x + b.w, b.y + b.h, PILLAR_HEIGHT); lineTo(b.x, b.y + b.h, PILLAR_HEIGHT); ctx.closePath()
-    ctx.fillStyle = b.top; ctx.fill()
-    ctx.strokeStyle = b.edge; ctx.lineWidth = b.emblem === null ? 1 : 2; ctx.stroke()
+    raisedBlock(ctx, b, P, PILLAR_HEIGHT, b.material, b.edge, view.world)
     if (b.emblem !== null) {
       const c = P(b.x + b.w / 2, b.y + b.h / 2, PILLAR_HEIGHT)
       b.emblem(c.x, c.y)
@@ -477,35 +358,35 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     paintAll(slots[i] ?? [])
   })
 
-  // You, always visible: an outline over anything that hides you.
-  if (view.player !== null) {
+  // An occluded player keeps an ivory marker above cover.
+  if (view.player !== null && view.flow !== "dead") {
     const p = view.player
-    const g = P(p.x, p.y), t = P(p.x, p.y, 1)
-    ctx.strokeStyle = "#ffffff70"; ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.ellipse(g.x, g.y, p.radius * erx, p.radius * ery, 0, 0, Math.PI)
-    ctx.lineTo(t.x - p.radius * erx, t.y)
-    ctx.ellipse(t.x, t.y, p.radius * erx, p.radius * ery, 0, Math.PI, Math.PI * 2)
-    ctx.closePath(); ctx.stroke()
+    if (boxes.some(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y - 1 && p.y < b.y + b.h)) {
+      const g = P(p.x, p.y)
+      for (const x of [-10, 10]) for (const y of [-23, 0]) {
+        const corner = { x: g.x + x, y: g.y + y }
+        pixelLine(ctx, corner, { x: corner.x - Math.sign(x) * 3, y: corner.y }, "#f4efda")
+        pixelLine(ctx, corner, { x: corner.x, y: corner.y + (y < 0 ? 3 : -3) }, "#f4efda")
+      }
+    }
   }
 
-  // Cuts, at chest height; a blow a guard stopped throws a spark instead.
+  // Cuts, at chest height; a blow a guard stopped throws sparks instead.
   for (const c of view.slashes) {
-    if (c.blocked) {
-      const p = P(c.x, c.y, 0.6)
-      ctx.strokeStyle = `rgba(255,230,150,${1 - c.age})`; ctx.lineWidth = 2
-      for (let i = 0; i < 6; i++) {
-        const a = c.angle + Math.PI + (i - 2.5) * 0.45
-        const r0 = 4 + c.age * 6, r1 = 10 + c.age * 14
-        ctx.beginPath(); ctx.moveTo(p.x + Math.cos(a) * r0, p.y + Math.sin(a) * r0); ctx.lineTo(p.x + Math.cos(a) * r1, p.y + Math.sin(a) * r1); ctx.stroke()
-      }
-      continue
+    if (!c.blocked) continue
+    const centre = P(c.x, c.y, 0.6)
+    for (let i = 0; i < 6; i++) {
+      const a = c.angle + Math.PI + (i - 2.5) * 0.45
+      const r0 = 4 + c.age * 6, r1 = 9 + c.age * 12
+      pixelLine(ctx, { x: centre.x + Math.cos(a) * r0, y: centre.y + Math.sin(a) * r0 * SQUASH }, { x: centre.x + Math.cos(a) * r1, y: centre.y + Math.sin(a) * r1 * SQUASH }, c.age < 0.5 ? "#edc66c" : "#947058")
     }
+  }
+  for (const c of presentation === null ? view.slashes.filter((s) => !s.blocked) : []) {
     const t = c.age
-    const len = 0.6 + t * 0.6
-    const a = c.angle + 0.8
-    ctx.strokeStyle = `rgba(255,255,255,${1 - t})`; ctx.lineWidth = 3
-    ctx.beginPath(); moveTo(c.x - Math.cos(a) * len, c.y - Math.sin(a) * len, 0.6); lineTo(c.x + Math.cos(a) * len, c.y + Math.sin(a) * len, 0.6); ctx.stroke()
+    const centre = P(c.x, c.y, 0.6), radius = 12 + t * 9
+    pixelArc(ctx, centre, radius, radius * SQUASH, c.angle - 1.2 + t, c.angle + 1.2 + t, "#171c2e", t < 0.45 ? 4 : 2)
+    pixelArc(ctx, centre, radius, radius * SQUASH, c.angle - 1.2 + t, c.angle + 1.2 + t, t < 0.3 ? "#f4efda" : t < 0.65 ? "#c6d4df" : "#8996b0", t < 0.45 ? 2 : 1)
+    if (t < 0.25) sprite(ctx, "spark", centre.x, centre.y + 8)
   }
 
   // Enemies off screen (and not shut away behind a door): a marker at the edge, bright when it can see you.
@@ -517,49 +398,44 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     if (sp.x >= 0 && sp.x <= cw && sp.y >= TOP && sp.y <= ch - BOTTOM) continue
     const dx = sp.x - midX, dy = sp.y - midY
     const k = Math.min((cw / 2 - pad) / Math.abs(dx || 1e-6), ((ch - TOP - BOTTOM) / 2 - pad) / Math.abs(dy || 1e-6))
-    ctx.save()
-    ctx.translate(midX + dx * k, midY + dy * k)
-    ctx.rotate(Math.atan2(dy, dx))
-    ctx.fillStyle = e.kind === "runner" ? (e.sees ? "rgba(242,193,78,0.85)" : "rgba(242,193,78,0.35)")
-      : e.sees ? `rgba(255,70,70,${0.55 + e.charge * 0.45})` : "rgba(255,120,120,0.3)"
-    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -7); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill()
-    ctx.restore()
-  }
-
-  // Frozen-time vignette.
-  if (live < 1) {
-    const g = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.3, cw / 2, ch / 2, Math.max(cw, ch) * 0.7)
-    g.addColorStop(0, "rgba(40,80,160,0)")
-    g.addColorStop(1, `rgba(40,80,160,${0.35 * (1 - live)})`)
-    ctx.fillStyle = g
-    ctx.fillRect(0, 0, cw, ch)
+    const a = Math.atan2(dy, dx), x = midX + dx * k, y = midY + dy * k
+    const tip = { x: x + Math.cos(a) * 4, y: y + Math.sin(a) * 4 }
+    const colour = e.kind === "runner" ? "#edc66c" : e.sees ? "#ce4655" : "#947058"
+    for (const side of [-1, 1]) pixelLine(ctx, tip, { x: x - Math.cos(a) * 3 + Math.sin(a) * side * 3, y: y - Math.sin(a) * 3 - Math.cos(a) * side * 3 }, colour, 2)
   }
 
   // The thumb-stick, faint.
   if (stick !== null) {
-    ctx.strokeStyle = "#ffffff30"; ctx.lineWidth = 2
-    ctx.beginPath(); ctx.arc(stick.ox, stick.oy, stick.reach, 0, Math.PI * 2); ctx.stroke()
-    ctx.fillStyle = "#ffffff30"
-    ctx.beginPath(); ctx.arc(stick.x, stick.y, 18, 0, Math.PI * 2); ctx.fill()
+    pixelArc(ctx, { x: stick.ox, y: stick.oy }, stick.reach, stick.reach, 0, Math.PI * 2, "#899692", 1, true)
+    pixelArc(ctx, stick, 5, 5, 0, Math.PI * 2, "#c6d4df")
   }
 
   // Messages: a hit, or a clear with its stars.
-  if (view.flow === "dead") {
-    banner(ctx, cw, ch, 120)
-    title(ctx, "HIT", "#ff6060", cw / 2, ch / 2)
-    caption(ctx, view.canRetry ? "tap to retry the room" : "", cw / 2, ch / 2 + 30)
-  } else if (view.result !== null) {
+  if (view.flow === "dead" && (presentation === null || deathAge >= 0.52)) {
+    // Keep the fall visible. Retry stays available at the simulation's deadline.
+    const y = ch - BOTTOM - 14
+    ctx.fillStyle = "#171c2e"; ctx.fillRect(0, y - 27, cw, 40)
+    title(ctx, "HIT", "#ce4655", cw / 2, y - 8)
+    caption(ctx, view.canRetry ? "tap to retry the room" : "", cw / 2, y + 7)
+  } else if (view.result !== null && (presentation === null || presentation.clearAge < 0 || presentation.clearAge >= 0.4)) {
     const won = view.flow === "won"
-    banner(ctx, cw, ch, won ? 190 : 170)
-    const top = ch / 2 - (won ? 55 : 45)
-    title(ctx, won ? "ALL ROOMS CLEAR" : "CLEAR", "#9effa8", cw / 2, top)
-    for (let i = 0; i < 3; i++) star(ctx, cw / 2 + (i - 1) * 40, top + 38, 15, i < view.result.stars)
-    caption(ctx, `${view.result.world.toFixed(1)} s · par ${view.room.par} s${view.hits === 0 ? " · no hits" : ""}`, cw / 2, top + 76)
     if (won) {
+      banner(ctx, cw, ch, 190)
+      const top = ch / 2 - 55
+      title(ctx, "ALL ROOMS CLEAR", "#91c69b", cw / 2, top)
+      for (let i = 0; i < 3; i++) star(ctx, cw / 2 + (i - 1) * 40, top + 38, 15, i < view.result.stars)
+      caption(ctx, `${view.result.world.toFixed(1)} s · par ${view.room.par} s`, cw / 2, top + 76)
       const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)
       caption(ctx, `run: ${stars}/${view.best.length * 3} stars · ${view.deaths} deaths`, cw / 2, top + 98)
       caption(ctx, "tap to go again", cw / 2, top + 120)
-    } else caption(ctx, "tap for the next room", cw / 2, top + 100)
+    } else {
+      // The score stays below the action while the final enemy finishes falling.
+      const y = ch - BOTTOM - 17
+      ctx.fillStyle = "#171c2e"; ctx.fillRect(0, y - 28, cw, 55)
+      title(ctx, "CLEAR", "#91c69b", cw / 2, y - 9)
+      for (let i = 0; i < 3; i++) star(ctx, cw / 2 + (i - 1) * 18, y + 2, 5, i < view.result.stars)
+      caption(ctx, `${view.result.world.toFixed(1)} s · par ${view.room.par} s · tap for next`, cw / 2, y + 21)
+    }
   }
 }
 
@@ -571,13 +447,13 @@ const banner = (ctx: CanvasRenderingContext2D, cw: number, ch: number, height: n
 const title = (ctx: CanvasRenderingContext2D, text: string, colour: string, x: number, y: number): void => {
   ctx.fillStyle = colour
   ctx.textAlign = "center"
-  ctx.font = "bold 30px ui-monospace, Menlo, monospace"
+  ctx.font = `bold ${Math.min(22, Math.floor((x * 2 - 16) / Math.max(1, text.length * 0.62)))}px ui-monospace, Menlo, monospace`
   ctx.fillText(text, x, y)
 }
 
 const caption = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void => {
   ctx.fillStyle = "#e8ecf4"
   ctx.textAlign = "center"
-  ctx.font = "14px ui-monospace, Menlo, monospace"
+  ctx.font = ` ${Math.min(10, Math.floor((x * 2 - 16) / Math.max(1, text.length * 0.62)))}px ui-monospace, Menlo, monospace`
   ctx.fillText(text, x, y)
 }

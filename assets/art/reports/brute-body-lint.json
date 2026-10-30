@@ -1,0 +1,21 @@
+{
+  "file": "public/art/brute-body.png",
+  "verdict": "clean",
+  "summary": "Clean pixel art, 24×24, 9 colors.",
+  "issues": [
+    {
+      "rule": "stray-pixel",
+      "severity": "warning",
+      "message": "6 lone pixels surrounded by another color: noise, unless it is a deliberate highlight",
+      "count": 6,
+      "at": [
+        [13, 8],
+        [12, 11],
+        [6, 12],
+        [3, 15],
+        [13, 17],
+        [5, 20]
+      ]
+    }
+  ]
+}
