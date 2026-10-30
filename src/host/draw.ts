@@ -11,6 +11,7 @@ import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./co
 import type { Presentation } from "./fx.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
+import { DANGER, THREAT, pathArrow, threatArc, threatLine } from "./threats.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
@@ -169,7 +170,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Ground decals: where shots will pass, what each enemy covers, your reach.
   if (view.flow === "playing") {
     for (const shot of view.shots) {
-      pixelLine(ctx, P(shot.x, shot.y), P(shot.x + shot.vx, shot.y + shot.vy), "#947058", 1, 4)
+      const start = P(shot.x, shot.y), end = P(shot.x + shot.vx, shot.y + shot.vy)
+      threatLine(ctx, start, end, false, 6)
+      const angle = Math.atan2(end.y - start.y, end.x - start.x)
+      pathArrow(ctx, { x: start.x + (end.x - start.x) * 0.22, y: start.y + (end.y - start.y) * 0.22 }, angle)
     }
     for (const shot of view.shots) {
       const p = P(shot.x, shot.y)
@@ -180,38 +184,35 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       const l = e.laser
       if (l === null) continue
       const from = P(e.x, e.y, 0.6), to = P(e.x + Math.cos(l.aim) * l.length, e.y + Math.sin(l.aim) * l.length, 0.6)
-      if (l.locked) {
-        pixelLine(ctx, from, to, INK, 3)
-        pixelLine(ctx, from, to, Math.sin(view.world * 60) > 0 ? "#ff4d6a" : "#ce4655", 1)
-      } else pixelLine(ctx, from, to, e.charge > 0.6 ? "#ce4655" : "#80354d", 1, 3)
+      threatLine(ctx, from, to, l.locked, l.locked ? 0 : 5)
+      pathArrow(ctx, { x: to.x - Math.cos(l.aim) * 10, y: to.y - Math.sin(l.aim) * 8 }, Math.atan2(to.y - from.y, to.x - from.x))
     }
     for (const e of view.enemies) {
       const m = e.melee
       const centre = P(e.x, e.y)
       const ring = (start: number, end: number, colour: string, width = 1, segmented = false): void =>
-        pixelArc(ctx, centre, (e.radius + 0.18) * erx, (e.radius + 0.18) * ery, start, end, colour, width, segmented)
+        threatArc(ctx, centre, (e.radius + 0.18) * erx, (e.radius + 0.18) * ery, start, end, colour, width, segmented)
       if (e.kind === "runner") {
         ring(0, Math.PI * 2, e.sees ? "#edc66c" : "#947058", 1, true)
         continue
       }
       if (m === null) {
-        ring(-Math.PI / 2, -Math.PI / 2 + e.charge * Math.PI * 2, e.charge > 0.8 ? "#edc66c" : "#ce4655")
+        ring(-Math.PI / 2, -Math.PI / 2 + e.charge * Math.PI * 2, e.charge > 0.8 ? THREAT : DANGER, 2)
         continue
       }
       const rx = m.reach * erx, ry = m.reach * ery
       const active = m.phase === "windup" || m.phase === "swing"
       if (active) {
-        const colour = m.phase === "swing" ? "#f4efda" : "#ce4655"
         pixelSector(ctx, centre, rx, ry, e.aim, m.arc, m.phase === "swing" ? "#edc66c" : "#80354d", m.locked ? 4 : 8)
-        pixelArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, colour, m.locked ? 2 : 1, !m.locked)
-        for (const a of [e.aim - m.arc, e.aim + m.arc]) pixelLine(ctx, centre, P(e.x + Math.cos(a) * m.reach, e.y + Math.sin(a) * m.reach), colour, 1, m.locked ? 0 : 3)
+        threatArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, m.phase === "swing" ? "#f4efda" : DANGER, 2, !m.locked)
+        for (const a of [e.aim - m.arc, e.aim + m.arc]) threatLine(ctx, centre, P(e.x + Math.cos(a) * m.reach, e.y + Math.sin(a) * m.reach), m.locked, m.locked ? 0 : 3)
         // The advancing line shows progress without covering the character art.
         if (m.phase === "windup" && m.locked) {
           const progress = Math.max(0, (m.progress - (1 - m.lockShare)) / m.lockShare)
           pixelArc(ctx, centre, rx * progress, ry * progress, e.aim - m.arc, e.aim + m.arc, "#e98a49")
         }
       } else if (m.phase === "chase") {
-        pixelArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, "#6d5448", 1, true)
+        threatArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, THREAT, 2, true)
       }
       // Guard up: a steel front and a gold open back. Dazed: a turning white ring, open all round and no blow lands.
       // Otherwise a gold ring: open all round.
@@ -269,19 +270,24 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const a = Math.atan2(shot.vy, shot.vx)
         const z = 0.6
         if (shot.kind === "bullet") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.35, z, "#947058", 1)
+          held(shot.x, shot.y, a + Math.PI, 0, 0.24, z, THREAT, 2)
           const p = P(shot.x, shot.y, z)
-          sprite(ctx, "bullet", p.x, p.y + 8)
+          pixelLine(ctx, p, p, INK, 11)
+          pixelLine(ctx, p, p, DANGER, 9)
+          pixelLine(ctx, p, p, THREAT, 7)
+          pixelLine(ctx, p, p, "#f4efda", 3)
         } else if (shot.kind === "slug") {
-          held(shot.x, shot.y, a + Math.PI, 0, 1.0, z, "#ce4655", 1)
-          held(shot.x, shot.y, a, -0.08, 0.1, z, "#f4efda", 2)
+          held(shot.x, shot.y, a + Math.PI, 0, 0.42, z, DANGER, 4)
+          held(shot.x, shot.y, a, -0.12, 0.16, z, THREAT, 6)
+          held(shot.x, shot.y, a, 0, 0.12, z, "#f4efda", 2)
         } else if (shot.kind === "arrow") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.48, z, "#947058", 1)
-          held(shot.x, shot.y, a, -0.05, 0.12, z, "#f4efda", 2)
-          for (const side of [-0.6, 0.6]) held(shot.x, shot.y, a + Math.PI + side, 0.35, 0.5, z, "#c6d4df", 1)
+          held(shot.x, shot.y, a + Math.PI, 0, 0.38, z, THREAT, 3)
+          held(shot.x, shot.y, a, -0.05, 0.16, z, DANGER, 5)
+          for (const side of [-0.7, 0.7]) held(shot.x, shot.y, a + Math.PI + side, 0.25, 0.42, z, THREAT, 2)
         } else {
-          held(shot.x, shot.y, a, -0.15, 0.15, z, "#c6d4df", 2)
-          held(shot.x, shot.y, a, -0.23, -0.15, z, "#edc66c", 2)
+          held(shot.x, shot.y, a, -0.18, 0.18, z, DANGER, 5)
+          held(shot.x, shot.y, a, 0, 0.18, z, THREAT, 3)
+          held(shot.x, shot.y, a, -0.25, -0.15, z, "#f4efda", 3)
         }
       }
     })
@@ -375,10 +381,20 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   for (const c of view.slashes) {
     if (!c.blocked) continue
     const centre = P(c.x, c.y, 0.6)
+    if (c.age < 0.2) {
+      const radius = c.age < 0.1 ? 7 : 4
+      for (const a of [0, Math.PI / 2]) {
+        const from = { x: centre.x - Math.cos(a) * radius, y: centre.y - Math.sin(a) * radius }
+        const to = { x: centre.x + Math.cos(a) * radius, y: centre.y + Math.sin(a) * radius }
+        pixelLine(ctx, from, to, INK, 5); pixelLine(ctx, from, to, c.age < 0.1 ? "#f4efda" : "#ff6845", 3)
+      }
+    }
     for (let i = 0; i < 6; i++) {
       const a = c.angle + Math.PI + (i - 2.5) * 0.45
       const r0 = 4 + c.age * 6, r1 = 9 + c.age * 12
-      pixelLine(ctx, { x: centre.x + Math.cos(a) * r0, y: centre.y + Math.sin(a) * r0 * SQUASH }, { x: centre.x + Math.cos(a) * r1, y: centre.y + Math.sin(a) * r1 * SQUASH }, c.age < 0.5 ? "#edc66c" : "#947058")
+      const from = { x: centre.x + Math.cos(a) * r0, y: centre.y + Math.sin(a) * r0 * SQUASH }, to = { x: centre.x + Math.cos(a) * r1, y: centre.y + Math.sin(a) * r1 * SQUASH }
+      pixelLine(ctx, from, to, INK, 4)
+      pixelLine(ctx, from, to, c.age < 0.5 ? "#edc66c" : "#e98a49", 2)
     }
   }
   for (const c of presentation === null ? view.slashes.filter((s) => !s.blocked) : []) {
@@ -400,8 +416,11 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const k = Math.min((cw / 2 - pad) / Math.abs(dx || 1e-6), ((ch - TOP - BOTTOM) / 2 - pad) / Math.abs(dy || 1e-6))
     const a = Math.atan2(dy, dx), x = midX + dx * k, y = midY + dy * k
     const tip = { x: x + Math.cos(a) * 4, y: y + Math.sin(a) * 4 }
-    const colour = e.kind === "runner" ? "#edc66c" : e.sees ? "#ce4655" : "#947058"
-    for (const side of [-1, 1]) pixelLine(ctx, tip, { x: x - Math.cos(a) * 3 + Math.sin(a) * side * 3, y: y - Math.sin(a) * 3 - Math.cos(a) * side * 3 }, colour, 2)
+    const colour = e.kind === "runner" ? "#edc66c" : e.sees ? DANGER : THREAT
+    for (const side of [-1, 1]) {
+      const end = { x: x - Math.cos(a) * 3 + Math.sin(a) * side * 3, y: y - Math.sin(a) * 3 - Math.cos(a) * side * 3 }
+      pixelLine(ctx, tip, end, INK, 4); pixelLine(ctx, tip, end, colour, 2)
+    }
   }
 
   // The thumb-stick, faint.

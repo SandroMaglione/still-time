@@ -1,7 +1,7 @@
 import type { EnemyView } from "../sim/view.ts"
 import { posedSprite, sprite, type Sprite } from "./art.ts"
 import type { Death, Impact } from "./fx.ts"
-import { decorationHash, pixelArc, pixelLine, type Point } from "./pixels.ts"
+import { decorationHash, pixelArc, pixelLine, pixelPolygon, type Point } from "./pixels.ts"
 
 const INK = "#171c2e", STEEL = "#c6d4df", IVORY = "#f4efda", GOLD = "#edc66c"
 const clamp = (n: number): number => Math.max(0, Math.min(1, n))
@@ -9,10 +9,10 @@ const smooth = (n: number): number => { const t = clamp(n); return t * t * (3 - 
 const rect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, colour: string): void => {
   ctx.fillStyle = colour; ctx.fillRect(Math.round(x), Math.round(y), w, h)
 }
-/** Each kind's body sprite. The batch-2 kinds borrow a stand-in until their own art lands. */
+/** Every role has its own silhouette, including the three batch-2 bodies. */
 const BODIES = {
   player: "player-body", gunner: "gunner-body", archer: "archer-body", thrower: "thrower-body", runner: "runner-body",
-  brute: "brute-body", sniper: "gunner-body", knight: "brute-body", shield: "brute-body"
+  brute: "brute-body", sniper: "sniper-body", knight: "knight-body", shield: "shield-body"
 } as const satisfies Record<Death["kind"], Sprite>
 export const bodyName = (kind: Death["kind"]): Sprite => BODIES[kind]
 
@@ -23,7 +23,7 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   const recoil = fired >= 0 && fired < 0.16 ? Math.sin(Math.PI * clamp(fired / 0.16)) : 0
   const windup = m?.phase === "windup" ? m.progress : 0
   const swinging = m?.phase === "swing"
-  const lean = Math.round((swinging ? Math.sin(m.progress * Math.PI) * 2 : -windup) * side - Math.cos(enemy.aim) * recoil)
+  const lean = m?.phase === "stagger" ? (Math.floor(m.progress * 10) % 2 === 0 ? -2 : 2) : Math.round((swinging ? Math.sin(m.progress * Math.PI) * 2 : -windup) * side - Math.cos(enemy.aim) * recoil)
   const sink = m?.phase === "windup" ? 1 : 0
   const screenAngle = Math.atan2(Math.sin(enemy.aim) * 0.78, Math.cos(enemy.aim))
   let angle = screenAngle
@@ -56,6 +56,12 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
       stroke(point(1), point(barrel), "#465477", 2)
       pixelLine(ctx, point(2, -1), point(barrel, -1), STEEL)
       stroke(point(barrel, -1), point(barrel, 1), "#8996b0")
+      if (enemy.kind === "sniper") {
+        // A raised optic changes the rifle's silhouette at any aim angle.
+        stroke(point(2, -3), point(7, -3), "#8996b0", 2)
+        pixelLine(ctx, point(4, -2), point(4, 0), INK, 2)
+        pixelLine(ctx, point(7, -3), point(7, -3), "#64b6b3", 2)
+      }
       if (fired >= 0 && fired < 0.065) muzzle(ctx, point(barrel + 2), angle, fired / 0.065)
       if (fired >= 0 && fired < 0.22) {
         const casing = point(-1, -3)
@@ -84,25 +90,45 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   }
   sprite(ctx, "shadow", ground.x + 2, ground.y + 3)
   const behind = Math.sin(screenAngle) < -0.3
+  const towerShield = (): void => {
+    if (m?.shield !== true) return
+    const front = screenAngle, guarding = m.guarding
+    const cx = ground.x + Math.cos(front) * 7 + side * 2
+    const cy = ground.y - 8 + Math.sin(front) * 3 + (guarding ? 0 : 5)
+    const half = Math.round((4 + Math.abs(Math.sin(front)) * 8) / 2), tilt = Math.round(Math.cos(front) * 2)
+    const shape = (inset: number): Array<Point> => [
+      { x: cx - half + inset, y: cy - 10 + inset }, { x: cx + half - inset, y: cy - 10 + tilt + inset },
+      { x: cx + half - inset, y: cy + 6 + tilt - inset }, { x: cx, y: cy + 10 - inset }, { x: cx - half + inset, y: cy + 6 - inset }
+    ]
+    pixelPolygon(ctx, shape(0), INK)
+    pixelPolygon(ctx, shape(1), guarding ? STEEL : "#8996b0")
+    pixelPolygon(ctx, shape(2), "#29334b")
+    pixelLine(ctx, { x: cx, y: cy - 6 }, { x: cx, y: cy + 5 }, guarding ? GOLD : "#8996b0", 2)
+    pixelLine(ctx, { x: cx - Math.max(1, half - 3), y: cy - 2 }, { x: cx + Math.max(1, half - 3), y: cy - 2 }, guarding ? GOLD : "#8996b0", 2)
+    pixelLine(ctx, shape(1)[0]!, shape(1)[1]!, IVORY)
+  }
   if (behind) weapon()
+  if (behind) towerShield()
   posedSprite(ctx, bodyName(enemy.kind), ground.x, ground.y, { flip, lean, sink })
   if (!behind) weapon()
-  if (m?.shield === true) {
-    // The shield: a steel plate across its front at chest height, bright while it is up.
-    const front = Math.atan2(Math.sin(enemy.aim) * 0.78, Math.cos(enemy.aim))
-    const at = { x: ground.x + Math.cos(front) * 7, y: ground.y - 7 + Math.sin(front) * 4 }
-    const across = { x: -Math.sin(front) * 5, y: Math.cos(front) * 5 }
-    const a = { x: at.x - across.x, y: at.y - across.y }, b = { x: at.x + across.x, y: at.y + across.y }
-    pixelLine(ctx, a, b, INK, 6); pixelLine(ctx, a, b, m.guarding ? STEEL : "#8996b0", 4)
-    pixelLine(ctx, at, at, GOLD, 2)
+  if (!behind) towerShield()
+  if (m?.phase === "stagger") {
+    for (const sign of [-1, 1]) {
+      const at = { x: ground.x + sign * 12, y: ground.y - 23 + Math.round(Math.sin(m.progress * 10 + sign) * 2) }
+      pixelLine(ctx, { x: at.x - 2, y: at.y }, { x: at.x + 2, y: at.y }, INK, 3)
+      pixelLine(ctx, { x: at.x, y: at.y - 2 }, { x: at.x, y: at.y + 2 }, INK, 3)
+      pixelLine(ctx, { x: at.x - 2, y: at.y }, { x: at.x + 2, y: at.y }, GOLD)
+      pixelLine(ctx, { x: at.x, y: at.y - 2 }, { x: at.x, y: at.y + 2 }, IVORY)
+    }
   }
 }
 
 export const muzzle = (ctx: CanvasRenderingContext2D, at: Point, angle: number, progress: number): void => {
-  const length = progress < 0.35 ? 8 : 4
+  const length = progress < 0.5 ? 11 : 6
   const to = { x: at.x + Math.cos(angle) * length, y: at.y + Math.sin(angle) * length }
-  pixelLine(ctx, at, to, "#e98a49", 5)
-  pixelLine(ctx, at, to, GOLD, 3)
+  pixelLine(ctx, at, to, INK, progress < 0.5 ? 9 : 6)
+  pixelLine(ctx, at, to, "#ff6845", progress < 0.5 ? 7 : 4)
+  pixelLine(ctx, at, to, GOLD, progress < 0.5 ? 5 : 2)
   pixelLine(ctx, at, { x: at.x + Math.cos(angle) * (length - 2), y: at.y + Math.sin(angle) * (length - 2) }, IVORY)
   for (const side of [-1, 1]) pixelLine(ctx, at, { x: at.x + Math.cos(angle + side * 0.8) * 4, y: at.y + Math.sin(angle + side * 0.8) * 4 }, GOLD)
 }
@@ -134,7 +160,7 @@ export const dyingActor = (ctx: CanvasRenderingContext2D, death: Death, ground: 
     pixelArc(ctx, { x: ground.x + direction * 11, y: ground.y + 2 }, 5 + t * 7, 2 + t * 3, 0, Math.PI * 2, "#899692", 1, true)
   }
   if (age > 0.56) {
-    const tint = death.kind === "player" ? "#64b6b3" : death.kind === "runner" ? GOLD : death.kind === "thrower" ? "#9a638e" : "#ce4655"
+    const tint = death.kind === "player" || death.kind === "shield" ? "#64b6b3" : death.kind === "runner" ? GOLD : death.kind === "thrower" || death.kind === "sniper" ? "#9a638e" : "#ce4655"
     for (let i = 0; i < 8; i++) {
       const hash = decorationHash(i, death.id, 1), t = clamp((age - 0.56 - (hash % 8) * 0.012) / 0.45)
       if (t <= 0 || t >= 1) continue
@@ -152,9 +178,14 @@ export const impactBurst = (ctx: CanvasRenderingContext2D, impact: Impact, at: P
     pixelArc(ctx, at, radius, radius * 0.78, impact.angle - 1.1 + t, impact.angle + 0.8 + t, INK, age < 0.12 ? 4 : 2)
     pixelArc(ctx, at, radius, radius * 0.78, impact.angle - 1.0 + t, impact.angle + 0.8 + t, age < 0.12 ? IVORY : STEEL, age < 0.12 ? 2 : 1)
   }
-  if (age < 0.07) {
-    pixelLine(ctx, { x: at.x - 5, y: at.y }, { x: at.x + 5, y: at.y }, IVORY, 2)
-    pixelLine(ctx, { x: at.x, y: at.y - 5 }, { x: at.x, y: at.y + 5 }, GOLD, 2)
+  if (age < 0.09) {
+    const radius = age < 0.045 ? 7 : 4
+    for (const a of [0, Math.PI / 2]) {
+      const start = { x: at.x - Math.cos(a) * radius, y: at.y - Math.sin(a) * radius }
+      const end = { x: at.x + Math.cos(a) * radius, y: at.y + Math.sin(a) * radius }
+      pixelLine(ctx, start, end, INK, 5)
+      pixelLine(ctx, start, end, age < 0.045 ? IVORY : "#ff6845", 3)
+    }
   }
   for (let i = 0; i < (impact.kind === "stone" ? 5 : 9); i++) {
     const seed = decorationHash(i, impact.seed, 3)
@@ -163,7 +194,9 @@ export const impactBurst = (ctx: CanvasRenderingContext2D, impact: Impact, at: P
     const x = at.x + Math.cos(angle) * distance
     const y = at.y + Math.sin(angle) * distance * 0.6 - Math.sin(t * Math.PI) * (3 + seed % 5)
     const colour = age < 0.1 ? IVORY : impact.kind === "player" ? "#64b6b3" : impact.kind === "stone" ? "#899692" : GOLD
-    rect(ctx, x, y, age < 0.18 ? 2 : 1, age < 0.18 ? 2 : 1, age > 0.3 ? "#647373" : colour)
+    const size = age < 0.18 ? 3 : 2
+    rect(ctx, x - 1, y - 1, size + 2, size + 2, INK)
+    rect(ctx, x, y, size, size, age > 0.3 ? "#8996b0" : colour)
   }
 }
 

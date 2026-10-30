@@ -1,65 +1,60 @@
-# Still Time pixel art
+# Still Time art sources
 
-Six static 24×24 character sprites: ivory player, red gunner, orange archer,
-violet thrower, red armored brute, gold thief. Characters share a 16-color
-palette, upper-left lighting, dark outlines and a feet anchor at (12,23).
-The captain uses the brute with a separate 16×16 crown.
+Character bodies and equipped exports are native 24×24 sprites on the shared
+16-color palette in `pixel.config.json`. `source/*.sprite.txt` is canonical.
+The original v2 roles keep their role colors and proportions. Batch 2 adds:
 
-Revision 2 follows the supplied compact RPG references: heads occupy roughly
-half the sprite height, bodies and feet are short, and broad color clusters
-carry the design. The earlier slimmer set and its recipe are kept in `v1/`.
+- Sniper: pointed violet hood and a long rifle with a raised scope.
+- Knight: a wider, square full helm, plate shoulders and gold armour trim.
+- Shield-bearer: teal crest and a tall tower shield that turns with its aim.
 
-The floor, slab, key, crown and exit are 16×16. Stone and gate blocks are
-24×24. Runtime PNGs and a character-atlas manifest live in `public/art/`.
-Editable sprite text, the generated draft, previews and reports live here.
-The atlas is 72×48, three columns by two rows in the order listed above.
+`scripts/batch2-art.mjs` authors the new source files, full equipped PNGs and
+the three-frame `batch2` atlas. Runtime weapon/body layering remains in
+`src/host/combat-art.ts`; each role has its own body. Every living body gets
+a one-source-pixel light rim inside the renderer, outside its dark outline.
 
 ## Rebuild
 
-Run `pnpm art`. This uses the pinned `@typeonce/ritmo-tools@0.19.1` CLI:
+Run `pnpm art` for characters and environment, or `pnpm art:environment` for
+materials and decorations alone. `@typeonce/ritmo-tools@0.19.1` renders each
+source and lints every final PNG. Non-clean results fail the command.
 
-1. Fix the generated draft with an explicit 21⅓-source-pixel cell and the
-   project palette. Automatic detection could not confidently resolve its
-   inconsistent grid. This intermediate deliberately reduces detail.
-2. Separate the six 24×24 cells, restore both player eyes, recover the
-   thrower's knife from the cell margin, simplify the knight's metal colors,
-   remove the neighbouring knife tip, and align feet.
-3. Render sprite text through `pixel render`, then `pixel lint` every PNG.
-4. Write 8× nearest-neighbor previews and JSON reports for inspection.
+- `assets/art/`: sprite-text sources, palette/configuration, manifests and README files.
+- `public/art/`: final native PNGs and atlas metadata.
+- `output/art/`: generated enlarged previews, SVGs, JSON reports, intermediate fixes and old versions.
 
-The final assets must report `clean`; the generated intermediate does not.
-Some one-pixel highlights produce lint warnings; they are retained as facial,
-fabric and metal details. There are no gradients or partial alpha in assets.
+The original generation prompts remain as provenance. Previous image drafts,
+fixer recipes and the v1 folder have been moved to ignored `output/art/`.
+Rebuilding does not recreate previews or reports under `assets/art/`.
 
-For an art change, edit the character touch-ups or tile definitions in
-`scripts/art.mjs`; it rewrites sprite text on rebuild. For one-off manual
-edits, edit a `.sprite.txt` and use `pnpm exec ritmo-tools pixel render`.
-Keep the canonical recipe in the script if the change should survive rebuilds.
+## Rendering and effects
 
-The renderer loads the PNGs before starting the loop, draws at low resolution,
-and enlarges to integer physical pixels with smoothing disabled. Existing
-telegraphs, aim indicators, key colors and attack arcs remain dynamic. The
-pixel grid applies to the world; the HTML HUD remains readable at screen size.
+The game renders to a low-resolution canvas and enlarges it by an integer
+physical-pixel factor with smoothing disabled. Hand grips, recoil, weapon
+turning, attack arcs, impacts and fire are integer raster art. The simulation
+continues to own contacts and attack timing.
 
-The source atlas contains standing poses with horizontal mirroring. Combat
-poses are derived procedurally; the atlas has no four-direction walk cycles.
+`src/host/fx.ts` observes stable entity identities every tick. Cosmetic deaths
+continue after despawn: flash, flinch, fall, a brief floor pose and clustered
+dissolution, ending after 1.05 real seconds. Weapon recoil and flame motion
+use world time. Retry, room changes and rewinds clear presentation records.
 
-The combat renderer now uses separate empty-hand body PNGs with integer
-poses, held weapons, recoil, and procedural death animations. The original
-standing PNGs and atlas remain available. See [FX.md](FX.md) for timing,
-ownership and motion-study recordings.
+Danger paths, chase reach and reload rings are red/orange with ink outlines;
+projectiles have larger bright heads. Shields/guards use steel, openings use
+gold, and the player's reach uses teal. Tracking lasers are dashed and locked
+lasers solid; the distinction does not depend on seeing a blink.
 
-## Generation
+See [environment/README.md](environment/README.md) for floor and room materials.
 
-The draft was generated with the built-in imagegen tool using the three user
-images as style references, then corrected and rendered with ritmo-tools.
-The current prompt is in `source/prompt-v2.txt`; the previous prompt remains
-in `source/prompt.txt`. The active draft is `source/characters-generated-v2.png`.
+## Review captures
 
-## Room and effect pass
+With Vite running, `node scripts/review-shots.ts http://localhost:5350 --before`
+records baseline fixtures. Running without `--before` captures rooms 4, 9,
+11 and 12 at 390×844 @2x, holds ArrowUp for 0.9 seconds, releases it, and
+captures a simulation-driven frozen wind-up. It also writes a matched floor,
+telegraph and enemy comparison to `output/review-1/comparison.png`.
 
-The active room renderer now uses the 22 native tiles and effects documented
-in [environment/README.md](environment/README.md). Run `pnpm art:environment`
-to rebuild them independently; `pnpm art` rebuilds both character and room sets.
-The earlier floor and block assets remain available but are no longer loaded
-by the game.
+`pnpm shots:art <url>` checks phone/desktop/landscape integer pixel scaling;
+`pnpm record:fx <url>` records isolated motion studies and a live death/retry.
+All captures stay in ignored `output/`. No gameplay assertions are changed
+by the art workflow.

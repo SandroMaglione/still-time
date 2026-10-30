@@ -3,15 +3,17 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 
 const root = 'assets/art/environment'
+const output = 'output/art/environment'
 const config = `${root}/pixel.config.json`
 const palette = JSON.parse(readFileSync(config, 'utf8')).palette
 const keys = 'ABCDEFGHIJKLMNOP'
 const assets = []
-for (const dir of ['source', 'previews', 'reports']) mkdirSync(`${root}/${dir}`, { recursive: true })
+mkdirSync(`${root}/source`, { recursive: true })
+for (const dir of ['previews', 'reports']) mkdirSync(`${output}/${dir}`, { recursive: true })
 mkdirSync('public/art', { recursive: true })
 function command(args, report) {
   const result = spawnSync('pnpm', ['exec', 'ritmo-tools', 'pixel', ...args, '--config', config], { encoding: 'utf8' })
-  writeFileSync(`${root}/reports/${report}.json`, result.stdout)
+  writeFileSync(`${output}/reports/${report}.json`, result.stdout)
   if (result.status !== 0) throw new Error(result.stdout + result.stderr)
 }
 function render(name, pixels) {
@@ -20,7 +22,7 @@ function render(name, pixels) {
   writeFileSync(source, text)
   command(['render', source, '-o', `public/art/${name}`, '--scale', '4'], name)
   command(['lint', `public/art/${name}.png`], `${name}-lint`)
-  for (const suffix of ['@4x.png', '.svg', '.preview.png']) renameSync(`public/art/${name}${suffix}`, `${root}/previews/${name}${suffix}`)
+  for (const suffix of ['@4x.png', '.svg', '.preview.png']) renameSync(`public/art/${name}${suffix}`, `${output}/previews/${name}${suffix}`)
 }
 function tile(name, w, h, paint) {
   const pixels = Array.from({ length: h }, () => Array(w).fill(-1))
@@ -82,10 +84,11 @@ for (let frame = 0; frame < 2; frame++) tile(`torch-${frame}`, 16, 24, r => {
   r(5, 6, 7, 7, 11); r(6, frame === 0 ? 2 : 4, 4, 10, 14)
   r(frame === 0 ? 8 : 6, 1, 2, 5, 14); r(7, 7, 3, 5, 15); r(8, 9, 2, 3, 15)
 })
-for (const [name, light, shade] of [['banner-red', 13, 11], ['banner-moss', 9, 10]]) tile(name, 16, 24, r => {
-  r(1, 1, 14, 2, 0); r(2, 1, 12, 1, 7); r(3, 3, 10, 17, 0)
-  r(4, 3, 8, 15, shade); r(4, 3, 6, 14, light); r(5, 18, 6, 2, shade); r(6, 20, 4, 1, 0)
-  r(5, 4, 1, 12, 14); r(10, 4, 1, 12, 14); r(7, 7, 2, 5, 14); r(6, 9, 4, 1, 14)
+for (const [name, light, shade] of [['banner-red', 13, 11], ['banner-moss', 9, 10]]) tile(name, 24, 24, r => {
+  r(2, 0, 20, 3, 0); r(3, 1, 18, 1, 7); r(4, 3, 16, 18, 0)
+  r(5, 3, 14, 17, shade); r(5, 3, 11, 16, light); r(6, 20, 12, 2, shade); r(8, 22, 8, 1, 0)
+  r(6, 4, 1, 15, 14); r(17, 4, 1, 15, 14)
+  r(9, 6, 6, 2, 14); r(10, 8, 4, 2, 14); r(11, 10, 2, 3, 14); r(10, 13, 4, 2, 14); r(9, 15, 6, 2, 14)
 })
 tile('rubble', 16, 16, r => {
   r(1, 12, 14, 3, 1); r(2, 9, 6, 5, 4); r(3, 8, 4, 1, 6); r(2, 9, 2, 2, 6)
@@ -124,6 +127,6 @@ assets.forEach(({ pixels }, i) => {
   pixels.forEach((row, y) => row.forEach((c, x) => { sheet[oy + y][ox + x] = c }))
 })
 render('environment', sheet)
-renameSync('public/art/environment.png', `${root}/previews/environment.png`)
+renameSync('public/art/environment.png', `${output}/previews/environment.png`)
 writeFileSync(`${root}/manifest.json`, JSON.stringify(assets.map(({ name, pixels }) => ({ name, width: pixels[0].length, height: pixels.length })), null, 2) + '\n')
 console.log(`Rendered and linted ${assets.length} room/effect assets with ritmo-tools.`)

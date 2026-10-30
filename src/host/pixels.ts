@@ -1,6 +1,21 @@
 /** Raster primitives for effects. Every mark lands on the same source pixel grid. */
 export interface Point { readonly x: number; readonly y: number }
 
+/** Scan-converted solid polygon, with no subpixel alpha along a moving shield edge. */
+export const pixelPolygon = (ctx: CanvasRenderingContext2D, points: ReadonlyArray<Point>, colour: string): void => {
+  const low = Math.floor(Math.min(...points.map(p => p.y))), high = Math.ceil(Math.max(...points.map(p => p.y)))
+  ctx.fillStyle = colour
+  for (let y = low; y <= high; y++) {
+    const crossings: Array<number> = []
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const a = points[i]!, b = points[j]!
+      if ((a.y > y + 0.5) !== (b.y > y + 0.5)) crossings.push(a.x + (y + 0.5 - a.y) * (b.x - a.x) / (b.y - a.y))
+    }
+    crossings.sort((a, b) => a - b)
+    for (let i = 0; i + 1 < crossings.length; i += 2) ctx.fillRect(Math.ceil(crossings[i]!), y, Math.max(1, Math.ceil(crossings[i + 1]!) - Math.ceil(crossings[i]!)), 1)
+  }
+}
+
 export const pixelLine = (ctx: CanvasRenderingContext2D, a: Point, b: Point, colour: string, width = 1, dash = 0): void => {
   let x = Math.round(a.x), y = Math.round(a.y)
   const bx = Math.round(b.x), by = Math.round(b.y)
