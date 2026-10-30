@@ -15,11 +15,11 @@ export const loadArt = async (): Promise<void> => {
     images.set(name, image)
     if (name.endsWith("-body")) {
       const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height
-      const ctx = canvas.getContext("2d")!
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!
       ctx.drawImage(image, 0, 0)
       pixels.set(name, ctx.getImageData(0, 0, image.width, image.height))
       const rim = document.createElement("canvas"); rim.width = 26; rim.height = 26
-      const rimCtx = rim.getContext("2d")!
+      const rimCtx = rim.getContext("2d", { willReadFrequently: true })!
       for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]]) rimCtx.drawImage(image, x!, y!)
       rimCtx.globalCompositeOperation = "source-in"; rimCtx.fillStyle = "#c6d4df"; rimCtx.fillRect(0, 0, 26, 26)
       rimCtx.globalCompositeOperation = "destination-out"; rimCtx.drawImage(image, 1, 1)

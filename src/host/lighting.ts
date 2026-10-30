@@ -65,8 +65,9 @@ const LEVELS = 5
 
 /** Scene pixels per light-map cell: light is computed in 2×2 cells, which also keeps the bands chunky. */
 const CELL = 2
+// Every buffer here is CPU-backed (`willReadFrequently`), like the scene: mixing GPU and CPU canvases costs a copy per draw.
 
-interface Buffers { light: HTMLCanvasElement; layer: HTMLCanvasElement; final: HTMLCanvasElement; mask: HTMLCanvasElement }
+interface Buffers { light: HTMLCanvasElement; layer: HTMLCanvasElement; final: HTMLCanvasElement }
 const buffers = new WeakMap<CanvasRenderingContext2D, Buffers>()
 
 const canvasOf = (w: number, h: number, old?: HTMLCanvasElement): HTMLCanvasElement => {
@@ -115,11 +116,11 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
   const old = buffers.get(ctx)
   const b: Buffers = {
     light: canvasOf(lw, lh, old?.light), layer: canvasOf(lw, lh, old?.layer),
-    final: canvasOf(w, h, old?.final), mask: canvasOf(w, h, old?.mask)
+    final: canvasOf(w, h, old?.final)
   }
   buffers.set(ctx, b)
   const lc = b.light.getContext("2d", { willReadFrequently: true })!
-  const yc = b.layer.getContext("2d")!
+  const yc = b.layer.getContext("2d", { willReadFrequently: true })!
   // Sources first, on black: only their light is banded, so unlit floor stays flat instead of dithering everywhere.
   lc.setTransform(1, 0, 0, 1, 0, 0)
   lc.globalCompositeOperation = "source-over"
@@ -204,21 +205,15 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
   lc.fillStyle = rgba(frame.ambient); lc.fillRect(0, 0, lw, lh)
 
   // The cell map, enlarged to scene pixels without smoothing.
-  const fc = b.final.getContext("2d")!
+  const fc = b.final.getContext("2d", { willReadFrequently: true })!
   fc.setTransform(1, 0, 0, 1, 0, 0)
   fc.globalCompositeOperation = "source-over"
   fc.imageSmoothingEnabled = false
   fc.drawImage(b.light, 0, 0, lw * CELL, lh * CELL)
-  // Emissive pixels keep full light: their mask, filled white, over the light map at full resolution.
+  // Emissive pixels keep full light: cut out of the map, they leave the scene untouched under multiply.
   if (emissive !== null) {
-    const mc = b.mask.getContext("2d")!
-    mc.setTransform(1, 0, 0, 1, 0, 0)
-    mc.globalCompositeOperation = "source-over"
-    mc.clearRect(0, 0, w, h)
-    mc.drawImage(emissive, 0, 0)
-    mc.globalCompositeOperation = "source-in"
-    mc.fillStyle = "#fff"; mc.fillRect(0, 0, w, h)
-    fc.drawImage(b.mask, 0, 0)
+    fc.globalCompositeOperation = "destination-out"
+    fc.drawImage(emissive, 0, 0)
   }
 
   ctx.save()

@@ -16,7 +16,8 @@
     "check": "pnpm typecheck && pnpm lint && pnpm lint:sim && pnpm test",
     "shots": "node scripts/shots.ts",
     "shots:art": "node scripts/art-shots.ts",
-    "record:fx": "node scripts/fx-record.ts"
+    "record:fx": "node scripts/fx-record.ts",
+    "perf": "node scripts/perf.ts"
   },
   "dependencies": {
     "@effect/platform-browser": "4.0.4",

@@ -17,7 +17,9 @@ import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
-const ctx = canvas?.getContext("2d")
+// A CPU-backed canvas: the scene is tiny (about 240 px across) and made of thousands of small draws, which a
+// GPU-backed canvas pays for per call; software raster draws them in a fraction of the time.
+const ctx = canvas?.getContext("2d", { willReadFrequently: true })
 const el = (id: string): HTMLElement => {
   const found = document.getElementById(id)
   if (found === null) throw new Error(`Slap: #${id} missing`)
@@ -166,18 +168,18 @@ window.addEventListener("keyup", (e) => {
   if (held.delete(key)) keyPush()
 })
 
-const scene = document.createElement("canvas")
-const sceneCtx = scene.getContext("2d")!
-let pixelScale = 1
+// The canvas holds the scene at its native pixel size (about 240 px across) and CSS enlarges it by a whole
+// number of device pixels, pixelated: the browser's compositor does the upscale instead of a full-screen copy each frame.
+let cssPerPixel = 1
 const resize = (): void => {
   const dpr = Math.min(window.devicePixelRatio || 1, 3)
-  canvas.width = Math.round(window.innerWidth * dpr)
-  canvas.height = Math.round(window.innerHeight * dpr)
-  pixelScale = Math.max(1, Math.floor(canvas.width / 240))
-  scene.width = Math.ceil(canvas.width / pixelScale)
-  scene.height = Math.ceil(canvas.height / pixelScale)
+  const pixelScale = Math.max(1, Math.floor((window.innerWidth * dpr) / 240))
+  canvas.width = Math.ceil((window.innerWidth * dpr) / pixelScale)
+  canvas.height = Math.ceil((window.innerHeight * dpr) / pixelScale)
+  cssPerPixel = pixelScale / dpr
+  canvas.style.width = `${canvas.width * cssPerPixel}px`
+  canvas.style.height = `${canvas.height * cssPerPixel}px`
   ctx.imageSmoothingEnabled = false
-  sceneCtx.imageSmoothingEnabled = false
 }
 window.addEventListener("resize", resize)
 resize()
@@ -222,11 +224,9 @@ FixedLoop.start({
     const goal = view.room.goal.kind === "exit" ? "reach the exit" : "down every enemy"
     tipEl.textContent = view.room.tip === null ? goal : `${goal} · ${view.room.tip}`
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
-    const sx = canvas.width / window.innerWidth / pixelScale
-    const sy = canvas.height / window.innerHeight / pixelScale
-    const pixelStick = stick === null ? null : { ox: stick.ox * sx, oy: stick.oy * sy, x: stick.x * sx, y: stick.y * sy, reach: stick.reach * sx }
-    draw(sceneCtx, scene.width, scene.height, view, pixelStick, camera, presentation, lit)
-    ctx.drawImage(scene, 0, 0, scene.width * pixelScale, scene.height * pixelScale)
+    const k = 1 / cssPerPixel
+    const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
+    draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

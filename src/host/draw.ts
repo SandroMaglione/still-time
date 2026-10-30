@@ -122,7 +122,7 @@ const glowLayer = (ctx: CanvasRenderingContext2D): CanvasRenderingContext2D => {
   if (c === undefined) { c = document.createElement("canvas"); glowLayers.set(ctx, c) }
   if (c.width !== ctx.canvas.width) c.width = ctx.canvas.width
   if (c.height !== ctx.canvas.height) c.height = ctx.canvas.height
-  const g = c.getContext("2d")!
+  const g = c.getContext("2d", { willReadFrequently: true })!
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, c.width, c.height)
   g.imageSmoothingEnabled = false
   return g
