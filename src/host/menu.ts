@@ -101,7 +101,8 @@ export class Menu {
     const from = this.screen
     this.screen = screen
     this.root.hidden = false
-    const page = el("div", screen === "rooms" ? "menu-page list" : "menu-page")
+    this.root.classList.toggle("title", screen === "title")
+    const page = el("div", screen === "rooms" ? "menu-page list" : screen === "title" ? "menu-page title" : "menu-page")
     page.append(screen === "title" ? this.title(view) : screen === "pause" ? this.pause(view) : this.rooms(view, from ?? "game"))
     this.root.replaceChildren(page)
     this.root.scrollTop = 0
@@ -125,7 +126,10 @@ export class Menu {
     const best: Best = view.best
     const next = continueTarget(view)
     const fresh = best.every((b) => b === null) && next === 0
-    const box = el("div", "title-screen")
+    // Logo and tagline at the top, the buttons at the foot: between them, the attract loop plays on the canvas.
+    const box = el("div", "title-screen attract")
+    const head = el("div", "title-head"), foot = el("div", "title-foot")
+    box.append(head, foot)
 
     const logo = el("h1", "logo")
     logo.setAttribute("aria-label", "Still Time")
@@ -147,7 +151,7 @@ export class Menu {
     logo.append(clock, still, el("span", "logo-word logo-time", "Time"))
     const tagline = el("p", "tagline")
     tagline.append("time moves only", el("br", ""), "when ", el("b", "", "you"), " move")
-    box.append(logo, tagline)
+    head.append(logo, tagline)
 
     const play = fresh
       ? button("gold big", "Play")
@@ -155,12 +159,12 @@ export class Menu {
     play.addEventListener("click", () => this.actions.play(next))
     const rooms = button("", "Rooms")
     rooms.addEventListener("click", () => this.show("rooms", view))
-    box.append(play, rooms, this.toggles())
-    if (!fresh) box.append(total(best))
+    foot.append(play, rooms, this.toggles())
+    if (!fresh) foot.append(total(best))
     return box
   }
 
-  /** The in-game ☰: the room you are in, then back to it, over again, another room, or the title. */
+  /** The in-game ☰: the room you are in, then back to it, over again, another room, or home (the title). */
   private pause(view: FightView): HTMLElement {
     const box = el("div", "pause-screen")
     const head = el("div", "pause-head")
@@ -171,9 +175,10 @@ export class Menu {
     restart.addEventListener("click", () => this.actions.restart())
     const rooms = button("", "Rooms")
     rooms.addEventListener("click", () => this.show("rooms", view))
-    const title = button("back", fromHtml(pixelSvg(ICONS.back, { outline: true })), "Title")
-    title.addEventListener("click", () => this.show("title", view))
-    box.append(head, resume, restart, rooms, title, this.toggles())
+    // "Home": a word, not an arrow; the arrow alone is the room list's way back.
+    const home = button("", "Home")
+    home.addEventListener("click", () => this.show("title", view))
+    box.append(head, resume, restart, rooms, home, this.toggles())
     return box
   }
 
@@ -203,11 +208,13 @@ export class Menu {
     return row
   }
 
-  /** The room select: Title on the left, and a close back to the game when it was opened from there. */
+  /** The room select: an arrow home on the left, and a close back to the game when it was opened from there. */
   private rooms(view: FightView, from: Screen | "game"): HTMLElement {
     const box = el("div", "rooms-screen")
     const head = el("div", "rooms-head panel")
-    const title = button("back", fromHtml(pixelSvg(ICONS.back, { outline: true })), "Title")
+    // Just the arrow: the way home, without a word to weigh down the header.
+    const title = button("back icon-only", fromHtml(pixelSvg(ICONS.back, { outline: true })))
+    title.setAttribute("aria-label", "Home")
     title.addEventListener("click", () => this.show("title", view))
     const heading = el("div", "rooms-title")
     heading.append(el("h2", "", "Rooms"), total(view.best))

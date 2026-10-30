@@ -17,6 +17,7 @@
 import type { FightView } from "../sim/view.ts"
 import { SONGS, SOUNDS, type SongName, type SoundName } from "./audio-bank.ts"
 import { cuesBetween, isCut, type Cue } from "./audio-cues.ts"
+import { RUN_MIN } from "./fx.ts"
 
 // ---------------------------------------------------------------- settings
 
@@ -147,6 +148,8 @@ class GameAudio {
   private motion = 0
   private stride = 0
   private dashReady = true
+  private stopReady = false
+  private runFor = 0
   /** When a button was last clicked (ms): a menu closed by a click already ticked. */
   private clickedAt = -Infinity
 
@@ -303,13 +306,19 @@ class GameAudio {
     this.song = { name: want, source, gain }
   }
 
-  /** Your steps, in real time: one per stride, louder the faster; and a whoosh as you burst from still. */
+  /** Your steps, in real time: one per stride, louder the faster; a whoosh as you burst from still, and a breath as you stop dead. */
   private footsteps(dt: number, view: FightView): void {
     const p = view.player
-    if (p === null || view.flow !== "playing") { this.stride = STRIDE * 0.7; return }
+    if (p === null || view.flow !== "playing") { this.stride = STRIDE * 0.7; this.stopReady = false; return }
     const speed = Math.hypot(p.vx, p.vy)
     const push = clamp01(speed / 5)
-    if (push < 0.08) { this.stride = STRIDE * 0.7; this.dashReady = true; return }
+    if (push < 0.08) {
+      // Stopping after a real run freezes the world: its own sound, once per stop.
+      if (this.stopReady) { this.stopReady = false; this.play({ name: "time.stop", bus: "real", at: null, delay: 0 }, 0.9) }
+      this.stride = STRIDE * 0.7; this.dashReady = true; return
+    }
+    this.runFor = push > 0.6 ? this.runFor + dt : 0
+    if (this.runFor >= RUN_MIN) this.stopReady = true
     if (this.dashReady && push > 0.7) {
       this.dashReady = false
       this.play({ name: "player.dash", bus: "real", at: null, delay: 0 }, 0.8)

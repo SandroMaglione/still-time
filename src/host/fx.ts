@@ -21,10 +21,23 @@ export interface Impact {
 export interface Fire { readonly born: number; readonly aim: number }
 /** An afterimage of the player: where it stood, which way it faced, and how fast the world ran then (0 to 1). */
 export interface Ghost { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number; readonly strength: number }
+/** An afterimage of an enemy on the move: time is running, and so is it. */
+export interface EnemyGhost extends Ghost { readonly kind: EnemyKind }
 
 /** How long an afterimage lasts, and how often one is left, in real seconds. */
 export const GHOST_LIFE = 0.32
 const GHOST_EVERY = 0.09
+
+/** Where and when (real s) you stopped dead and the world froze. */
+export interface Stop { readonly x: number; readonly y: number; readonly born: number }
+export const STOP_LIFE = 0.5
+/** Real s of running before stopping counts as a freeze (its ring and sound). */
+export const RUN_MIN = 0.4
+/** The vanish on a clear, in real seconds: you gather until the pop, then you are gone; the effect ends at its life. */
+export const VANISH_POP = 0.35, VANISH_LIFE = 1.0
+/** When (real s after the clear) the clear panel shows, and when its i-th star pops in: the HUD and the chimes both keep this. */
+export const CLEAR_PANEL_AT = VANISH_LIFE - 0.2
+export const starPopAt = (i: number): number => CLEAR_PANEL_AT + 0.12 + i * 0.16
 
 /** World speed as 0 (frozen) to 1 (full speed). */
 export const speedOf = (view: FightView): number => Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))
@@ -36,7 +49,15 @@ export class Presentation {
   deaths: Array<Death> = []
   impacts: Array<Impact> = []
   ghosts: Array<Ghost> = []
+  /** Afterimages of enemies walking, chasing or swinging while time runs: what moves, shows that it moves. */
+  enemyGhosts: Array<EnemyGhost> = []
+  stops: Array<Stop> = []
+  /** Where you were when the room was cleared: you vanish from there, ninja-style. */
+  vanish: { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number } | null = null
   private lastGhost = -1
+  /** Armed by a real run, fired by stopping: one freeze moment per stop. */
+  private running = false
+  private runFrom = -1
   private fire = new Map<number, Fire>()
   private previous: FightView | null = null
   private deadAt: number | null = null
@@ -47,6 +68,8 @@ export class Presentation {
     this.deaths = this.deaths.filter(d => this.now - d.born < 1.05)
     this.impacts = this.impacts.filter(i => this.now - i.born < 0.42)
     this.ghosts = this.ghosts.filter(g => this.now - g.born < GHOST_LIFE)
+    this.enemyGhosts = this.enemyGhosts.filter(g => this.now - g.born < GHOST_LIFE)
+    this.stops = this.stops.filter(s => this.now - s.born < STOP_LIFE)
   }
 
   get playerDeathAge(): number { return this.deadAt === null ? -1 : this.now - this.deadAt }
@@ -59,8 +82,10 @@ export class Presentation {
   observe(view: FightView): void {
     const old = this.previous
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
-      this.deaths = []; this.impacts = []; this.ghosts = []; this.fire.clear()
-      this.deadAt = null; this.clearedAt = null
+      this.deaths = []; this.impacts = []; this.ghosts = []; this.enemyGhosts = []; this.stops = []; this.fire.clear()
+      this.running = false; this.runFrom = -1
+      // A new attempt (a room entered, a retry, a restart) teaches the move again.
+      this.deadAt = null; this.clearedAt = null; this.vanish = null
       this.previous = view
       return
     }
@@ -70,8 +95,28 @@ export class Presentation {
     const p = view.player, k = speedOf(view)
     if (p !== null && view.flow === "playing" && k > 0.12 && this.now - this.lastGhost >= GHOST_EVERY) {
       this.ghosts.push({ x: p.x, y: p.y, flip: p.vx < 0, born: this.now, strength: k })
+      // Enemies that moved since the last tick leave afterimages too: the world is running, and here is what runs.
+      const before = new Map(old.enemies.map(e => [e.id, e]))
+      for (const e of view.enemies) {
+        const was = before.get(e.id)
+        if (was === undefined || Math.hypot(e.x - was.x, e.y - was.y) < 0.02) continue
+        this.enemyGhosts.push({ kind: e.kind, x: e.x, y: e.y, flip: Math.cos(e.aim) < 0, born: this.now, strength: k })
+      }
+      this.enemyGhosts = this.enemyGhosts.slice(-24)
       this.lastGhost = this.now
       this.ghosts = this.ghosts.slice(-12)
+    }
+    // Stopping dead after a run is the freeze: a moment of its own, and in the first rooms, named.
+    if (p !== null && view.flow === "playing") {
+      // A run counts once it has lasted RUN_MIN real s, so a flick does not fire the freeze moment.
+      if (k > 0.5) {
+        if (this.runFrom < 0) this.runFrom = this.now
+        if (this.now - this.runFrom >= RUN_MIN) this.running = true
+      } else if (k < 0.12) this.runFrom = -1
+      if (this.running && k < 0.12) {
+        this.running = false; this.runFrom = -1
+        this.stops = [...this.stops, { x: p.x, y: p.y, born: this.now }].slice(-3)
+      }
     }
     const live = new Set(view.enemies.map(e => e.id))
     for (const enemy of old.enemies) {
@@ -113,7 +158,12 @@ export class Presentation {
       this.deaths.push({ id: p.id, kind: "player", x: p.x, y: p.y, aim: p.vx < 0 ? Math.PI : 0, angle, born: this.now })
       this.impacts.push({ x: p.x, y: p.y, angle, born: this.now, seed: view.step, kind: "player" })
     }
-    if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won")) this.clearedAt = this.now
+    // A clear: you vanish, ninja-style (not in a cutscene, whose last words are said with you still standing there).
+    if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won") && !view.room.scene) {
+      this.clearedAt = this.now
+      const p = view.player ?? old.player
+      if (p !== null) this.vanish = { x: p.x, y: p.y, flip: p.vx < 0, born: this.now }
+    }
     this.previous = view
     // Bounded cosmetics, including projectile-heavy fan attacks.
     this.deaths = this.deaths.slice(-24); this.impacts = this.impacts.slice(-48)

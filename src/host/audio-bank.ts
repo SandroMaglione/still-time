@@ -8,6 +8,7 @@ export const SOUNDS = {
   "player.death": { heavy: true, interval: 0.4 },
   "player.step": { heavy: false, interval: 0.08 },
   "player.dash": { heavy: false, interval: 0.35 },
+  "time.stop": { heavy: false, interval: 0.4 },
   "shot.bullet": { heavy: false, interval: 0.04 },
   "shot.arrow": { heavy: false, interval: 0.04 },
   "shot.knife": { heavy: false, interval: 0.06 },

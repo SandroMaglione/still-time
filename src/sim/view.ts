@@ -3,12 +3,14 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { canSee, clearLine } from "./geometry.ts"
 import { hazardAt, type HazardShape } from "./hazards.ts"
-import { ROOMS, type Belt, type Goal, type Lock, type Pillar } from "./rooms.ts"
-import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear } from "./schema.ts"
+import { ROOMS, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
+import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear, type HitBy } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
 import { BELT, BOMB, COVER, LOCKS, MELEE, RUNNER, STALKER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover"
+/** What can take you (the page names the rule by it). */
+export type { HitBy }
 
 /** A melee enemy's blade: its phase, how far through it (0 to 1), its guard, and the shapes to draw. */
 export interface MeleeView {
@@ -49,6 +51,8 @@ export interface EnemyView {
   readonly sealed: boolean
   /** Wears a crown: downing it opens its chamber's captain door. */
   readonly captain: boolean
+  /** Never attacks: a target, drawn without threat marks. */
+  readonly quiet: boolean
   /** Runners: the key it carries. */
   readonly key: number | null
   readonly melee: MeleeView | null
@@ -119,6 +123,8 @@ export interface FightView {
     readonly goal: Goal
     readonly par: number
     readonly tip: string | null
+    /** A cutscene: the page plays it, hands off and HUD hidden. */
+    readonly scene: boolean
   }
   /** The cover still standing this attempt (broken walls and crates gone), in room order. */
   readonly cover: ReadonlyArray<CoverView>
@@ -127,7 +133,7 @@ export interface FightView {
   readonly bombs: ReadonlyArray<BombView>
   readonly plates: ReadonlyArray<PlateView>
   /** Hazards where they are now: a blade's bar, or a laser gate's beam with its state. */
-  readonly hazards: ReadonlyArray<{ readonly kind: "blade" | "gate" } & HazardShape>
+  readonly hazards: ReadonlyArray<{ readonly kind: Hazard["kind"] } & HazardShape>
   /** Conveyor belts: their strip, their direction, and how far their tread has run (metres, real time) for drawing. */
   readonly belts: ReadonlyArray<Belt & { readonly run: number }>
   /** Blasts just gone off, with `age` from 0 to 1 (gone), and their reach. */
@@ -143,6 +149,8 @@ export interface FightView {
   readonly roomNames: ReadonlyArray<string>
   readonly open: boolean
   readonly flow: "playing" | "dead" | "cleared" | "won"
+  /** Down: what took you, so the page can say what the rule was. */
+  readonly death: { readonly by: HitBy } | null
   readonly canRetry: boolean
   readonly scale: number
   /** World speed while you are still, for drawing how frozen time is. */
@@ -206,7 +214,7 @@ export const FightViewInspector = Game.Inspector(
     const shut = room.doors.filter((_, i) => open[i] !== true)
     const sealed = (at: { x: number; y: number }): boolean => player !== null && shut.length > 0 && !clearLine(at.x, at.y, player.x, player.y, shut)
     const shooters = queries.shooters.each().flatMap(({ entity, data }): Array<EnemyView> => {
-      const { kind, captain } = data.enemy.get()
+      const { kind, captain, quiet } = data.enemy.get()
       if (!isShooter(kind)) return []
       const at = data.body.get()
       const spec = SHOOTERS[kind]
@@ -218,13 +226,13 @@ export const FightViewInspector = Game.Inspector(
         : { aim, locked, length: locked ? rayLength(at.x, at.y, aim, spec.sight, walls) : Ops.hypot(player.x - at.x, player.y - at.y) }
       return [{
         id: entity.id, kind, x: at.x, y: at.y, radius: spec.radius,
-        charge: Math.max(0, Math.min(1, 1 - reload.left / spec.period)),
+        charge: quiet ? 0 : Math.max(0, Math.min(1, 1 - reload.left / spec.period)),
         aim,
         sees: seesYou,
         sealed: sealed(at),
-        captain, key: null,
+        captain, quiet, key: null,
         melee: null,
-        laser
+        laser: quiet ? null : laser
       }]
     })
     // A stalker's charge is how still you are: how fast it creeps now.
@@ -235,7 +243,7 @@ export const FightViewInspector = Game.Inspector(
         id: entity.id, kind: "stalker", x: at.x, y: at.y, radius: STALKER.radius, charge: still,
         aim: player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x),
         sees: true, sealed: sealed(at),
-        captain: data.enemy.get().captain, key: null, melee: null, laser: null
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, key: null, melee: null, laser: null
       }
     })
     const runners = queries.runners.each().map(({ entity, data }): EnemyView => {
@@ -245,7 +253,7 @@ export const FightViewInspector = Game.Inspector(
         aim: player === null ? Math.PI / 2 : Ops.atan2(at.y - player.y, at.x - player.x),
         sees: sees(at),
         sealed: sealed(at),
-        captain: data.enemy.get().captain, key: data.carry.get().key,
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, key: data.carry.get().key,
         melee: null,
         laser: null
       }
@@ -267,7 +275,7 @@ export const FightViewInspector = Game.Inspector(
         aim: facing,
         sees: sees(at),
         sealed: sealed(at),
-        captain: data.enemy.get().captain, key: null,
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, key: null,
         melee: {
           phase: blade._tag, progress, locked: blade._tag === "windup" && blade.left <= spec.lock, lockShare: spec.lock / spec.windup,
           reach: spec.reach, arc: spec.arc, guardArc: spec.guardArc, guarding, shield: spec.guard === "always"
@@ -279,7 +287,7 @@ export const FightViewInspector = Game.Inspector(
     const standing = [...queries.shooters.each(), ...queries.melee.each(), ...queries.runners.each(), ...queries.stalkers.each()].map((m) => m.data.enemy.get())
     const doors = room.doors.map((d, i): DoorView => {
       const lock = d.lock
-      const waiting = lock.kind === "key" ? 0
+      const waiting = lock.kind === "key" || lock.kind === "time" ? 0
         : lock.kind === "plates" ? lock.plates.filter((p) => plates.down[p] !== true).length
         : standing.filter((e) => e.chamber === lock.chamber && (lock.kind === "clear" || e.captain)).length
       return { x: d.x, y: d.y, w: d.w, h: d.h, lock, open: open[i] === true, waiting }
@@ -315,7 +323,7 @@ export const FightViewInspector = Game.Inspector(
       hazards,
       belts: (room.belts ?? []).map((b) => ({ ...b, run: (time.step / 60) * BELT.speed })),
       blasts: resources.blasts.get().map((b) => ({ x: b.x, y: b.y, radius: BOMB.radius, age: Math.min(1, (time.step - b.born) / BOMB.showSteps) })),
-      room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null },
+      room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null, scene: room.scene ?? false },
       doors,
       keys,
       deaths: run.deaths,
@@ -326,6 +334,7 @@ export const FightViewInspector = Game.Inspector(
       roomNames: ROOMS.map((r) => r.name),
       open: run.open,
       flow: flow._tag === "Playing" ? "playing" : flow._tag === "Dead" ? "dead" : flow._tag === "Cleared" ? "cleared" : "won",
+      death: flow._tag === "Dead" ? { by: flow.by } : null,
       canRetry: flow._tag !== "Dead" || Clock.reached(time, flow.retryAt),
       scale: resources.pace.get().scale,
       slow: TUNING.slow,

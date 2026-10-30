@@ -37,7 +37,7 @@ export const Player = Descriptor.ConstructedComponent(codec(S.Struct({ vx: S.Num
 })
 
 /** What an enemy is, which chamber of the room it guards, and whether it wears a crown: fixed for its life. */
-export const Enemy = Descriptor.ConstructedComponent(codec(S.Struct({ kind: S.Literals(ENEMY_KINDS), chamber: count, captain: S.Boolean })))("Slap/Enemy", { immutable: true })
+export const Enemy = Descriptor.ConstructedComponent(codec(S.Struct({ kind: S.Literals(ENEMY_KINDS), chamber: count, captain: S.Boolean, quiet: S.Boolean })))("Slap/Enemy", { immutable: true })
 
 /** A stalker: it moves only while you are still. */
 export const Stalk = Descriptor.ConstructedComponent(codec(S.Struct({})))("Slap/Stalk", { immutable: true })
@@ -181,8 +181,11 @@ export type Intent =
 export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
 /** A room to (re)build this step; `fresh` when you come into it anew (not a retry), which resets its hit count. */
 export const EnterRoom = Descriptor.Event<{ readonly room: number; readonly fresh: boolean }>()("Slap/EnterRoom")
-/** Something touched you: a shot, a swing, a blast, a hazard, or a stalker. */
-export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" | "blast" | "hazard" | "touch" }>()("Slap/PlayerHit")
+/** What can touch you: a shot, a swing, a blast, a hazard, or a stalker. */
+export const HIT_BY = ["shot", "swing", "blast", "hazard", "touch"] as const
+export type HitBy = (typeof HIT_BY)[number]
+/** Something touched you. */
+export const PlayerHit = Descriptor.Event<{ readonly by: HitBy }>()("Slap/PlayerHit")
 
 export const Game = Schema.bind(
   Schema.fragment({
@@ -193,10 +196,13 @@ export const Game = Schema.bind(
   Root
 )
 
-/** Fighting, hit (a tap retries once `retryAt` is reached), room cleared, or all rooms done; a clear carries its result. */
+/**
+ * Fighting, hit (by what, so the page can say what the rule was; a tap retries once `retryAt` is reached), room
+ * cleared, or all rooms done; a clear carries its result.
+ */
 export const Flow = Game.StateMachine("Slap/Flow", {
   Playing: {},
-  Dead: codec(S.Struct({ retryAt: deadline })),
+  Dead: codec(S.Struct({ retryAt: deadline, by: S.Literals(HIT_BY) })),
   Cleared: codec(RoomResult),
   Won: codec(RoomResult)
 })

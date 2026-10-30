@@ -20,25 +20,27 @@ const crates = (fight: Fight) => fight.view().cover.filter((c) => c.kind === "cr
 const cracked = (fight: Fight) => fight.view().cover.filter((c) => c.kind === "cracked")
 
 test("a crate splinters after its hits; a cracked wall shrugs shots off", () => {
-  const { fight } = fightIn("Splinters")
+  const { fight, thumb } = fightIn("Splinters")
+  // Shots fly in world time, which runs only while you move: step side to side while they fly.
+  const wait = jiggle(thumb, 0.3)
   const before = crates(fight).length
   const target = crates(fight)[0]
   assert.ok(target !== undefined)
   const cx = target.x + target.w / 2, cy = target.y + target.h / 2
   for (let n = 1; n <= COVER.crateHits; n++) {
     spawnShot(fight, { kind: "bullet", x: cx + 1.2, y: cy, vx: -9, vy: 0 })
-    runUntil(fight, 3000, () => fight.view().shots.every((s) => s.x > cx + 1))
-    runUntil(fight, 3000, () => !fight.view().shots.some((s) => Math.abs(s.y - cy) < 0.01))
+    runUntil(fight, 3000, () => fight.view().shots.every((s) => s.x > cx + 1), wait)
+    runUntil(fight, 3000, () => !fight.view().shots.some((s) => Math.abs(s.y - cy) < 0.01), wait)
     if (n < COVER.crateHits) assert.equal(crates(fight).find((c) => c.x === target.x && c.y === target.y)?.hits, COVER.crateHits - n)
   }
   assert.equal(crates(fight).length, before - 1, "the third hit breaks it")
 
-  const breach = fightIn("Breach").fight
-  const wall = cracked(breach)[0]
+  const breach = fightIn("Breach")
+  const wall = cracked(breach.fight)[0]
   assert.ok(wall !== undefined)
-  spawnShot(breach, { kind: "bullet", x: wall.x + wall.w / 2, y: wall.y + wall.h + 1, vx: 0, vy: -9 })
-  runUntil(breach, 3000, () => breach.view().shots.length === 0)
-  assert.equal(cracked(breach).length, 1)
+  spawnShot(breach.fight, { kind: "bullet", x: wall.x + wall.w / 2, y: wall.y + wall.h + 1, vx: 0, vy: -9 })
+  runUntil(breach.fight, 3000, () => breach.fight.view().shots.length === 0, jiggle(breach.thumb, 0.3))
+  assert.equal(cracked(breach.fight).length, 1)
 })
 
 test("a brute's swing breaks the cracked wall you lure it into", () => {
@@ -81,8 +83,9 @@ test("a blast takes anyone in its reach, you or an enemy, and a fuse burns in wo
   const { fight, thumb } = fightIn("Duel")
   const brute = fight.view().enemies[0]
   assert.ok(brute !== undefined)
-  spawnBomb(fight, { x: brute.x + 0.9, y: brute.y, left: 0.3 })
-  // Standing still, a real second burns a few hundredths of the fuse.
+  // (In its path toward you: it walks into the ring while the fuse burns.)
+  spawnBomb(fight, { x: brute.x, y: brute.y + 0.9, left: 0.3 })
+  // Standing still, a real second burns none of the fuse.
   runUntil(fight, 60, () => false)
   assert.equal(fight.view().bombs.length, 1)
   runUntil(fight, 600, () => fight.view().bombs.length === 0, jiggle(thumb))

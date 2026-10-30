@@ -4,8 +4,11 @@
  * slow down with the world; "real" seconds do not.
  */
 export const TUNING = {
-  /** World speed while you are still; moving brings it up with your push, to 1 at full push. */
-  slow: 0.04,
+  /**
+   * World speed while you are still: 0, a true freeze (at 0.04, a bullet 4 m away still took a motionless player in
+   * ten seconds, and taught that "still" is not safe). Walking brings it up to 1 at top speed.
+   */
+  slow: 0,
   /** Enemies see you up to this far, and only with nothing in the way. */
   sight: 13,
   /** World seconds an enemy needs to fire once it sees you again, if its reload is already done. */

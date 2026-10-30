@@ -23,7 +23,7 @@ try {
     canvas.style.cssText = "position:fixed;inset:0;width:960px;height:512px;z-index:100;image-rendering:pixelated"
     document.body.appendChild(canvas)
     const ctx = canvas.getContext("2d")!; ctx.imageSmoothingEnabled = false
-    const enemy = (kind: EnemyView["kind"], aim = 0): EnemyView => ({ id: 10, kind, x: 0, y: 0, radius: 0.4, charge: 0.9, aim, sees: true, sealed: false, captain: false, key: null, laser: null, melee: kind === "brute" ? { phase: "idle", progress: 0, locked: true, lockShare: 0.7, reach: 2, arc: 1, guardArc: 1.2, guarding: false, shield: false } : null })
+    const enemy = (kind: EnemyView["kind"], aim = 0): EnemyView => ({ id: 10, kind, x: 0, y: 0, radius: 0.4, charge: 0.9, aim, sees: true, sealed: false, captain: false, quiet: false, key: null, laser: null, melee: kind === "brute" ? { phase: "idle", progress: 0, locked: true, lockShare: 0.7, reach: 2, arc: 1, guardArc: 1.2, guarding: false, shield: false } : null })
     const panel = (index: number, title: string, subtitle: string, draw: () => void): void => {
       const x = index % 3 * 160, y = Math.floor(index / 3) * 128
       ctx.save(); ctx.beginPath(); ctx.rect(x, y, 160, 128); ctx.clip(); ctx.translate(x, y)

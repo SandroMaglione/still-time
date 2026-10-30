@@ -9,17 +9,32 @@ import { test } from "node:test"
 import { TUNING } from "../src/sim/tuning.ts"
 import { fightIn, placePlayer, pushToward, runUntil } from "./helpers.ts"
 
-test("time nearly stops while you are still, and runs with your push", () => {
+test("time nearly stops while you are still, and runs with your walk", () => {
   const { fight, thumb } = fightIn("Duel")
   runUntil(fight, 30, () => false)
   assert.ok(Math.abs(fight.view().scale - TUNING.slow) < 1e-6, `still: ${fight.view().scale}`)
-  thumb.push = { x: 0, y: 0.5 }
+  // (Up, into open floor: Duel's start is against the bottom wall.)
+  thumb.push = { x: 0, y: -0.5 }
   runUntil(fight, 30, () => false)
   const expected = TUNING.slow + (1 - TUNING.slow) * Math.pow(0.5, TUNING.player.curve)
   assert.ok(Math.abs(fight.view().scale - expected) < 0.01, `half push: ${fight.view().scale}, expected ${expected}`)
-  thumb.push = { x: 0, y: 1 }
+  thumb.push = { x: 0, y: -1 }
   runUntil(fight, 30, () => false)
   assert.ok(fight.view().scale > 0.99, `full push: ${fight.view().scale}`)
+})
+
+test("pushing into a wall is standing still: you do not move, and neither does time", () => {
+  const { fight, thumb } = fightIn("Duel")
+  // Walk down to Duel's bottom wall, then keep pushing straight into it, at full push.
+  thumb.push = { x: 0, y: 1 }
+  runUntil(fight, 60, () => false)
+  const at = fight.view().player!
+  const from = fight.view().world
+  runUntil(fight, 60, () => false)
+  const now = fight.view().player!
+  assert.ok(Math.hypot(now.x - at.x, now.y - at.y) < 0.05, "the wall holds you")
+  assert.ok(Math.abs(fight.view().scale - TUNING.slow) < 0.01, `time stays frozen: ${fight.view().scale}`)
+  assert.ok(fight.view().world - from < 0.1, `the world clock barely ran: ${fight.view().world - from}`)
 })
 
 test("you move in real time at the push's speed, whatever the world speed", () => {
@@ -33,11 +48,10 @@ test("you move in real time at the push's speed, whatever the world speed", () =
 })
 
 test("shooters fire only when they can see you", () => {
-  // Courtyard's start is out of every enemy's sight: pushing into the bottom wall keeps time running.
+  // Courtyard's start is out of every enemy's sight: stepping side to side there keeps time running.
   const { fight, thumb } = fightIn("Courtyard")
-  thumb.push = { x: 0, y: 1 }
-  let shots = 0
-  runUntil(fight, 180, () => false, () => { shots = Math.max(shots, fight.view().shots.length) })
+  let shots = 0, flip = 1
+  runUntil(fight, 180, () => false, () => { flip = -flip; thumb.push = { x: flip, y: 0 }; shots = Math.max(shots, fight.view().shots.length) })
   assert.equal(shots, 0)
   // In the open, in sight of the gunner at (2.5, 12): it fires.
   placePlayer(fight, 2.5, 15)

@@ -7,7 +7,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { unlocked } from "../progress.ts"
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
-import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
+import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Shot, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
 import { BOMB, COVER, CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, freshWear, roomOf } from "./queries.ts"
 
@@ -45,7 +45,10 @@ export const ApplyIntentSystem = Game.System(
   }
 )
 
-/** Builds the room asked for: clears the old one, spawns the player and the enemies, shuts its doors, back to Playing. */
+/**
+ * Builds the room asked for: clears the old one, spawns the player, the enemies and any shot already in the air,
+ * shuts its doors, back to Playing.
+ */
 export const BuildRoomSystem = Game.System(
   "Slap/BuildRoom",
   {
@@ -61,7 +64,7 @@ export const BuildRoomSystem = Game.System(
     },
     nextMachines: { flow: Game.System.nextState(Flow) },
     events: { enter: Game.System.readEvent(EnterRoom) },
-    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy, Carry, Stalk, Reload, Post, Melee, Blade), Game.System.despawnsScope(RoomScope))
+    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy, Carry, Stalk, Reload, Post, Melee, Blade, Shot), Game.System.despawnsScope(RoomScope))
   },
   ({ resources, nextMachines, events, commands }) => {
     // Several requests in one step: the last one wins.
@@ -74,7 +77,7 @@ export const BuildRoomSystem = Game.System(
     let walkers = 0
     const keys: Array<Key> = []
     for (const e of room.enemies) {
-      const enemy = { kind: e.kind, chamber: e.chamber ?? 0, captain: e.captain ?? false }
+      const enemy = { kind: e.kind, chamber: e.chamber ?? 0, captain: e.captain ?? false, quiet: e.quiet ?? false }
       const kind = e.kind
       const toStart = Ops.atan2(room.start.y - e.y, room.start.x - e.x)
       if (isMelee(kind)) {
@@ -95,6 +98,8 @@ export const BuildRoomSystem = Game.System(
         commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Reload, { left, aim: toStart }], [Post, post]))
       }
     }
+    // Shots already in flight as you come in (the Prologue opens on one, frozen): they hang until you move.
+    for (const s of room.shots ?? []) commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: s.x, y: s.y }], [Shot, { kind: s.kind, vx: s.vx, vy: s.vy }]))
     const run = resources.run.get()
     resources.run.set({ room: asked.room, deaths: run.deaths, hits: asked.fresh ? 0 : run.hits, world: 0, best: run.best, open: run.open })
     resources.doors.set(room.doors.map(() => false))
@@ -190,6 +195,7 @@ export const LocksSystem = Game.System(
         case "captain": return !enemies.some((e) => e.chamber === lock.chamber && e.captain)
         case "key": return keys.some((k) => k.key === lock.key && k.state === "held") && distanceTo(me.x, me.y, door) <= TUNING.player.radius + LOCKS.reach
         case "plates": return lock.plates.every((p) => down[p] === true)
+        case "time": return resources.run.get().world >= lock.seconds
       }
     }
     const next = room.doors.map((door, i) => open[i] === true || met(door.lock, door))
@@ -209,8 +215,8 @@ export const starsFor = (hits: number, world: number, par: number): number => 1 
 
 /**
  * The clock of the attempt runs in world seconds, so it only moves while you
- * do. A hit ends the attempt; the room's goal (every enemy down, or you on
- * its exit) clears it, scores it, and keeps the room's best.
+ * do. A hit ends the attempt (remembering what hit you, for the page to name the rule); the room's goal (every
+ * enemy down, you on its exit, or the stretch survived) clears it, scores it, and keeps the room's best.
  */
 export const OutcomeSystem = Game.System(
   "Slap/Outcome",
@@ -227,9 +233,10 @@ export const OutcomeSystem = Game.System(
     const room = roomOf(run.room)
     // oxlint-disable-next-line ritmo/no-float-timers -- a score in world time, scaled by the slow motion: no whole step to end on
     const world = run.world + time.dt * resources.pace.get().scale
-    if (events.hits.all().length > 0) {
+    const hit = events.hits.all()[0]
+    if (hit !== undefined) {
       resources.run.set({ ...run, deaths: run.deaths + 1, hits: run.hits + 1, world })
-      nextMachines.flow.set({ _tag: "Dead", retryAt: Clock.deadline(time, Clock.durationOfSteps(STEP, TUNING.deadLockSteps)) })
+      nextMachines.flow.set({ _tag: "Dead", retryAt: Clock.deadline(time, Clock.durationOfSteps(STEP, TUNING.deadLockSteps)), by: hit.by })
       return
     }
     const me = queries.players.each()[0]?.data.body.get()

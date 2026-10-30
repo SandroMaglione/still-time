@@ -66,7 +66,8 @@ export const ShootersSystem = Game.System(
     ]
     for (const { entity, data } of queries.shooters.each()) {
       const kind = data.enemy.get().kind
-      if (!isShooter(kind)) continue
+      // A quiet shooter never aims, moves or fires: a target, not a threat.
+      if (!isShooter(kind) || data.enemy.get().quiet) continue
       const spec = SHOOTERS[kind]
       // A bomb is lobbed over allies (whoever its blast takes); every other shot keeps its line clear of them.
       const fires = spec.shot

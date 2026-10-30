@@ -1,6 +1,6 @@
 # Still Time
 
-A Slapjam AI #2 entry (theme: Speed): top-down rooms where time nearly stops while you stand still and runs as fast as you move. Built on [`@typeonce/ritmo`](https://www.npmjs.com/package/@typeonce/ritmo). Design and rules: [`docs/design.md`](docs/design.md).
+A Slapjam AI #2 entry (theme: Speed): top-down rooms where time stops while you stand still and runs while you move. Built on [`@typeonce/ritmo`](https://www.npmjs.com/package/@typeonce/ritmo). Design and rules: [`docs/design.md`](docs/design.md).
 
 ```sh
 pnpm install
@@ -9,11 +9,11 @@ pnpm check    # typecheck, oxlint, ritmo-devtools lint, tests (rules + fuzzing)
 pnpm shots    # phone-size screenshots into output/ (with pnpm dev running)
 ```
 
-Controls: drag anywhere (the further, the faster); lift to freeze time; tap to continue. ☰ opens the rooms. On desktop: arrows or WASD, space to continue, R to restart, M or Escape for the rooms, 1–9 and 0 to jump to rooms 1–10, `[` and `]` for the previous and next room (open rooms only).
+Controls: drag anywhere to move; let go and time stops; tap to continue. ☰ opens the rooms. On desktop: arrows or WASD, space to continue, R to restart, M or Escape for the rooms, 1–9 and 0 to jump to rooms 1–10, `[` and `]` for the previous and next room (open rooms only).
 
 Rooms open one by one; progress (each room's best stars and time) is saved in the browser's local storage under `still-time/`. For testing: `?room=N` opens a room straight away (skipping the title), `?all` opens every room.
 
-`pnpm build` writes `dist/` with relative paths: zip its contents and upload it to itch.io as an HTML game.
+`pnpm build` writes `dist/` with relative paths. `pnpm package` builds and zips it into `output/still-time-itch.zip` (`index.html` at the zip's root): upload that to itch.io as an HTML game, viewport 720×1280, mobile friendly, with the fullscreen button.
 
 ## Layout
 

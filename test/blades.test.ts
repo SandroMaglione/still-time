@@ -41,17 +41,20 @@ test("the shield-bearer's front stops your cut; its back does not", () => {
 })
 
 test("the shield stops shots from the front, with a spark; from behind they kill", () => {
-  const { fight } = fightIn("Shieldwall")
+  const { fight, thumb } = fightIn("Shieldwall")
+  // Shots fly in world time, which runs only while you move: step side to side while they fly.
+  let flip = 1
+  const jiggle = (): void => { flip = -flip; thumb.push = { x: flip * 0.5, y: 0 } }
   const s = find(fight, "shield")
   assert.ok(s !== undefined)
   const front = { x: s.x + Math.cos(s.aim) * 2, y: s.y + Math.sin(s.aim) * 2 }
   spawnShot(fight, { kind: "bullet", x: front.x, y: front.y, vx: -Math.cos(s.aim) * 9, vy: -Math.sin(s.aim) * 9 })
-  runUntil(fight, 2000, () => fight.view().shots.length === 0)
+  runUntil(fight, 2000, () => fight.view().shots.length === 0, jiggle)
   assert.ok(find(fight, "shield") !== undefined, "blocked")
   assert.ok(fight.view().slashes.some((m) => m.blocked), "a spark where the shot hit the shield")
   const back = { x: s.x - Math.cos(s.aim) * 2, y: s.y - Math.sin(s.aim) * 2 }
   spawnShot(fight, { kind: "bullet", x: back.x, y: back.y, vx: Math.cos(s.aim) * 9, vy: Math.sin(s.aim) * 9 })
-  runUntil(fight, 2000, () => fight.view().shots.length === 0)
+  runUntil(fight, 2000, () => fight.view().shots.length === 0, jiggle)
   assert.equal(find(fight, "shield"), undefined)
 })
 

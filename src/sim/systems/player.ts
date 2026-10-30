@@ -1,29 +1,30 @@
 /**
- * You: the world speed following your push, moving (solid against walls and
- * enemies), and cutting down whatever is in reach and not guarding.
+ * You: moving (solid against walls and enemies), the world speed following
+ * how fast you actually walked, and cutting down whatever is in reach and not guarding.
  */
 import { Ops } from "@typeonce/ritmo"
 
 import { settle } from "../geometry.ts"
 import { BELT, TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { Doors, Enemy, Flow, Game, Input, Pace, Run, Slashes, Time, Wear } from "../schema.ts"
+import { paceTo, pushOf } from "../pace.ts"
 import { blow } from "./blows.ts"
 import { EnemyRead, MeleeRead, PlainRead, PlayerQuery, PlayerRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
-/** How hard the thumb pushes, 0 to 1, shaped for finer control near the press point. */
-const pushOf = (x: number, y: number): number => Ops.pow(Math.min(1, Ops.hypot(x, y)), TUNING.player.curve)
 
-/** World speed follows your push: frozen while you are still, real time at full push. */
+/**
+ * World speed follows how fast you actually walk this step (after walls, enemies and doors have had their say; a
+ * belt's carry is not walking): frozen while you are still, pushing into a wall included; real time at top speed.
+ */
 export const PaceSystem = Game.System(
   "Slap/Pace",
-  { when: playing, resources: { time: Game.System.readResource(Time), input: Game.System.readResource(Input), pace: Game.System.writeResource(Pace) } },
-  ({ resources }) => {
-    const { x, y } = resources.input.get()
-    const target = TUNING.slow + (1 - TUNING.slow) * pushOf(x, y)
-    const scale = resources.pace.get().scale
-    resources.pace.set({ scale: scale + (target - scale) * Math.min(1, TUNING.timeEase * resources.time.get().dt) })
+  { when: playing, queries: { players: PlayerRead }, resources: { time: Game.System.readResource(Time), pace: Game.System.writeResource(Pace) } },
+  ({ queries, resources }) => {
+    const me = queries.players.each()[0]?.data.player.get()
+    const walked = me === undefined ? 0 : Ops.hypot(me.vx, me.vy) / TUNING.player.speed
+    resources.pace.set({ scale: paceTo(resources.pace.get().scale, walked, resources.time.get().dt) })
   }
 )
 
@@ -54,7 +55,9 @@ export const MovePlayerSystem = Game.System(
       const from = data.body.get()
       const belt = (room.belts ?? []).find((b) => from.x >= b.x && from.x <= b.x + b.w && from.y >= b.y && from.y <= b.y + b.h)
       const bx = belt === undefined ? 0 : belt.dx * BELT.speed, by = belt === undefined ? 0 : belt.dy * BELT.speed
-      let { x, y } = settle(from.x + (vx + bx) * dt, from.y + (vy + by) * dt, r, room.w, room.h, walls)
+      // Your own step first (it is what runs the world), then the belt's carry on top of it.
+      const own = settle(from.x + vx * dt, from.y + vy * dt, r, room.w, room.h, walls)
+      let { x, y } = belt === undefined ? own : settle(own.x + bx * dt, own.y + by * dt, r, room.w, room.h, walls)
       // No walking through an enemy (to reach a brute's back mid-swing, say).
       for (const e of solid) {
         const dx = x - e.at.x, dy = y - e.at.y
@@ -65,7 +68,9 @@ export const MovePlayerSystem = Game.System(
         y = e.at.y + (d === 0 ? 1 : dy / d) * min
       }
       data.body.set({ x, y })
-      data.player.set({ vx, vy })
+      // Your velocity is what you actually walked: your own step (a wall shortens it, to nothing when you push straight
+      // into one), not the belt's carry.
+      data.player.set(dt > 0 ? { vx: (own.x - from.x) / dt, vy: (own.y - from.y) / dt } : { vx: 0, vy: 0 })
     }
   }
 )

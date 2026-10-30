@@ -30,8 +30,9 @@ export const updateSchedule = Game.Schedule(
   BuildRoomSystem,
   Game.Schedule.applyDeferred(),
   Game.Schedule.applyStateTransitions(),
-  PaceSystem,
+  // You move first; the world's speed then follows how far you actually went (a wall stops you, and time with you).
   MovePlayerSystem,
+  PaceSystem,
   CutSystem,
   Game.Schedule.applyDeferred(),
   ShootersSystem,

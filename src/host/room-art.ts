@@ -1,4 +1,4 @@
-import type { Pillar } from "../sim/rooms.ts"
+import { ROOMS, type Pillar } from "../sim/rooms.ts"
 import type { FightView, PlateView } from "../sim/view.ts"
 import { panel, sprite, spriteImage, texture, tile } from "./art.ts"
 import { torchFire } from "./combat-art.ts"
@@ -136,6 +136,7 @@ const frames = new WeakMap<Projection, RoomDressing>()
 export const roomDressing = (view: FightView): RoomDressing => {
   const { w, h, index, pillars } = view.room
   const braziers = new Map<string, Point>(), torches: Array<WallTorch> = [], banners: Array<Point> = []
+  const launchers = (ROOMS[index]?.hazards ?? []).flatMap((hz) => (hz.kind === "bolt" ? [hz] : []))
   const free = (p: Point): boolean => p.x >= 0.5 && p.x <= w - 0.5 && p.y >= 0.6 && p.y <= h - 0.5 && ![...pillars, ...view.doors].some(b => p.x > b.x - 0.45 && p.x < b.x + b.w + 0.45 && p.y > b.y - 0.45 && p.y < b.y + b.h + 0.45)
   for (const b of pillars) {
     if (b.w >= 2 || b.h >= 2) continue
@@ -157,7 +158,9 @@ export const roomDressing = (view: FightView): RoomDressing => {
   }
   for (let y = 1.7, section = 0; y < h - 0.6; section++) {
     const hash = decorationHash(section, 31, index)
-    torches.push({ x: section % 2 === 0 ? 0.3 : w - 0.3, y, seed: hash })
+    const x = section % 2 === 0 ? 0.3 : w - 0.3
+    // The wall is the bullet launcher's there.
+    if (!launchers.some((l) => Math.abs(l.x1 - x) < 1 && Math.abs(l.y1 - y) < 1.4)) torches.push({ x, y, seed: hash })
     y += 2.8 + hash % 15 / 10
   }
   const quarter = (p: Point): number => (p.x >= w / 2 ? 1 : 0) + (p.y >= h / 2 ? 2 : 0)
