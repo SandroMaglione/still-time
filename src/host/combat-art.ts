@@ -126,7 +126,7 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
 
 export const muzzle = (ctx: CanvasRenderingContext2D, at: Point, angle: number, progress: number): void => {
   // The flash lights the floor around the shooter for a moment.
-  emitLight(ctx, { x: at.x, y: at.y + 6, radius: 2.4, colour: [255, 214, 140], intensity: 0.9 * (1 - progress), shadows: false })
+  emitLight(ctx, { x: at.x, y: at.y + 6, radius: 2.6, colour: [255, 214, 140], intensity: 1 - progress, shadows: false, halo: { lift: 6, radius: 0.7, strength: 0.5 * (1 - progress) } })
   const length = progress < 0.5 ? 11 : 6
   const to = { x: at.x + Math.cos(angle) * length, y: at.y + Math.sin(angle) * length }
   pixelLine(ctx, at, to, INK, progress < 0.5 ? 9 : 6)
@@ -207,7 +207,8 @@ export const impactBurst = (ctx: CanvasRenderingContext2D, impact: Impact, at: P
 export const torchFire = (ctx: CanvasRenderingContext2D, x: number, y: number, time: number, seed: number): void => {
   const frame = Math.floor(time * 14), wobble = Math.sin(frame * 1.7 + seed)
   // A warm pool on the floor below the flame, flickering with it.
-  emitLight(ctx, { x, y: y + 4, radius: 3.6 + Math.sin(frame * 0.7 + seed) * 0.12, colour: [255, 176, 96], intensity: 0.85 })
+  const flicker = Math.sin(frame * 0.7 + seed)
+  emitLight(ctx, { x, y: y + 4, radius: 4.2 + flicker * 0.15, colour: [255, 170, 90], intensity: 1, halo: { lift: 20, radius: 1.3, strength: 0.28 + flicker * 0.03 } })
   rect(ctx, x - 3, y - 10, 7, 10, INK); rect(ctx, x - 2, y - 9, 5, 8, "#465253")
   rect(ctx, x - 1, y - 8, 2, 6, "#899692")
   rect(ctx, x - 5, y - 11, 11, 2, INK); rect(ctx, x - 4, y - 11, 9, 1, "#899692")

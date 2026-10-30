@@ -100,7 +100,7 @@ export const roomFloor = (ctx: CanvasRenderingContext2D, cw: number, ch: number,
 /** A native two-frame brazier; its light originates on the floor, not at its flame. */
 const brazier = (ctx: CanvasRenderingContext2D, at: Point, world: number, seed: number): void => {
   sprite(ctx, Math.floor(world * 6 + seed) % 2 === 0 ? "brazier-0" : "brazier-1", at.x, at.y)
-  emitLight(ctx, { x: at.x, y: at.y, radius: 3.7, colour: [255, 176, 96], intensity: 0.8 })
+  emitLight(ctx, { x: at.x, y: at.y, radius: 4, colour: [255, 170, 90], intensity: 0.95, halo: { lift: 12, radius: 1.2, strength: 0.26 } })
 }
 
 /** Walls and sparse furnishings use the same source-pixel density as the actors. */

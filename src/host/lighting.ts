@@ -1,10 +1,10 @@
 /**
  * Pixel-art lighting for the scene buffer. Anything that glows calls
  * `emitLight` while it draws; after the world is painted, `applyLighting`
- * builds a light map at the buffer's native resolution: each light, with
- * walls and cover casting shadows, cut into a few hard bands with an ordered
- * dither, over a flat ambient; then multiplies the scene by it. Emissive pixels
- * (telegraphs, shots, flames) are masked to full light so threats never sink
+ * builds a smooth light map (a dark ambient plus each light's soft pool, with
+ * walls and cover casting shadows), multiplies the scene by it, then adds a
+ * soft halo around each flame so fire glows over what it lights. Emissive
+ * pixels (telegraphs, shots) are cut out of the map so threats never sink
  * into the dark.
  *
  * Lights are host state for one frame: collected per context and drained by
@@ -25,6 +25,8 @@ export interface Light {
   readonly intensity: number
   /** Casts shadows from walls and cover (default true). Small flashes can skip it. */
   readonly shadows?: boolean
+  /** A glow added over the scene around the flame itself: `lift` px above the footprint, `radius` in metres, `strength` 0 to 1. */
+  readonly halo?: { readonly lift: number; readonly radius: number; readonly strength: number }
 }
 
 const pending = new WeakMap<CanvasRenderingContext2D, Array<Light>>()
@@ -58,15 +60,11 @@ export interface LightingFrame {
   readonly ambient: Rgb
 }
 
-/** 4×4 Bayer thresholds, 0 to 1. */
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((n) => (n + 0.5) / 16)
-/** Light steps per channel: few enough to read as painted bands. */
-const LEVELS = 5
 /** How much of a light a shadow removes. */
-const SHADOW = 0.65
+const SHADOW = 0.85
 
-/** Scene pixels per light-map cell: light is computed in 2×2 cells, which also keeps the bands chunky. */
-const CELL = 2
+/** Scene pixels per light-map cell. The map is smooth, so it is computed small and enlarged with smoothing. */
+const CELL = 3
 // Every buffer here is CPU-backed (`willReadFrequently`), like the scene: mixing GPU and CPU canvases costs a copy per draw.
 
 interface Buffers { light: HTMLCanvasElement; layer: HTMLCanvasElement; final: HTMLCanvasElement }
@@ -123,7 +121,7 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
   buffers.set(ctx, b)
   const lc = b.light.getContext("2d", { willReadFrequently: true })!
   const yc = b.layer.getContext("2d", { willReadFrequently: true })!
-  // Sources first, on black: only their light is banded, so unlit floor stays flat instead of dithering everywhere.
+  // Sources first, on black; the ambient is added after.
   lc.setTransform(1, 0, 0, 1, 0, 0)
   lc.globalCompositeOperation = "source-over"
   lc.fillStyle = "#000"; lc.fillRect(0, 0, lw, lh)
@@ -151,8 +149,10 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
       yc.save()
       yc.translate(light.x, light.y); yc.scale(1, squash)
       const g = yc.createRadialGradient(0, 0, 0, 0, 0, rx)
+      // A bright core that rolls off slowly: a pool of light, not a disc.
       g.addColorStop(0, rgba(light.colour, light.intensity))
-      g.addColorStop(0.55, rgba(light.colour, light.intensity * 0.45))
+      g.addColorStop(0.25, rgba(light.colour, light.intensity * 0.8))
+      g.addColorStop(0.6, rgba(light.colour, light.intensity * 0.32))
       g.addColorStop(1, rgba(light.colour, 0))
       yc.fillStyle = g
       yc.fillRect(-rx, -rx, rx * 2, rx * 2)
@@ -171,7 +171,7 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
         if (at.x > p.x - 0.05 && at.x < p.x + p.w + 0.05 && at.y > p.y - 0.05 && at.y < p.y + p.h + 0.05) continue
         // Boxes beyond the light's reach throw nothing it could see.
         if (p.x > at.x + light.radius || p.x + p.w < at.x - light.radius || p.y > at.y + light.radius || p.y + p.h < at.y - light.radius) continue
-        const hull = shadowHull(at.x, at.y, p, light.radius)
+        const hull = shadowHull(at.x, at.y, p, light.radius * 1.2)
         yc.beginPath()
         hull.forEach((q, i) => { const s = P(q.x, q.y); if (i === 0) yc.moveTo(s.x, s.y); else yc.lineTo(s.x, s.y) })
         yc.closePath(); yc.fill()
@@ -191,27 +191,15 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
     lc.drawImage(b.layer, cx0, cy0, cw, ch, cx0, cy0, cw, ch)
   }
 
-  // Hard bands, dithered at their edges: per channel, quantise with a Bayer threshold.
-  const image = lc.getImageData(0, 0, lw, lh)
-  const d = image.data
-  for (let y = 0; y < lh; y++) {
-    const row = (y & 3) * 4
-    for (let x = 0; x < lw; x++) {
-      const i = (y * lw + x) * 4
-      if (d[i] === 0 && d[i + 1] === 0 && d[i + 2] === 0) continue
-      const t = BAYER[row + (x & 3)]!
-      for (let c = 0; c < 3; c++) d[i + c] = Math.min(255, Math.round(Math.floor((d[i + c]! / 255) * LEVELS + t) / LEVELS * 255))
-    }
-  }
-  lc.putImageData(image, 0, 0)
+  // The ambient under every source.
   lc.globalCompositeOperation = "lighter"
   lc.fillStyle = rgba(frame.ambient); lc.fillRect(0, 0, lw, lh)
 
-  // The cell map, enlarged to scene pixels without smoothing.
+  // The cell map, enlarged to scene pixels with smoothing: light is soft even where the art is pixel-sharp.
   const fc = b.final.getContext("2d", { willReadFrequently: true })!
   fc.setTransform(1, 0, 0, 1, 0, 0)
   fc.globalCompositeOperation = "source-over"
-  fc.imageSmoothingEnabled = false
+  fc.imageSmoothingEnabled = true
   fc.drawImage(b.light, 0, 0, lw * CELL, lh * CELL)
   // Emissive pixels keep full light: cut out of the map, they leave the scene untouched under multiply.
   if (emissive !== null) {
@@ -223,5 +211,19 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.globalCompositeOperation = "multiply"
   ctx.drawImage(b.final, 0, 0)
+  // Halos: flames glow over the dark they light, added on top like a soft bloom.
+  ctx.globalCompositeOperation = "lighter"
+  for (const light of lights) {
+    const halo = light.halo
+    if (halo === undefined || halo.strength <= 0) continue
+    const r = halo.radius * u, x = light.x, y = light.y - halo.lift
+    if (x + r < 0 || x - r > w || y + r < 0 || y - r > h) continue
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+    g.addColorStop(0, rgba(light.colour, halo.strength))
+    g.addColorStop(0.3, rgba(light.colour, halo.strength * 0.45))
+    g.addColorStop(1, rgba(light.colour, 0))
+    ctx.fillStyle = g
+    ctx.fillRect(x - r, y - r, r * 2, r * 2)
+  }
   ctx.restore()
 }

@@ -99,7 +99,7 @@ const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void => sprite(ctx, "crown", x, y + 3)
 
 /** Ambient light: cool and dim while time is frozen, warmer as the world runs. */
-const AMBIENT_FROZEN: Rgb = [166, 176, 208], AMBIENT_RUNNING: Rgb = [196, 188, 174]
+const AMBIENT_FROZEN: Rgb = [64, 76, 116], AMBIENT_RUNNING: Rgb = [96, 86, 76]
 
 /** Transparent layers the size of the scene, reused per context: ground decals and shots, which also mark emissive pixels. */
 const glowLayers = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
@@ -155,7 +155,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelLine(ctx, a, { x: a.x, y: b.y }, "#4b5d50")
     pixelLine(ctx, { x: b.x, y: a.y }, b, "#4b5d50")
     sprite(ctx, "exit-rune", (a.x + b.x) / 2, (a.y + b.y) / 2 + 12)
-    emitLight(ctx, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, radius: 2.2, colour: [125, 255, 154], intensity: 0.45 })
+    emitLight(ctx, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, radius: 2.6, colour: [125, 255, 154], intensity: 0.7, halo: { lift: 4, radius: 1.2, strength: 0.25 } })
   }
   // Open doors: a threshold in the lock's colour.
   for (const d of view.doors) {
@@ -249,6 +249,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   type Thing = { readonly x: number; readonly y: number; readonly paint: () => void }
   const actors: Array<Thing> = []
   for (const e of view.enemies) {
+    // A soft light at each enemy: in a dark room a threat is never lost between the torches.
+    const lamp = P(e.x, e.y)
+    emitLight(ctx, { x: lamp.x, y: lamp.y - 6, radius: 1.3, colour: [255, 214, 196], intensity: 0.75, shadows: false })
     actors.push({
       x: e.x, y: e.y, paint: () => {
         const ground = P(e.x, e.y)
@@ -310,7 +313,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const p = view.player
     const at = P(p.x, p.y)
     // A faint light of your own, so you never vanish into the dark.
-    emitLight(ctx, { x: at.x, y: at.y, radius: 2.4, colour: [200, 236, 230], intensity: 0.4 })
+    emitLight(ctx, { x: at.x, y: at.y, radius: 2.8, colour: [200, 236, 230], intensity: 0.6 })
     actors.push({
       x: p.x, y: p.y, paint: () => {
         const speed = Math.hypot(p.vx, p.vy)
