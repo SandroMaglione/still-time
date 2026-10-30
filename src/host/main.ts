@@ -276,7 +276,7 @@ FixedLoop.start({
     drill.draw(ctx, canvas.width, canvas.height, view, drillInput)
     // Done, the drill clears First Step (its goal is the lesson).
     if (drill.takeFinished() && view.room.goal.kind === "lesson") fight.send({ kind: "lessonDone" })
-    // The Blade's and First Cut's guides, over everything.
+    // First Cut's guide, over everything.
     guide.draw(ctx, canvas.width, canvas.height, view, drawn.P, guideInput)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)

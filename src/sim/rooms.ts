@@ -113,7 +113,7 @@ const gate = (w: number, y: number, at: number, gap: number, lock: Lock, thick =
 
 const CLEAR = { kind: "clear" } as const
 
-const bladeDoor = gate(10, 4.8, 5, 3, { kind: "time", seconds: Math.PI * 2 })
+const timeDoor = gate(10, 4.8, 5, 3, { kind: "time", seconds: 5 })
 
 const gatehouse = gate(14, 12.6, 7, 3, { kind: "clear", chamber: 0 })
 const throne = gate(16, 3.6, 8, 3, { kind: "captain", chamber: 0 })
@@ -143,22 +143,18 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 30
   },
   {
-    // The second lesson, the freeze, with nothing to fight: a blade bar as wide as the only gap turns only while you move.
-    // Stop, and it stops with you: read where it is, then cross.
-    name: "The Blade",
+    // The second lesson, the clock, with nothing else in the room: a door before the exit whose timer runs only
+    // while you move. Stand still and it waits; walk about and it counts down and opens.
+    name: "Time Door",
     w: 10,
-    h: 20,
-    // You start below the blade: move, stop, and see it stop with you before you reach it.
-    start: { x: 5, y: 18 },
-    // A 4.2 m gap the bar fills: wide enough to cross without precision, and the bar still has to be read.
-    // In front of the exit, a door that opens after one full turn of the blade (2π world seconds at 1 rad/s): the
-    // blade turns only while you move, so you open it by moving about; then you get past the blade.
-    pillars: [{ x: 0, y: 7.2, w: 2.9, h: 1.6 }, { x: 7.1, y: 7.2, w: 2.9, h: 1.6 }, ...bladeDoor.walls],
-    doors: [bladeDoor.door],
-    hazards: [{ kind: "blade", x: 5, y: 8, length: 2.1, speed: 1.0, phase: 1.2 }],
+    h: 14,
+    start: { x: 5, y: 12 },
+    pillars: [...timeDoor.walls],
+    doors: [timeDoor.door],
+    hazards: [],
     enemies: [],
     goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2 },
-    par: 12,
+    par: 8
   },
   {
     // The second lesson: one gunner. Freeze to read its shot, step out of the line, close in and cut.

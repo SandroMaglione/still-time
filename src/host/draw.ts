@@ -6,7 +6,6 @@
  */
 import { ROOMS, type Hazard, type Lock, type Pillar } from "../sim/rooms.ts"
 
-type Blade = Extract<Hazard, { readonly kind: "blade" }>
 import { SHOTS, STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
@@ -180,6 +179,23 @@ export const thumbPad = (ctx: CanvasRenderingContext2D, base: { readonly x: numb
   disc(ctx, knob.x, knob.y, 5, "#e8f6ff")
   disc(ctx, knob.x - 1, knob.y - 1, 2, "#ffffff")
 }
+/** A time door's timer: a pause or play sign and the seconds left, big, over a bar filling to the open. */
+const doorTimer = (ctx: CanvasRenderingContext2D, x: number, bottom: number, left: number, done: number, running: boolean, now: number, width: number): void => {
+  const bl = Math.round(x - width / 2), by = Math.round(bottom) - 4
+  ctx.fillStyle = INK; ctx.fillRect(bl - 1, by - 1, width + 2, 5)
+  ctx.fillStyle = "#29334b"; ctx.fillRect(bl, by, width, 3)
+  ctx.fillStyle = "#edc66c"; ctx.fillRect(bl, by, Math.round(width * Math.min(1, done)), 3)
+  ctx.save()
+  ctx.font = "700 16px Silkscreen, ui-monospace, monospace"; ctx.textBaseline = "top"; ctx.textAlign = "left"
+  const label = left.toFixed(1), tw = Math.ceil(ctx.measureText(label).width), total = 24 + tw
+  const tx = Math.round(x - total / 2) + 24, ty = by - 22
+  ctx.fillStyle = INK
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]] as const) ctx.fillText(label, tx + dx, ty + dy)
+  ctx.fillStyle = running ? "#edc66c" : "#7fd8ff"; ctx.fillText(label, tx, ty)
+  ctx.restore()
+  clockSign(ctx, tx - 24, ty - 1, running, now)
+}
+
 /** A pause sign (still: the world waits) or a fast-forward sign (moving: the world runs), 10×9, drawn twice the size. */
 const PAUSE_SIGN = [
   "ooo..ooo..",
@@ -756,11 +772,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       if (d.lock.kind === "key") keyGlyph(ctx, x - u * 0.14, y, u * 0.26, colour)
       else if (d.lock.kind === "captain") crownGlyph(ctx, x, y + u * 0.14)
       else if (d.lock.kind === "time") {
-        // A bar filling with the world clock: it opens when full.
-        const w = Math.round(u * 1.6), left = Math.round(x - w / 2), py = Math.round(y)
-        ctx.fillStyle = INK; ctx.fillRect(left - 1, py - 2, w + 2, 5)
-        ctx.fillStyle = "#29334b"; ctx.fillRect(left, py - 1, w, 3)
-        ctx.fillStyle = "#edc66c"; ctx.fillRect(left, py - 1, Math.round(w * Math.min(1, view.world / d.lock.seconds)), 3)
+        // (Its timer is drawn over the lit scene, see `doorTimer`, so a frozen world does not grey it out.)
       } else if (d.lock.kind === "plates") {
         // One square per plate, lit as each goes down.
         const n = d.lock.plates.length, gap = u * 0.24, left = n - d.waiting
@@ -880,14 +892,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
     }
   }
-  // The Blade shows the clock you drive on the blade itself: a pause sign on its hub while you are still, a play
-  // sign while you move.
-  if (view.room.index === 1 && view.flow === "playing" && view.player !== null) {
-    const blade = (ROOMS[view.room.index]?.hazards ?? []).find((hz): hz is Blade => hz.kind === "blade")
-    if (blade !== undefined) {
-      const hub = P(blade.x, blade.y, 0.45)
-      clockSign(ctx, hub.x, hub.y - 30, speedOf(view) > 0.15, presentation?.now ?? 0)
-    }
+  // A time door's timer, over the lit scene: the seconds left, counting down only while you move (gold, with a play
+  // sign) and waiting while you are still (ice, with a pause sign); under them a bar filling to the open.
+  for (const d of view.doors) {
+    if (d.open || d.lock.kind !== "time" || view.flow !== "playing") continue
+    const top = P(d.x + d.w / 2, d.y + d.h, PILLAR_HEIGHT)
+    doorTimer(ctx, top.x, top.y - 4, Math.max(0, d.lock.seconds - view.world), view.world / d.lock.seconds, speedOf(view) > 0.15, presentation?.now ?? 0, Math.round(u * 1.6))
   }
   // The cut's room marks what to run into.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
