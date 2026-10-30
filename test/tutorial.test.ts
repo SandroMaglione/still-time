@@ -35,7 +35,7 @@ test("First Step: nothing in the room; walking anywhere does not clear it, the p
   assert.equal(fight.view().hits, 0)
 })
 
-test("The Blade: standing still holds the blade; timed, the gap can be crossed to the exit", () => {
+test("The Blade: standing still holds the blade; after its full turn, timed, the gap can be crossed to the exit", () => {
   const { fight, thumb } = fightIn("The Blade")
   assert.equal(fight.view().room.index, 1, "it is the second room")
   const before = barAngle(fight)
@@ -60,7 +60,11 @@ test("The Blade: standing still holds the blade; timed, the gap can be crossed t
     let flip = 1
     runUntil(fight, wait, () => false, () => { flip = -flip; thumb.push = { x: flip, y: 0 } })
     runUntil(fight, 400, () => fight.view().flow !== "playing", () => { thumb.push = { x: 0, y: -1 } })
-    if (fight.view().flow === "cleared" && fight.view().hits === 0) crossings.push(wait)
+    if (fight.view().flow === "cleared" && fight.view().hits === 0) {
+      // The exit opens only after one full turn of the blade, on the world clock.
+      assert.ok(fight.view().world >= Math.PI * 2, "cleared only after the blade's full turn")
+      crossings.push(wait)
+    }
   }
   assert.ok(crossings.length > 0, "some timing crosses the blade to the exit")
   assert.ok(crossings.length < tries, "and some timing does not: the blade is the lesson")

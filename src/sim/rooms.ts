@@ -53,7 +53,10 @@ export type Hazard =
 export interface Door extends Pillar { readonly lock: Lock }
 
 /** Down every enemy, reach the exit, or last `seconds` of world time (which only pass while you move). */
-export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar) | { readonly kind: "survive"; readonly seconds: number }
+export type Goal = { readonly kind: "clear" }
+  /** Reach the exit; with `after`, it opens only once the room's world clock has run that many seconds. */
+  | ({ readonly kind: "exit"; readonly after?: number } & Pillar)
+  | { readonly kind: "survive"; readonly seconds: number }
   /** Cleared by the page when its lesson is done (First Step: learning the stick is the room). */
   | { readonly kind: "lesson" }
 
@@ -150,8 +153,9 @@ export const ROOMS: ReadonlyArray<Room> = [
     doors: [],
     hazards: [{ kind: "blade", x: 5, y: 8, length: 2.1, speed: 1.0, phase: 1.2 }],
     enemies: [],
-    goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2 },
-    par: 4,
+    // The exit opens after one full turn of the blade (2π world seconds at 1 rad/s): you turn it by moving.
+    goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2, after: Math.PI * 2 },
+    par: 12,
   },
   {
     // The second lesson: one gunner. Freeze to read its shot, step out of the line, close in and cut.

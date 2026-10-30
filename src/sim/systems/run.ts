@@ -238,7 +238,7 @@ export const OutcomeSystem = Game.System(
     const done = goal.kind === "clear" ? queries.enemies.each().length === 0
       : goal.kind === "survive" ? world >= goal.seconds
       : goal.kind === "lesson" ? events.lesson.all().some((l) => l.room === run.room)
-      : me !== undefined && me.x >= goal.x && me.x <= goal.x + goal.w && me.y >= goal.y && me.y <= goal.y + goal.h
+      : me !== undefined && (goal.after === undefined || world >= goal.after) && me.x >= goal.x && me.x <= goal.x + goal.w && me.y >= goal.y && me.y <= goal.y + goal.h
     if (!done) {
       resources.run.set({ ...run, world })
       return

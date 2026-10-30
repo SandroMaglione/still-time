@@ -29,7 +29,7 @@ const BACK_WALL = 1.6
  * fronts. Floor depth is squashed to SQUASH; heights are drawn at RISE of
  * their size.
  */
-const SQUASH = 0.78
+export const SQUASH = 0.78
 const INK = "#171c2e"
 const RISE = 0.65
 
@@ -240,6 +240,9 @@ const bitmap = (ctx: CanvasRenderingContext2D, rows: ReadonlyArray<string>, x: n
 }
 
 /** The exit as a beacon: a soft column of green light over the pad and an arrow bouncing above it. */
+/** Whether the room's exit takes you yet (an exit with `after` opens once the world clock has run that long). */
+export const exitOpen = (view: FightView): boolean => view.room.goal.kind !== "exit" || view.room.goal.after === undefined || view.world >= view.room.goal.after
+
 const exitBeacon = (ctx: CanvasRenderingContext2D, g: { readonly x: number; readonly y: number; readonly w: number; readonly h: number }, P: Project, erx: number, now: number): void => {
   const foot = P(g.x + g.w / 2, g.y + g.h / 2), top = P(g.x + g.w / 2, g.y + g.h / 2, 2.6)
   const half = Math.max(6, Math.round(g.w * erx * 0.32))
@@ -452,14 +455,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // A carved threshold with a fixed-size pixel rune.
   const goal = view.room.goal
   if (goal.kind === "exit") {
+    // An exit that opens later (The Blade) is a dark, dead threshold until then: no rune, no light, no beacon.
+    const open = exitOpen(view)
     const a = P(goal.x, goal.y), b = P(goal.x + goal.w, goal.y + goal.h)
-    ctx.fillStyle = "#263234"; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
-    pixelLine(ctx, a, { x: b.x, y: a.y }, EXIT)
-    pixelLine(ctx, { x: a.x, y: b.y }, b, EXIT)
+    ctx.fillStyle = open ? "#263234" : "#1b2023"; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
+    pixelLine(ctx, a, { x: b.x, y: a.y }, open ? EXIT : "#4b5d50")
+    pixelLine(ctx, { x: a.x, y: b.y }, b, open ? EXIT : "#4b5d50")
     pixelLine(ctx, a, { x: a.x, y: b.y }, "#4b5d50")
     pixelLine(ctx, { x: b.x, y: a.y }, b, "#4b5d50")
-    sprite(ctx, "exit-rune", (a.x + b.x) / 2, (a.y + b.y) / 2 + 12)
-    emitLight(ctx, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, radius: 2.6, colour: [125, 255, 154], intensity: 0.7, halo: { lift: 4, radius: 1.2, strength: 0.25 } })
+    if (open) {
+      sprite(ctx, "exit-rune", (a.x + b.x) / 2, (a.y + b.y) / 2 + 12)
+      emitLight(ctx, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, radius: 2.6, colour: [125, 255, 154], intensity: 0.7, halo: { lift: 4, radius: 1.2, strength: 0.25 } })
+    }
   }
   // Open doors: a threshold in the lock's colour.
   for (const d of view.doors) {
@@ -849,7 +856,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Dust in the air drifts on the world's clock: it hangs when you stop and streams when you run.
   motes(ctx, view, P)
   // The exit is a beacon: a column of light and a bouncing arrow over the pad.
-  if (view.room.goal.kind === "exit" && view.flow === "playing") exitBeacon(ctx, view.room.goal, P, erx, presentation?.now ?? view.world)
+  if (view.room.goal.kind === "exit" && exitOpen(view) && view.flow === "playing") exitBeacon(ctx, view.room.goal, P, erx, presentation?.now ?? view.world)
 
   // Frozen time closes in: a cold vignette, as strong as the world is still.
   if (view.flow === "playing") {
@@ -941,7 +948,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
 
   // The exit, when it is off screen: a green arrow at the edge pointing to it.
-  if (view.room.goal.kind === "exit" && view.flow === "playing") {
+  if (view.room.goal.kind === "exit" && exitOpen(view) && view.flow === "playing") {
     const g = view.room.goal, sp = P(g.x + g.w / 2, g.y + g.h / 2)
     if (sp.x < 0 || sp.x > cw || sp.y < TOP || sp.y > ch - BOTTOM) {
       const mx = cw / 2, my = TOP + (ch - TOP - BOTTOM) / 2, dx = sp.x - mx, dy = sp.y - my
