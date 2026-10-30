@@ -39,10 +39,12 @@ continue after despawn: flash, flinch, fall, a brief floor pose and clustered
 dissolution, ending after 1.05 real seconds. Weapon recoil and flame motion
 use world time. Retry, room changes and rewinds clear presentation records.
 
-Danger paths, chase reach and reload rings are red/orange with ink outlines;
-projectiles have larger bright heads. Shields/guards use steel, openings use
-gold, and the player's reach uses teal. Tracking lasers are dashed and locked
-lasers solid; the distinction does not depend on seeing a blink.
+Danger paths and committed attacks are red/orange with ink outlines;
+projectiles have larger bright heads. Idle/chase reach is a dim orange 1px
+dash without ink. Reload is a 2px ink-edged arc at the feet. Guard arcs use
+steel and gold in a compact foot ellipse, leaving the tower shield to carry
+the silhouette. The player's reach uses teal. Tracking lasers are dashed and
+locked lasers solid; the distinction does not depend on seeing a blink.
 
 See [environment/README.md](environment/README.md) for floor and room materials.
 
@@ -53,6 +55,11 @@ records baseline fixtures. Running without `--before` captures rooms 4, 9,
 11 and 12 at 390×844 @2x, holds ArrowUp for 0.9 seconds, releases it, and
 captures a simulation-driven frozen wind-up. It also writes a matched floor,
 telegraph and enemy comparison to `output/review-1/comparison.png`.
+
+Add `--round-2` to capture those four rooms plus room 1, the wind-up, and
+matched floor/cover and reload/chase comparisons against the retained
+`output/review-1/after` fixtures. Results go to `output/review-2/`, preserving
+the previous review's captures.
 
 `pnpm shots:art <url>` checks phone/desktop/landscape integer pixel scaling;
 `pnpm record:fx <url>` records isolated motion studies and a live death/retry.

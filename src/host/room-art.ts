@@ -1,19 +1,33 @@
 import type { Pillar } from "../sim/rooms.ts"
 import type { FightView } from "../sim/view.ts"
 import { sprite, texture } from "./art.ts"
-import { decorationHash, pixelLine, type Point } from "./pixels.ts"
+import { decorationHash, pixelLine, pixelPolygon, type Point } from "./pixels.ts"
 import { torchFire } from "./combat-art.ts"
 
 export type Projection = (x: number, y: number, z?: number) => Point
+
+/** Loose links lie flat beside a wall or block, below every combat indicator. */
+const floorChain = (ctx: CanvasRenderingContext2D, at: Point): void => {
+  const x = Math.round(at.x), y = Math.round(at.y)
+  for (let i = 0; i < 4; i++) {
+    const xx = x + i * 3, yy = y + (i > 1 ? 2 : 0)
+    ctx.fillStyle = "#263234"; ctx.fillRect(xx, yy, 5, 3)
+    ctx.fillStyle = "#73786c"; ctx.fillRect(xx + 1, yy, 3, 1); ctx.fillRect(xx + 1, yy + 2, 3, 1)
+  }
+}
 /** Large staggered flagstones. Wear is sparse and concentrated at collision boundaries. */
 export const roomFloor = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, P: Projection): void => {
   const a = P(0, 0), b = P(view.room.w, view.room.h)
   ctx.fillStyle = "#171c2e"; ctx.fillRect(0, 0, cw, ch)
   ctx.save()
   ctx.beginPath(); ctx.rect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y)); ctx.clip()
-  ctx.fillStyle = "#303638"; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
+  ctx.fillStyle = "#363e35"; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
   const unit = (b.x - a.x) / view.room.w, depthUnit = (b.y - a.y) / view.room.h
-  const fills = ["#353b3d", "#363d3f", "#343b3d"]
+  const stones = [
+    { base: "#41483e", light: "#474e43", shade: "#3d443b" },
+    { base: "#444a40", light: "#4a5045", shade: "#3f463d" },
+    { base: "#3f473e", light: "#454d43", shade: "#3b433a" }
+  ]
   let wy = 0, row = 0
   while (wy < view.room.h) {
     const height = 1.05 + decorationHash(row, 7, view.room.index) % 4 * 0.17
@@ -23,10 +37,15 @@ export const roomFloor = (ctx: CanvasRenderingContext2D, cw: number, ch: number,
       const x = Math.round(a.x + wx * unit), y = Math.round(a.y + wy * depthUnit)
       const w = Math.round(a.x + (wx + width) * unit) - x, h = Math.round(a.y + (wy + height) * depthUnit) - y
       if (x < cw && x + w > 0 && y < ch && y + h > 0) {
-        ctx.fillStyle = fills[(hash >>> 8) % fills.length]!
+        const stone = stones[(hash >>> 8) % stones.length]!
+        ctx.fillStyle = stone.base
         ctx.fillRect(x + 1, y + 1, w - 1, h - 1)
+        // Broad, close-value facets give each flag a surface without drawing a grid over it.
+        const split = Math.max(3, Math.round(h * (0.25 + (hash >>> 18) % 3 * 0.08)))
+        pixelPolygon(ctx, [{ x: x + 1, y: y + 1 }, { x: x + w - 1, y: y + 1 }, { x: x + w - 4, y: y + split }, { x: x + 1, y: y + split + 2 }], stone.light)
+        pixelPolygon(ctx, [{ x: x + 3, y: y + h - 4 }, { x: x + w - 1, y: y + h - 6 }, { x: x + w - 1, y: y + h }, { x: x + 1, y: y + h }], stone.shade)
         // Inset corners and interrupted seams avoid a hard regular grid.
-        ctx.fillStyle = "#303638"
+        ctx.fillStyle = "#363e35"
         if (hash % 3 === 0) ctx.fillRect(x + 1, y + 1, 2, 1)
         if (hash % 5 === 0) ctx.fillRect(x + w - 2, y + h - 2, 2, 2)
         const mx = wx + width / 2, my = wy + height / 2
@@ -36,10 +55,10 @@ export const roomFloor = (ctx: CanvasRenderingContext2D, cw: number, ch: number,
           const dx = x + 3 + (hash >>> 5) % Math.max(1, w - 10), dy = y + 3 + (hash >>> 10) % Math.max(1, h - 8)
           if ((hash >>> 21) % 2 === 0) {
             const sign = hash % 2 === 0 ? 1 : -1
-            pixelLine(ctx, { x: dx, y: dy }, { x: dx + 3, y: dy + sign * 2 }, "#2e3436")
-            pixelLine(ctx, { x: dx + 3, y: dy + sign * 2 }, { x: dx + 5, y: dy + sign * 5 }, "#2e3436")
+            pixelLine(ctx, { x: dx, y: dy }, { x: dx + 3, y: dy + sign * 2 }, "#343c33")
+            pixelLine(ctx, { x: dx + 3, y: dy + sign * 2 }, { x: dx + 5, y: dy + sign * 5 }, "#343c33")
           } else {
-            ctx.fillStyle = "#444d41"; ctx.fillRect(dx, dy, 3, 2); ctx.fillRect(dx + 2, dy + 1, 3, 2)
+            ctx.fillStyle = "#545d43"; ctx.fillRect(dx, dy, 3, 2); ctx.fillRect(dx + 2, dy + 1, 3, 2)
           }
         }
       }
@@ -72,17 +91,22 @@ export const roomWalls = (ctx: CanvasRenderingContext2D, view: FightView, P: Pro
   pixelLine(ctx, { x: end.x, y: back.y }, { x: end.x, y: end.y }, "#899692")
   texture(ctx, "masonry", floor.x - 7, end.y, end.x - floor.x + 14, 9)
   texture(ctx, "cap", floor.x - 7, end.y - 3, end.x - floor.x + 14, 4)
-  for (let x = 0.9, section = 0; x < w; section++) {
+  const count = 2 + decorationHash(0, 21, index) % 3
+  const slots = count === 2 ? [0.29, 0.68] : count === 3 ? [0.2, 0.44, 0.77] : [0.14, 0.35, 0.61, 0.85]
+  for (let section = 0; section < count; section++) {
     const hash = decorationHash(section, 21, index)
+    const x = w * (slots[section]! + ((hash >>> 8) % 9 - 4) * 0.008)
     const p = P(x, 0)
-    if (hash % 5 < 2) torchFire(ctx, p.x, p.y - 1, view.world, Math.round(x * 10))
-    else if (hash % 5 === 2) sprite(ctx, index % 3 === 0 ? "banner-red" : "banner-moss", p.x, p.y - 1)
-    x += 2.5 + (hash >>> 8) % 28 / 10
+    // At least one flame and one banner; extra slots can repeat either, leaving uneven gaps.
+    if (section === 0 || (section > 1 && hash % 2 === 0)) torchFire(ctx, p.x, p.y - 1, view.world, Math.round(x * 10))
+    else sprite(ctx, index % 3 === 0 ? "banner-red" : "banner-moss", p.x, p.y - 1)
   }
+  const chain = P(w * 0.72, 0.28)
+  floorChain(ctx, chain)
   for (let y = 2; y < h - 1; y += 4.1) {
     const hash = decorationHash(0, Math.floor(y), index)
     const at = P(hash % 2 === 0 ? 0.35 : w - 0.35, y)
-    sprite(ctx, hash % 4 === 0 ? "pots" : "rubble", at.x, at.y)
+    sprite(ctx, hash % 3 === 0 ? "pots" : "rubble", at.x, at.y)
   }
 }
 
@@ -113,12 +137,20 @@ export const raisedBlock = (ctx: CanvasRenderingContext2D, b: Pillar, P: Project
     texture(ctx, material === "gate" ? "iron" : "masonry", x, y + depth, width, faceHeight)
     if (material === "gate") texture(ctx, "cap", x, y, width, depth)
     else {
-      fill(x, y, width, depth, "#485166"); fill(x + 2, y + 2, width - 4, depth - 4, "#737d94")
-      pixelLine(ctx, { x: x + 2, y: y + 2 }, { x: x + width - 3, y: y + 2 }, "#9ba7bc")
+      // One warm limestone slab, bevelled toward the upper-left light.
+      fill(x, y, width, depth, "#686957")
+      fill(x + 1, y + 1, width - 3, depth - 3, "#9c9d84")
+      fill(x + 2, y + 2, width - 5, Math.max(1, Math.floor(depth * 0.28)), "#a7a88e")
+      pixelLine(ctx, { x: x + 1, y: y + 1 }, { x: x + width - 3, y: y + 1 }, "#c6c5a7")
+      pixelLine(ctx, { x: x + 1, y: y + 1 }, { x: x + 1, y: y + depth - 3 }, "#c6c5a7")
+      fill(x + 1, y + depth - 2, width - 2, 2, "#646552")
+      const chip = 4 + decorationHash(Math.round(b.x * 10), Math.round(b.y * 10), 4) % Math.max(1, width - 9)
+      fill(x + chip, y, 3, 2, "#686957"); fill(x + chip + 1, y + 2, 2, 1, "#c6c5a7")
+      fill(x + width - 2, y + Math.floor(depth * 0.65), 2, 3, "#686957")
     }
   }
-  pixelLine(ctx, { x, y }, { x: x + width - 1, y }, material === "wood" ? "#947058" : "#b3c0b2")
-  pixelLine(ctx, { x, y: y + 1 }, { x, y: y + depth - 1 }, "#899692")
+  if (material !== "stone") pixelLine(ctx, { x, y }, { x: x + width - 1, y }, material === "wood" ? "#947058" : "#b3c0b2")
+  pixelLine(ctx, { x, y: y + 1 }, { x, y: y + depth - 1 }, material === "stone" ? "#aaa98e" : "#899692")
   pixelLine(ctx, { x: x + width - 1, y }, { x: x + width - 1, y: Math.round(ground.y) }, "#263234")
   pixelLine(ctx, { x, y: Math.round(ground.y) }, { x: x + width, y: Math.round(ground.y) }, "#171c2e", 2)
   if (material === "gate") {
@@ -129,8 +161,11 @@ export const raisedBlock = (ctx: CanvasRenderingContext2D, b: Pillar, P: Project
     if (width > 92 && hash % 2 === 0) sprite(ctx, "banner-red", x + Math.floor(width * 0.65), Math.round(ground.y) - 1)
   } else if (material === "stone" && b.h > b.w * 2) {
     sprite(ctx, "chain", x + Math.floor(width / 2), Math.round(ground.y) - 1)
-  } else if (material === "stone" && decorationHash(Math.round(b.x * 10), Math.round(b.y * 10), 0) % 3 === 0) {
+  } else if (material === "stone") {
     // Floor dressing stays beside the base, never on the cap.
-    sprite(ctx, "pots", x + width + 5, Math.round(ground.y) + 4)
+    const hash = decorationHash(Math.round(b.x * 10), Math.round(b.y * 10), 0)
+    if (hash % 3 === 0) sprite(ctx, "pots", x + width + 5, Math.round(ground.y) + 4)
+    else if (hash % 3 === 1) sprite(ctx, "rubble", x - 3, Math.round(ground.y) + 3)
+    else floorChain(ctx, { x: x + width + 2, y: ground.y + 2 })
   }
 }

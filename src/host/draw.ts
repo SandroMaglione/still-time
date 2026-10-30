@@ -190,8 +190,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     for (const e of view.enemies) {
       const m = e.melee
       const centre = P(e.x, e.y)
+      const feet = { x: centre.x, y: centre.y + 1 }
+      const footRadius = Math.round(e.radius * erx) + (m?.guarding ? 3 : 2)
       const ring = (start: number, end: number, colour: string, width = 1, segmented = false): void =>
-        threatArc(ctx, centre, (e.radius + 0.18) * erx, (e.radius + 0.18) * ery, start, end, colour, width, segmented)
+        threatArc(ctx, feet, footRadius, Math.max(3, Math.round(footRadius * 0.4)), start, end, colour, width, segmented)
       if (e.kind === "runner") {
         ring(0, Math.PI * 2, e.sees ? "#edc66c" : "#947058", 1, true)
         continue
@@ -211,15 +213,15 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
           const progress = Math.max(0, (m.progress - (1 - m.lockShare)) / m.lockShare)
           pixelArc(ctx, centre, rx * progress, ry * progress, e.aim - m.arc, e.aim + m.arc, "#e98a49")
         }
-      } else if (m.phase === "chase") {
-        threatArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, THREAT, 2, true)
+      } else if (m.phase === "chase" || m.phase === "idle") {
+        pixelArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, "#ad7950", 1, true)
       }
       // Guard up: a steel front and a gold open back. Dazed: a turning white ring, open all round and no blow lands.
       // Otherwise a gold ring: open all round.
       if (m.phase === "stagger") {
         ring(m.progress * 6, m.progress * 6 + Math.PI * 2, "#f4efda", 1, true)
       } else if (m.guarding) {
-        ring(e.aim - m.guardArc, e.aim + m.guardArc, "#c6d4df", 2)
+        ring(e.aim - m.guardArc, e.aim + m.guardArc, "#c6d4df")
         ring(e.aim + m.guardArc, e.aim + Math.PI * 2 - m.guardArc, "#edc66c")
       } else {
         ring(0, Math.PI * 2, m.phase === "recover" ? "#edc66c" : "#947058", 1, m.phase !== "recover")

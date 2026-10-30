@@ -1,17 +1,19 @@
 # Room art
 
 Floor flagstones are drawn in world space by `src/host/room-art.ts`. Their
-widths, row heights and offsets vary deterministically. Fill values are close
-to grout values, and corners interrupt the seams. Most stones are plain;
+widths, row heights and offsets vary deterministically. Three close olive-grey
+shades form broad facets on each flag. Fill values are close to grout values,
+and corners interrupt the seams. Most stones are plain;
 rare cracks and moss favor walls and cover. Camera movement and retries do
 not reroll the pattern or consume simulation randomness.
 
-Cover uses cool blue-grey dressed stone, distinct from the dark neutral
-floor. Its single slab cap is pale above a darker brick face. Timber crates
+Cover uses a warm limestone slab over cool blue-grey dressed stone, distinct
+from the green floor. Its cap has an upper-left bevel, a dark lower edge and
+two small chips above a darker brick face. Timber crates
 have a thick frame, an X brace and metal fasteners across one whole box.
 Short offset shadows ground both materials. Clay pots sit beside cover on
-the floor. Back walls have unevenly spaced torches and broader readable
-banners, with stretches left undecorated.
+the floor; rubble and loose chain links dress other bases. Every back wall
+has 2–4 unevenly spaced torches and banners, with stretches left undecorated.
 
 Source textures and decorations use the coordinated 16-color palette in
 `pixel.config.json`. `scripts/environment.mjs` writes sprite text, calls

@@ -1,4 +1,4 @@
-/** Review 1: matched renderer fixtures, the requested phone views, and a real simulated wind-up. */
+/** Matched renderer fixtures, requested phone views, and a real simulated wind-up. */
 import assert from "node:assert/strict"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { chromium } from "playwright"
@@ -6,7 +6,9 @@ import type { EnemyView, FightView } from "../src/sim/view.ts"
 
 const base = process.argv[2] ?? "http://localhost:5350"
 const before = process.argv.includes("--before")
-const dir = `output/review-1/${before ? "before" : "after"}`
+const round2 = process.argv.includes("--round-2")
+const root = `output/review-${round2 ? 2 : 1}`
+const dir = `${root}/${before ? "before" : "after"}`
 mkdirSync(dir, { recursive: true })
 const browser = await chromium.launch()
 const errors: Array<string> = []
@@ -14,7 +16,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
   page.on("pageerror", e => errors.push(String(e)))
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()) })
-  if (!before) for (const room of [4, 9, 11, 12]) {
+  if (!before) for (const room of round2 ? [1, 4, 9, 11, 12] : [4, 9, 11, 12]) {
     await page.goto(`${base}/?room=${room}&all`)
     await page.waitForFunction(() => document.querySelector("#room")!.textContent!.length > 0)
     await page.waitForTimeout(800)
@@ -74,11 +76,12 @@ try {
   })
   for (const [name, data] of Object.entries(frames)) writeFileSync(`${dir}/${name}.png`, Buffer.from(data, "base64"))
   if (!before) {
-    const pairs = ["floor", "telegraph", "enemies"].map(name => ({ name, before: `data:image/png;base64,${readFileSync(`output/review-1/before/${name}.png`).toString("base64")}`, after: `data:image/png;base64,${readFileSync(`${dir}/${name}.png`).toString("base64")}` }))
+    const baseline = `output/review-1/${round2 ? "after" : "before"}`
+    const pairs = (round2 ? ["floor", "telegraph"] : ["floor", "telegraph", "enemies"]).map(name => ({ name, before: `data:image/png;base64,${readFileSync(`${baseline}/${name}.png`).toString("base64")}`, after: `data:image/png;base64,${readFileSync(`${dir}/${name}.png`).toString("base64")}` }))
     const comparison = await page.evaluate(async pairs => {
-      const canvas = document.createElement("canvas"); canvas.width = 960; canvas.height = 1056
+      const canvas = document.createElement("canvas"); canvas.width = 960; canvas.height = pairs.length * 352
       const ctx = canvas.getContext("2d")!; ctx.imageSmoothingEnabled = false
-      ctx.fillStyle = "#171c2e"; ctx.fillRect(0, 0, 960, 1056)
+      ctx.fillStyle = "#171c2e"; ctx.fillRect(0, 0, 960, canvas.height)
       for (let row = 0; row < pairs.length; row++) {
         const pair = pairs[row]!
         for (const [col, source] of [pair.before, pair.after].entries()) {
@@ -90,8 +93,8 @@ try {
       }
       return canvas.toDataURL("image/png").split(",")[1]!
     }, pairs)
-    writeFileSync("output/review-1/comparison.png", Buffer.from(comparison, "base64"))
+    writeFileSync(`${root}/comparison.png`, Buffer.from(comparison, "base64"))
   }
   assert.deepEqual(errors, [])
-  console.log(`Saved ${before ? "baseline fixtures" : "4 phone screenshots, frozen wind-up and before/after comparison"}; no console errors.`)
+  console.log(`Saved ${before ? "baseline fixtures" : `${round2 ? 5 : 4} phone screenshots, frozen wind-up and before/after comparison`}; no console errors.`)
 } finally { await browser.close() }
