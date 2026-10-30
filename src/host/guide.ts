@@ -3,8 +3,7 @@
  * covers neither you nor what it is about, each step waiting until you have done it, and the thumb let through only
  * as far as the step asks.
  *
- * The Blade (the clock): look at the blade (you cannot move yet: it waits for you); slide up a little (a walk only:
- * it turns); let go (it stops with you); then cross when it is open, free. First Cut (the cut): that's an enemy,
+ * The Blade (the clock): look at the blade (you cannot move yet: it waits for you); slide up (it turns); let go (it stops with you); then cross when it is open, free. First Cut (the cut): that's an enemy,
  * walk into it to cut; while a shot is in the air, the red line is the shot: step out of it.
  */
 import { ROOMS } from "../sim/rooms.ts"
@@ -55,11 +54,11 @@ const bladeOf = (room: number): { readonly x: number; readonly y: number; readon
 const BLADE: ReadonlyArray<Step> = [
   { title: () => "LOOK AT THE BLADE", sub: () => "IT WAITS FOR YOU", gate: () => false, ok: still, need: 1.6, markBlade: true },
   {
-    // Slid too far (a run), the walk-only step lets nothing through: say so, in red, rather than stand still.
-    title: (s) => s.keys ? "HOLD UP ARROW" : s.zone === "walk" ? "HOLD IT THERE" : s.zone === "run" ? "TOO FAR" : "SLIDE UP A LITTLE",
-    sub: (s) => (!s.keys && s.zone === "run" ? "SLIDE LESS: A LITTLE" : "THE BLADE TURNS"),
-    colour: (s) => (!s.keys && s.zone === "run" ? RED : moving(s) ? GOLD : WHITE),
-    gate: (s) => (s.keys ? s.upOnly : s.zone === "walk"),
+    // Any slide up lets you through (a walk-only step tripped people up: they slide all the way).
+    title: (s) => (s.keys ? "HOLD UP ARROW" : s.zone !== "none" ? "KEEP MOVING" : "SLIDE UP"),
+    sub: () => "THE BLADE TURNS",
+    colour: (s) => (moving(s) ? GOLD : WHITE),
+    gate: (s) => (s.keys ? s.upOnly : s.zone !== "none"),
     ok: moving, need: 1, markBlade: true
   },
   { title: () => "LET GO", sub: () => "IT STOPS WITH YOU", gate: () => false, ok: (s) => !s.down && still(s), need: 0.8, markBlade: true },
@@ -89,6 +88,8 @@ export class Guide {
   private held = 0
   private now = 0
   private doneAt = -1
+  /** Where the caption sat last frame (canvas px). */
+  private labelY: number | null = null
 
   private sense(view: FightView, input: GuideInput): Sense | null {
     const p = view.player
@@ -108,7 +109,7 @@ export class Guide {
     const id = view.player?.id ?? -1
     if (view.room.index !== this.room || (id !== -1 && id !== this.player)) {
       this.room = view.room.index; this.player = id
-      this.step = 0; this.held = 0; this.doneAt = -1
+      this.step = 0; this.held = 0; this.doneAt = -1; this.labelY = null
     }
     const steps = stepsFor(this.room)
     const step = steps[this.step]
@@ -142,7 +143,10 @@ export class Guide {
     }
     for (const e of view.enemies) { const at = P(e.x, e.y); avoid.push({ top: at.y - 34, bottom: at.y + 8 }) }
     const fits = (y: number): boolean => avoid.every((a) => y + 44 < a.top || y - 12 > a.bottom)
-    const labelY = [0.2, 0.36, 0.52, 0.68].map((k) => Math.round(ch * k)).find(fits) ?? Math.round(ch * 0.2)
+    // It stays put while it still fits (no jumping as you walk), else takes the highest spot that does.
+    const spots = Array.from({ length: 34 }, (_, i) => Math.round(ch * (0.14 + i * 0.02)))
+    const labelY = this.labelY !== null && fits(this.labelY) ? this.labelY : spots.find(fits) ?? Math.round(ch * 0.2)
+    this.labelY = labelY
     if (step === undefined) {
       const age = this.now - this.doneAt
       const done = DONE[this.room]

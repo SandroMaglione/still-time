@@ -1,11 +1,12 @@
 /**
  * First Step's drill: the stick taught the way puzzle games teach a gesture, one exact move at a time, with every
  * other input switched off while you do it. A circle in the thumb's area (press there; presses elsewhere are
- * ignored); slide up all the way and hold (you run, and only while you are in that band: the slide people make
- * anyway, so it comes first); slide back down to the walk band and hold (you walk); then let go (you stop). Lifting early goes back to the press. Your finger covers the spot it is on, so
- * the stick is mirrored big under the caption, high on the screen: its walk and run circles, your knob where your
- * finger is, and the step's circle filling; the phone buzzes as you enter a band and finish a step. Done, the page
- * clears the room (its goal is the lesson). With keys: hold up, then let go.
+ * ignored); slide up all the way and hold (you move, and only while you are slid up); then let go (you stop).
+ * Lifting early goes back to the press. (A walk step, back down to a nearer circle, was tried: people fixed on it
+ * and lost the lesson.) Your finger covers the spot it is on, so the stick is mirrored big under the caption, high
+ * on the screen: its circle, your knob where your finger is, and the circle filling as you hold; the phone buzzes
+ * as you get there and finish a step. Done, the page clears the room (its goal is the lesson). With keys: hold up,
+ * then let go.
  *
  * Everything here is in canvas pixels (the scene's native pixels), the units the stick is drawn in.
  */
@@ -23,21 +24,19 @@ export interface DrillInput {
   readonly anyKey: boolean
 }
 
-type Phase = "press" | "slow" | "fast" | "release" | "done"
+type Phase = "press" | "fast" | "release" | "done"
 
 /** Sizes in canvas px: the press circle, and the mirror of the stick up by the caption (its length, its circles). */
 const PRESS_R = 16, MIRROR = 52, MIRROR_R = 10
-/** Where the walk and the run sit on the stick, as a share of its reach from the press point (see `zoneOf`). */
-const WALK_AT = 0.44, RUN_AT = 1
-const SLOW_HOLD = 1.4, FAST_HOLD = 1, KEY_HOLD = 1.5
+const FAST_HOLD = 1.2, KEY_HOLD = 1.5
 /** Real s "got it" shows before the room counts as cleared. */
 const CLEAR_AFTER = 1.2
-const INK = "#171c2e", ICE = "#7fd8ff", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda", DIM = "#465477"
+const INK = "#171c2e", ICE = "#7fd8ff", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda"
 
 export type Zone = "none" | "walk" | "run"
 
 /**
- * Which band the finger is in: a walk (slid up a little: push 0.12 to 0.62) or a run (slid up all the way: push 0.85 and
+ * Which band the finger is in: a walk (slid up part way: push 0.12 to 0.85) or a run (slid up all the way: push 0.85 and
  * more), only when the slide points up (within 45°). The finger hides the spot it is on, so the bands are wide, and you
  * see where you are in the mirror up by the caption.
  */
@@ -47,7 +46,7 @@ export const zoneOf = (stick: Stick | null): Zone => {
   if (len === 0 || -dy / len < 0.7) return "none"
   const dead = stick.reach / 9
   const push = Math.max(0, Math.min(1, (len - dead) / (stick.reach - dead)))
-  return push >= 0.85 ? "run" : push >= 0.12 && push <= 0.62 ? "walk" : "none"
+  return push >= 0.85 ? "run" : push >= 0.12 ? "walk" : "none"
 }
 
 /** A short buzz where the phone can (Android browsers; iOS ignores it). */
@@ -82,7 +81,6 @@ export class Drill {
     if (input.keys) return (this.phase === "press" || this.phase === "release") && input.upOnly
     const zone = zoneOf(input.stick)
     if (this.phase === "fast") return zone === "run"
-    if (this.phase === "slow") return zone === "walk"
     if (this.phase === "release") return zone !== "none"
     return false
   }
@@ -119,12 +117,9 @@ export class Drill {
     const zone = zoneOf(stick)
     if (zone !== this.zone && zone !== "none") buzz(12)
     this.zone = zone
-    if (this.phase === "slow" && zone === "walk") {
+    if (this.phase === "fast" && zone === "run") {
       this.held += dt
-      if (this.held >= SLOW_HOLD) { this.phase = "release"; this.held = 0; buzz(40) }
-    } else if (this.phase === "fast" && zone === "run") {
-      this.held += dt
-      if (this.held >= FAST_HOLD) { this.phase = "slow"; this.held = 0; buzz(40) }
+      if (this.held >= FAST_HOLD) { this.phase = "release"; this.held = 0; buzz(40) }
     }
   }
 
@@ -166,13 +161,7 @@ export class Drill {
       return
     }
     const zone = zoneOf(stick)
-    // The run first (the slide people make anyway), then the walk: bring it back down to the walk circle.
-    if (this.phase === "fast") caption(ctx, x, labelY, zone === "run" ? "HOLD IT THERE" : "SLIDE UP", zone === "run" ? "ALL THE WAY: YOU RUN" : "ALL THE WAY", zone === "run" ? GOLD : WHITE)
-    else if (this.phase === "slow") {
-      if (zone === "walk") caption(ctx, x, labelY, "HOLD IT THERE", "A LITTLE: YOU WALK", GOLD)
-      else if (zone === "run") caption(ctx, x, labelY, "NOW SLIDE BACK", "TO THE WALK CIRCLE", WHITE)
-      else caption(ctx, x, labelY, "SLIDE UP A LITTLE", "TO THE WALK CIRCLE", WHITE)
-    }
+    if (this.phase === "fast") caption(ctx, x, labelY, zone === "run" ? "HOLD IT THERE" : "SLIDE UP", zone === "run" ? "YOU MOVE" : "ALL THE WAY", zone === "run" ? GOLD : WHITE)
     else caption(ctx, x, labelY, "NOW LET GO", "YOU STOP", WHITE)
     // The track sits a little left of centre so it and its WALK / RUN labels are centred together.
     this.mirror(ctx, { x: x - 14, y: labelY + 64 + MIRROR }, stick, zone)
@@ -191,18 +180,15 @@ export class Drill {
    * track up from it, and your knob where your finger is (sideways too). The circle of the step fills as you hold.
    */
   private mirror(ctx: CanvasRenderingContext2D, base: { readonly x: number; readonly y: number }, stick: Stick | null, zone: Zone): void {
-    const walk = { x: base.x, y: base.y - Math.round(MIRROR * WALK_AT) }, run = { x: base.x, y: base.y - Math.round(MIRROR * RUN_AT) }
+    const run = { x: base.x, y: base.y - MIRROR }
     const left = base.x - 36, top = run.y - MIRROR_R - 8
     ctx.fillStyle = INK; ctx.fillRect(left - 1, top - 1, 102, base.y - top + 12)
     ctx.fillStyle = "rgba(41, 51, 75, 0.94)"; ctx.fillRect(left, top, 100, base.y - top + 10)
     pixelLine(ctx, base, run, INK, 3, 3)
     pixelLine(ctx, base, run, ICE, 1, 3)
-    // The run is the first circle to fill, the walk the second (dim until its turn).
-    const runDone = this.phase !== "fast", walkDone = this.phase === "release"
+    const runDone = this.phase !== "fast"
     target(ctx, run, MIRROR_R, runDone ? 1 : this.held / FAST_HOLD, runDone ? GREEN : zone === "run" ? GOLD : ICE)
-    target(ctx, walk, MIRROR_R, walkDone ? 1 : this.phase === "slow" ? this.held / SLOW_HOLD : 0, walkDone ? GREEN : zone === "walk" && this.phase === "slow" ? GOLD : this.phase === "slow" ? ICE : DIM)
-    smallText(ctx, "RUN", run.x + MIRROR_R + 6, run.y - 4, runDone ? GREEN : zone === "run" ? GOLD : WHITE)
-    smallText(ctx, "WALK", walk.x + MIRROR_R + 6, walk.y - 4, walkDone ? GREEN : this.phase === "slow" ? (zone === "walk" ? GOLD : WHITE) : DIM)
+    smallText(ctx, "GO", run.x + MIRROR_R + 6, run.y - 4, runDone ? GREEN : zone === "run" ? GOLD : WHITE)
     if (stick === null) return
     // Your finger, mirrored: the same offset from where you pressed, scaled to this track.
     const dx = stick.x - stick.ox, dy = stick.y - stick.oy, len = Math.hypot(dx, dy)
@@ -210,9 +196,7 @@ export class Drill {
     const knob = { x: base.x + Math.round(dx * k), y: base.y + Math.round(dy * k) }
     thumbPad(ctx, base, knob, 3)
     // While you are not in the step's circle, a ghost hand shows the slide in the mirror.
-    // (Back down from the run circle to the walk one, when that is the way.)
-    const want = this.phase === "slow" ? "walk" : this.phase === "fast" ? "run" : "none"
-    if (want !== "none" && zone !== want) ghostSlide(ctx, want === "walk" && zone === "run" ? run : base, want === "walk" ? walk : run, this.now)
+    if (this.phase === "fast" && zone !== "run") ghostSlide(ctx, base, run, this.now)
   }
 }
 
