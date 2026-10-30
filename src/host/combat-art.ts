@@ -1,8 +1,9 @@
-import type { EnemyView } from "../sim/view.ts"
+import type { BombView, EnemyView } from "../sim/view.ts"
 import { posedSprite, sprite, type Sprite } from "./art.ts"
 import type { Death, Impact } from "./fx.ts"
 import { emitLight } from "./lighting.ts"
 import { decorationHash, pixelArc, pixelLine, pixelPolygon, type Point } from "./pixels.ts"
+import type { Projection } from "./room-art.ts"
 
 const INK = "#171c2e", STEEL = "#c6d4df", IVORY = "#f4efda", GOLD = "#edc66c"
 const clamp = (n: number): number => Math.max(0, Math.min(1, n))
@@ -73,10 +74,9 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
       // A round charge in hand, gone for a moment after the throw; its fuse sparks as the next throw nears.
       if (fired < 0 || fired > 0.3) {
         const at = point(3)
-        pixelArc(ctx, at, 3, 3, 0, Math.PI * 2, INK, 3)
-        rect(ctx, at.x - 2, at.y - 2, 4, 4, "#29334b")
-        rect(ctx, at.x - 2, at.y - 2, 2, 1, "#8996b0")
-        if (enemy.charge > 0.6) rect(ctx, at.x + 1, at.y - 5, 2, 2, Math.floor(enemy.charge * 20) % 2 === 0 ? IVORY : GOLD)
+        const lit = enemy.charge > 0.6
+        sprite(ctx, lit ? Math.floor(enemy.charge * 20) % 2 === 0 ? "bomb-0" : "bomb-1" : "bomb-idle", at.x, at.y + 6)
+        if (lit) emitLight(ctx, { x: ground.x, y: ground.y, radius: 0.8, colour: [255, 190, 110], intensity: 0.4, shadows: false })
       }
     } else if (enemy.kind === "archer") {
       const bend = 0.8 + enemy.charge * 0.4
@@ -121,8 +121,24 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   if (behind) weapon()
   if (behind) towerShield()
   posedSprite(ctx, bodyName(enemy.kind), ground.x, ground.y, { flip, lean, sink })
+  if (enemy.kind === "stalker") {
+    // These native eye pixels line up with draw.ts's existing eye light at ground.y - 14.
+    ctx.save(); ctx.translate(Math.round(ground.x), Math.round(ground.y))
+    if (flip) ctx.scale(-1, 1)
+    ctx.fillStyle = enemy.charge < 0.35 ? "#465477" : enemy.charge < 0.75 ? "#64b6b3" : "#91c69b"
+    ctx.fillRect(-3, -14, 2, 1); ctx.fillRect(2, -14, 2, 1)
+    ctx.restore()
+  }
   if (!behind) weapon()
   if (!behind) towerShield()
+}
+
+/** Native bomb and a two-frame fuse; blast reach/fuse telegraphs remain owned by draw.ts. */
+export const bombActor = (ctx: CanvasRenderingContext2D, P: Projection, bomb: BombView, world: number): void => {
+  const ground = P(bomb.x, bomb.y), at = P(bomb.x, bomb.y, bomb.flying ? 0.7 : 0.15)
+  sprite(ctx, "shadow", ground.x + 1, ground.y + 3)
+  sprite(ctx, Math.floor(world * (bomb.fuse < 0.3 ? 24 : 10)) % 2 === 0 ? "bomb-0" : "bomb-1", at.x, at.y + 5)
+  emitLight(ctx, { x: ground.x, y: ground.y, radius: 1.2, colour: [255, 190, 110], intensity: bomb.flying ? 0.35 : 0.7, shadows: false, halo: { lift: Math.round(ground.y - at.y + 10), radius: 0.4, strength: 0.18 } })
 }
 
 export const muzzle = (ctx: CanvasRenderingContext2D, at: Point, angle: number, progress: number): void => {

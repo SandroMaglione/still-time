@@ -3,7 +3,8 @@ import { existsSync, readdirSync, mkdirSync, writeFileSync, renameSync } from 'n
 import { spawnSync } from 'node:child_process'
 import './batch2-art.mjs'
 import './batch3-art.mjs'
-// art-hero.mjs drew the earlier hat hero; the approved player is hand-kept in source/player-body.sprite.txt.
+import './art-assassin.mjs'
+// art-hero.mjs drew the earlier hat hero; art-assassin.mjs authors only the new body and batch-3–5 objects.
 
 const out = 'output/art'
 for (const folder of ['previews', 'reports']) mkdirSync(`${out}/${folder}`, { recursive: true })

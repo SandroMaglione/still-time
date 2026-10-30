@@ -12,22 +12,51 @@ the two-frame `batch2` atlas. Runtime weapon/body layering remains in
 `src/host/combat-art.ts`; each role has its own body. Every living body gets
 a one-source-pixel light rim inside the renderer, outside its dark outline.
 
-The live `player-body.png` is the approved 24×24 dark-teal-haired player with
-an ivory coat and watch clasp. Its canonical source is
-`source/player-body.sprite.txt`; `player-body.pixel.config.json` preserves the
-approved study's 16-colour palette. The runtime anchor remains `[12,23]`.
-Only this body is replaced; the legacy equipped player and packed atlas stay
-as they were.
+The live `player-body.png` is the 24×24 split-cowl assassin: a covered face,
+fitted navy clothing, one teal scarf and an ivory-edged reverse-grip knife.
+The scarf separates it from the hooded sniper at native size. The shared
+16-colour palette and runtime anchor `[12,23]` are unchanged. Only this player
+body is replaced; the legacy equipped player and packed atlas stay as they were.
 
 `pnpm art` renders and lints every source sprite; a sprite with its own
 `assets/art/<name>.pixel.config.json` (the player) is rendered against that
 palette. `scripts/art-hero.mjs` is no longer run: it drew the earlier hat hero.
+`scripts/art-assassin.mjs` authors the selected body, a crouched violet stalker,
+and batch-3–5 object sources. Its three 1×/4× player studies, phone captures,
+reports and assembled tile fixtures stay under ignored `output/review-7/`.
+
+## Batch-3–5 draw hooks
+
+The native sprites are loaded by `loadArt`. The player and stalker bodies,
+stalker eye brightness and the grenadier's held bomb are already integrated.
+The grenadier and clockwork body sprites are unchanged. The five functions
+below are exported for the owner of `draw.ts`; no gameplay or telegraph logic
+needs to change. Keep existing depth-sort entries and threat buffers.
+
+| Export | Replacement in `src/host/draw.ts` |
+| --- | --- |
+| `pressurePlate(ctx, P, plate)` from `room-art.ts` | Replace the body of `for (const plate of view.plates)` after the conveyor loop. Includes the digit slot and plate light. |
+| `conveyorBelt(ctx, P, belt)` from `room-art.ts` | Replace the body of `for (const belt of view.belts)` after open-door thresholds. Uses `belt.run`, tiles slats, fixes rails/rollers, handles all four directions. |
+| `spinningBlade(ctx, P, hz)` from `room-art.ts` | In the standing-hazards loop, replace the contents of `paintBlade`; call for both `ctx` and `glow` as now. Keep the floor reach arc. Native teeth repeat along the actual endpoints with integer inverse sampling. |
+| `laserPost(ctx, P, x, y, hz.state)` from `room-art.ts` | Replace each laser endpoint actor's `paint` body. Includes the post light. Keep the existing beam and its on/warn/off telegraph. |
+| `bombActor(ctx, P, b, view.world)` from `combat-art.ts` | Replace the bomb actor's `paint` body in `for (const b of view.bombs)`. Includes shadow, flight height, two-frame fuse and light. Keep the existing blast/fuse rings. |
+
+Remove `draw.ts`'s local `digit` and `DIGITS` if unused after wiring. Every
+new emitting object registers `emitLight` at its floor footprint. The stalker
+uses the existing eye light at 14 px above its feet; its native eye pixels
+brighten in three steps with `charge`. Canvas caches use `willReadFrequently`.
 
 ## Rebuild
 
 Run `pnpm art` for characters and environment, or `pnpm art:environment` for
 materials and decorations alone. `@typeonce/ritmo-tools@0.19.1` renders each
 source and lints every final PNG. Non-clean results fail the command.
+
+For this pass alone, run `node scripts/art-assassin.mjs`, then
+`node scripts/art-review7.ts http://localhost:5350` for the lit phone captures,
+4× sheets and pose assertions. The legacy bulk rebuild currently rejects the
+existing 48×24 `batch2` atlas, which is missing from the root allowed sizes.
+That unrelated atlas and the shared configuration are left unchanged.
 
 - `assets/art/`: sprite-text sources, palette/configuration, manifests and README files.
 - `public/art/`: final native PNGs and atlas metadata.

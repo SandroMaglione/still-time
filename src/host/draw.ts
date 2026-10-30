@@ -8,11 +8,11 @@ import type { Lock, Pillar } from "../sim/rooms.ts"
 import { STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
-import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
+import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
 import { GHOST_LIFE, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
-import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
+import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
 import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
 import { DANGER, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
 
@@ -81,15 +81,6 @@ const PLATE = "#64b6b3"
 /** What a door looks like by its lock: steel for a chamber, gold for a captain, the key's colour for a key, teal for plates. */
 const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : lock.kind === "captain" ? "#ffd25a" : lock.kind === "plates" ? PLATE : keyColour(lock.key))
 
-/** 3×5 pixel digits for plate numbers. */
-const DIGITS = ["111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001", "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"] as const
-const digit = (ctx: CanvasRenderingContext2D, n: number, x: number, y: number, colour: string): void => {
-  const bits = DIGITS[n % 10] ?? DIGITS[0]
-  const left = Math.round(x) - 1, top = Math.round(y) - 2
-  ctx.fillStyle = INK; ctx.fillRect(left - 1, top - 1, 5, 7)
-  ctx.fillStyle = colour
-  for (let i = 0; i < 15; i++) if (bits[i] === "1") ctx.fillRect(left + (i % 3), top + Math.floor(i / 3), 1, 1)
-}
 
 const EXIT = "#7dff9a"
 
@@ -225,42 +216,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelLine(ctx, { x: a.x, y: b.y }, b, "#647373", 1, 3)
   }
   // Conveyor belts: a dark tread whose chevrons run in real time, the way it carries you.
-  for (const belt of view.belts) {
-    const a = P(belt.x, belt.y), b = P(belt.x + belt.w, belt.y + belt.h)
-    const x = Math.round(a.x), y = Math.round(a.y), w = Math.round(b.x) - x, h = Math.round(b.y) - y
-    ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, w + 2, h + 2)
-    ctx.fillStyle = "#2a3036"; ctx.fillRect(x, y, w, h)
-    ctx.fillStyle = "#465254"
-    if (belt.dx === 0) for (let i = 0; i < w; i += 3) ctx.fillRect(x + i, y, 1, h)
-    else for (let i = 0; i < h; i += 3) ctx.fillRect(x, y + i, w, 1)
-    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip()
-    const spacing = 0.9, along = belt.dx !== 0 ? belt.w : belt.h, shift = ((belt.run % spacing) + spacing) % spacing
-    for (let d = -spacing + shift; d < along + spacing; d += spacing) {
-      const cxw = belt.dx !== 0 ? (belt.dx > 0 ? belt.x + d : belt.x + belt.w - d) : belt.x + belt.w / 2
-      const cyw = belt.dy !== 0 ? (belt.dy > 0 ? belt.y + d : belt.y + belt.h - d) : belt.y + belt.h / 2
-      const c = P(cxw, cyw), angle = Math.atan2(belt.dy * SQUASH, belt.dx), size = Math.min(w, h) * 0.3
-      const tip = { x: c.x + Math.cos(angle) * size * 0.5, y: c.y + Math.sin(angle) * size * 0.5 }
-      for (const side of [-1, 1]) {
-        const end = { x: c.x - Math.cos(angle) * size * 0.5 + Math.sin(angle) * side * size, y: c.y - Math.sin(angle) * size * 0.5 - Math.cos(angle) * side * size }
-        pixelLine(ctx, tip, end, "#edc66c", 2)
-      }
-    }
-    ctx.restore()
-  }
+  for (const belt of view.belts) conveyorBelt(ctx, P, belt)
   // Pressure plates: a raised slab with a teal rim, sunk and lit once pressed; an ordered lock's plates carry their number.
-  for (const plate of view.plates) {
-    const a = P(plate.x - plate.radius, plate.y - plate.radius), b = P(plate.x + plate.radius, plate.y + plate.radius)
-    const x = Math.round(a.x), y = Math.round(a.y), w = Math.round(b.x) - x, h = Math.round(b.y) - y
-    const rim = plate.missed ? DANGER : plate.down ? PLATE : "#8f9d97"
-    ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, w + 2, h + 3)
-    ctx.fillStyle = plate.down ? "#1f3a3b" : "#56605f"; ctx.fillRect(x, y + (plate.down ? 1 : 0), w, h)
-    ctx.fillStyle = rim
-    ctx.fillRect(x, y + (plate.down ? 1 : 0), w, 1); ctx.fillRect(x, y + h - 1 + (plate.down ? 1 : 0), w, 1)
-    ctx.fillRect(x, y + (plate.down ? 1 : 0), 1, h); ctx.fillRect(x + w - 1, y + (plate.down ? 1 : 0), 1, h)
-    if (!plate.down) { ctx.fillStyle = "#29334b"; ctx.fillRect(x, y + h, w, 2) }
-    if (plate.order !== null) digit(ctx, plate.order, x + w / 2, y + h / 2 + (plate.down ? 1 : 0), plate.down ? PLATE : "#f4efda")
-    if (plate.down) emitLight(ctx, { x: x + w / 2, y: y + h / 2, radius: 1.4, colour: [100, 182, 179], intensity: 0.6, shadows: false })
-  }
+  for (const plate of view.plates) pressurePlate(ctx, P, plate)
   // Keys on the floor: a ring that pulls the eye.
   for (const k of view.keys) {
     if (k.state !== "floor") continue
@@ -478,24 +436,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     if (hz.kind === "blade") {
       const cxw = (hz.ax + hz.bx) / 2, cyw = (hz.ay + hz.by) / 2
       // The bar is a threat: painted on the glow layer too, so the lighting never hides it.
-      const paintBlade = (ctx: CanvasRenderingContext2D): void => {
-        const a = P(hz.ax, hz.ay, 0.45), b = P(hz.bx, hz.by, 0.45), hub = P(cxw, cyw, 0.45), ground = P(cxw, cyw)
-        pixelLine(ctx, ground, hub, INK, 4); pixelLine(ctx, ground, hub, "#465254", 2)
-        pixelLine(ctx, a, b, INK, 5); pixelLine(ctx, a, b, THREAT, 3); pixelLine(ctx, a, b, "#f4efda", 1)
-        for (const end of [a, b]) { ctx.fillStyle = DANGER; ctx.fillRect(Math.round(end.x) - 1, Math.round(end.y) - 1, 3, 3) }
-        pixelArc(ctx, hub, 3, 3, 0, Math.PI * 2, INK, 3); ctx.fillStyle = "#8996b0"; ctx.fillRect(Math.round(hub.x) - 1, Math.round(hub.y) - 1, 3, 3)
-      }
-      actors.push({ x: cxw, y: cyw, paint: () => { paintBlade(ctx); paintBlade(glow) } })
+      actors.push({ x: cxw, y: cyw, paint: () => { spinningBlade(ctx, P, hz); spinningBlade(glow, P, hz) } })
       continue
     }
     for (const [x, y] of [[hz.ax, hz.ay], [hz.bx, hz.by]] as const) {
       actors.push({
         x, y, paint: () => {
-          const ground = P(x, y), top = P(x, y, 0.75)
-          ctx.fillStyle = INK; ctx.fillRect(Math.round(top.x) - 3, Math.round(top.y) - 1, 7, Math.round(ground.y - top.y) + 3)
-          ctx.fillStyle = "#465254"; ctx.fillRect(Math.round(top.x) - 2, Math.round(top.y), 5, Math.round(ground.y - top.y) + 1)
-          ctx.fillStyle = hz.state === "on" ? DANGER : hz.state === "warn" ? THREAT : "#647373"; ctx.fillRect(Math.round(top.x) - 1, Math.round(top.y) + 3, 3, 3)
-          if (hz.state === "on") emitLight(ctx, { x: top.x, y: top.y + 6, radius: 1.6, colour: [255, 64, 85], intensity: 0.8, shadows: false })
+          laserPost(ctx, P, x, y, hz.state)
         }
       })
     }
@@ -503,16 +450,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   for (const b of view.bombs) {
     actors.push({
       x: b.x, y: b.y, paint: () => {
-        // In flight it rides high with its shadow on the floor; lit, it sits on the floor with a sparking fuse.
-        const ground = P(b.x, b.y), at = P(b.x, b.y, b.flying ? 0.7 : 0.15)
-        sprite(ctx, "shadow", ground.x + 1, ground.y + 3)
-        pixelArc(ctx, at, 4, 4, 0, Math.PI * 2, DANGER, 1)
-        pixelArc(ctx, at, 3, 3, 0, Math.PI * 2, INK, 3)
-        ctx.fillStyle = "#465477"; ctx.fillRect(Math.round(at.x) - 2, Math.round(at.y) - 2, 5, 5)
-        ctx.fillStyle = "#c6d4df"; ctx.fillRect(Math.round(at.x) - 2, Math.round(at.y) - 2, 2, 1)
-        const spark = Math.floor(view.world * (b.fuse < 0.3 ? 24 : 10)) % 2 === 0
-        ctx.fillStyle = spark ? "#f4efda" : "#edc66c"; ctx.fillRect(Math.round(at.x) + 1, Math.round(at.y) - 5, 2, 2)
-        if (!b.flying) emitLight(ctx, { x: at.x + 2, y: at.y - 4, radius: 1.2, colour: [255, 190, 110], intensity: 0.7, shadows: false })
+        bombActor(ctx, P, b, view.world)
       }
     })
   }

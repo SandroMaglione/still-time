@@ -1,6 +1,6 @@
 import type { Pillar } from "../sim/rooms.ts"
-import type { FightView } from "../sim/view.ts"
-import { panel, sprite, texture, tile } from "./art.ts"
+import type { FightView, PlateView } from "../sim/view.ts"
+import { panel, sprite, spriteImage, texture, tile } from "./art.ts"
 import { torchFire } from "./combat-art.ts"
 import { emitLight } from "./lighting.ts"
 import { decorationHash, pixelLine, type Point } from "./pixels.ts"
@@ -9,6 +9,102 @@ export type Projection = (x: number, y: number, z?: number) => Point
 const FLOORS = ["floor-0", "floor-1", "floor-2", "floor-3", "floor-4", "floor-5"] as const
 const ROCKS = ["rock-0", "rock-1", "rock-2"] as const
 const CAPS = ["cap", "cover-cap-1", "cover-cap-2"] as const
+
+const DIGITS = ["111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001", "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"] as const
+
+/** Native floor plate: a raised gold rim, recessed teal latch, or red failed press. */
+export const pressurePlate = (ctx: CanvasRenderingContext2D, P: Projection, plate: PlateView): void => {
+  const at = P(plate.x, plate.y), state = plate.missed ? "missed" : plate.down ? "down" : "up"
+  tile(ctx, `plate-${state}`, at.x - 12, at.y - 12)
+  if (plate.order !== null) {
+    const x = Math.round(at.x), y = Math.round(at.y) + (plate.down ? 1 : -1)
+    ctx.fillStyle = "#171c2e"; ctx.fillRect(x - 3, y - 3, 7, 7)
+    ctx.fillStyle = plate.missed ? "#ce4655" : plate.down ? "#64b6b3" : "#f4efda"
+    const bits = DIGITS[plate.order % 10] ?? DIGITS[0]
+    for (let i = 0; i < bits.length; i++) if (bits[i] === "1") ctx.fillRect(x - 1 + i % 3, y - 2 + Math.floor(i / 3), 1, 1)
+  }
+  emitLight(ctx, {
+    x: at.x, y: at.y, radius: plate.down ? 1.4 : 0.9,
+    colour: plate.missed ? [255, 86, 106] : plate.down ? [100, 182, 179] : [237, 198, 108],
+    intensity: plate.down ? 0.6 : 0.28, shadows: false
+  })
+}
+
+/** Repeating slats move in real time; fixed side rails and end rollers frame the belt. */
+export const conveyorBelt = (ctx: CanvasRenderingContext2D, P: Projection, belt: FightView["belts"][number]): void => {
+  const a = P(belt.x, belt.y), b = P(belt.x + belt.w, belt.y + belt.h)
+  const x = Math.round(a.x), y = Math.round(a.y), w = Math.round(b.x) - x, h = Math.round(b.y) - y
+  const horizontal = belt.dx !== 0, cross = horizontal ? h : w, length = horizontal ? w : h
+  if (cross < 7 || length < 16) return
+  const unit = horizontal ? (b.x - a.x) / belt.w : (b.y - a.y) / belt.h
+  ctx.save()
+  if (horizontal) {
+    ctx.translate(belt.dx > 0 ? x + w : x, belt.dx > 0 ? y : y + h)
+    ctx.rotate(belt.dx > 0 ? Math.PI / 2 : -Math.PI / 2)
+  } else if (belt.dy > 0) { ctx.translate(x + w, y + h); ctx.rotate(Math.PI) }
+  else ctx.translate(x, y)
+  ctx.fillStyle = "#171c2e"; ctx.fillRect(0, 0, cross, length)
+  ctx.save(); ctx.beginPath(); ctx.rect(3, 7, cross - 6, length - 14); ctx.clip()
+  const offset = -Math.round(belt.run * unit) % 24
+  texture(ctx, "belt-tread", 3, offset, cross - 6, length + 24)
+  ctx.restore()
+  for (const rx of [0, cross - 3]) {
+    ctx.fillStyle = "#171c2e"; ctx.fillRect(rx, 0, 3, length)
+    ctx.fillStyle = "#465477"; ctx.fillRect(rx + 1, 0, 1, length)
+  }
+  texture(ctx, "belt-roller", 2, 0, cross - 4, 8)
+  texture(ctx, "belt-roller", 2, length - 8, cross - 4, 8)
+  ctx.restore()
+}
+
+interface StripPixels { readonly w: number; readonly h: number; readonly colours: ReadonlyArray<string | null> }
+const strips = new WeakMap<HTMLImageElement, StripPixels>()
+
+/** Inverse sampling rotates a native repeating blade without Canvas rotation or softened pixels. */
+const bladeStrip = (ctx: CanvasRenderingContext2D, a: Point, b: Point): void => {
+  const image = spriteImage("blade-bar")
+  if (image === undefined) return
+  let data = strips.get(image)
+  if (data === undefined) {
+    const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height
+    const cc = canvas.getContext("2d", { willReadFrequently: true })!
+    cc.drawImage(image, 0, 0)
+    const rgba = cc.getImageData(0, 0, image.width, image.height).data
+    data = { w: image.width, h: image.height, colours: Array.from({ length: image.width * image.height }, (_, i) => rgba[i * 4 + 3] === 0 ? null : `rgb(${rgba[i * 4]},${rgba[i * 4 + 1]},${rgba[i * 4 + 2]})`) }
+    strips.set(image, data)
+  }
+  const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy)
+  if (length < 1) return
+  const c = dx / length, s = dy / length
+  let last = ""
+  for (let y = Math.floor(Math.min(a.y, b.y) - 7); y <= Math.ceil(Math.max(a.y, b.y) + 7); y++) {
+    for (let x = Math.floor(Math.min(a.x, b.x) - 7); x <= Math.ceil(Math.max(a.x, b.x) + 7); x++) {
+      const along = (x - a.x) * c + (y - a.y) * s
+      const row = Math.round(-(x - a.x) * s + (y - a.y) * c) + 12
+      if (along < 0 || along > length || row < 0 || row >= data.h) continue
+      const colour = data.colours[row * data.w + Math.floor(along) % data.w]
+      if (colour === null || colour === undefined) continue
+      if (colour !== last) { ctx.fillStyle = colour; last = colour }
+      ctx.fillRect(x, y, 1, 1)
+    }
+  }
+}
+
+/** Call on both the scene and the existing threat/glow buffer so the blade stays visible. */
+export const spinningBlade = (ctx: CanvasRenderingContext2D, P: Projection, hz: FightView["hazards"][number]): void => {
+  const x = (hz.ax + hz.bx) / 2, y = (hz.ay + hz.by) / 2
+  const hub = P(x, y, 0.45), ground = P(x, y)
+  pixelLine(ctx, ground, hub, "#171c2e", 6); pixelLine(ctx, ground, hub, "#465477", 4)
+  bladeStrip(ctx, P(hz.ax, hz.ay, 0.45), P(hz.bx, hz.by, 0.45))
+  sprite(ctx, "blade-hub", hub.x, hub.y + 11)
+}
+
+/** The existing beam meets the recessed lens. The post's light starts at its floor footprint. */
+export const laserPost = (ctx: CanvasRenderingContext2D, P: Projection, x: number, y: number, state: FightView["hazards"][number]["state"]): void => {
+  const at = P(x, y)
+  sprite(ctx, `laser-post-${state}`, at.x, at.y)
+  if (state !== "off") emitLight(ctx, { x: at.x, y: at.y, radius: state === "on" ? 1.6 : 1.1, colour: state === "on" ? [255, 64, 85] : [255, 176, 96], intensity: state === "on" ? 0.8 : 0.45, shadows: false, halo: { lift: 10, radius: 0.5, strength: 0.2 } })
+}
 
 const footprint = (b: Pillar): string => [b.x, b.y, b.w, b.h].join(",")
 const coverHash = (b: Pillar): number => decorationHash(Math.round(b.x * 10), Math.round(b.y * 10), Math.round(b.w * 31 + b.h * 17))
