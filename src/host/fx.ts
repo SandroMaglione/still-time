@@ -46,6 +46,8 @@ export class Presentation {
   impacts: Array<Impact> = []
   ghosts: Array<Ghost> = []
   stops: Array<Stop> = []
+  /** When (real s) this attempt began: the room's goal is shown as a picture for a moment. */
+  attemptAt = 0
   callout: Callout | null = null
   private lastGhost = -1
   /** Armed by a real run, fired by stopping: one freeze moment per stop. */
@@ -81,8 +83,9 @@ export class Presentation {
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
       this.deaths = []; this.impacts = []; this.ghosts = []; this.stops = []; this.fire.clear()
       this.running = false
-      // A new attempt (a room entered, a retry, a restart) teaches the move again.
+      // A new attempt (a room entered, a retry, a restart) teaches the move again, and shows the goal again.
       this.moved.clear()
+      this.attemptAt = this.now
       this.deadAt = null; this.clearedAt = null
       this.previous = view
       return

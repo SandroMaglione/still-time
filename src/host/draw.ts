@@ -4,10 +4,11 @@
  * as 24-pixel sprites, all painted back to front. The simulation stays flat
  * 2D; only this file knows about height.
  */
-import type { Lock, Pillar } from "../sim/rooms.ts"
+import { ROOMS, type Lock, type Pillar } from "../sim/rooms.ts"
 import { STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
+import { bladeLane, bladeLaneSafe, type Blade } from "./blade-lane.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
 import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
@@ -192,6 +193,183 @@ const dragHint = (ctx: CanvasRenderingContext2D, at: { readonly x: number; reado
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(label, at.x + dx, ly + dy)
   ctx.fillStyle = "#f4efda"
   ctx.fillText(label, at.x, ly)
+  ctx.restore()
+}
+
+type Project = (x: number, y: number, z?: number) => { x: number; y: number }
+
+/** Dust motes on the world's clock: each drifts from a fixed seed by world time, so a frozen world holds them still. */
+const motes = (ctx: CanvasRenderingContext2D, view: FightView, P: Project): void => {
+  const { w, h, index } = view.room
+  const count = Math.round(w * h / 7)
+  for (let i = 0; i < count; i++) {
+    const seed = decorationHash(i, 31, index)
+    const vx = (((seed >>> 4) % 21) - 10) / 50, vy = -0.12 - ((seed >>> 9) % 10) / 60
+    const x = ((((seed % 997) / 997) * w + vx * view.world) % w + w) % w
+    const y = (((((seed >>> 12) % 991) / 991) * h + vy * view.world) % h + h) % h
+    const z = 0.3 + ((seed >>> 20) % 12) / 10
+    const at = P(x, y, z)
+    ctx.fillStyle = (seed >>> 24) % 3 === 0 ? "rgba(255,214,150,0.55)" : "rgba(232,236,244,0.35)"
+    ctx.fillRect(Math.round(at.x), Math.round(at.y), 1, 1)
+  }
+}
+
+/** A pixel arrow pointing down: `o` ink, `g` green. */
+const DOWN_ARROW = ["ooooooo", "ogggggo", "oogggoo", ".ogggo.", ".oogoo.", "..ogo..", "..ooo..", "...o..."] as const
+const bitmap = (ctx: CanvasRenderingContext2D, rows: ReadonlyArray<string>, x: number, y: number, colours: Record<string, string>, scale = 1): void => {
+  const left = Math.round(x - (rows[0]!.length * scale) / 2), top = Math.round(y)
+  rows.forEach((row, j) => {
+    for (let i = 0; i < row.length; i++) {
+      const c = colours[row[i]!]
+      if (c === undefined) continue
+      ctx.fillStyle = c; ctx.fillRect(left + i * scale, top + j * scale, scale, scale)
+    }
+  })
+}
+
+/** The exit as a beacon: a soft column of green light over the pad and an arrow bouncing above it. */
+const exitBeacon = (ctx: CanvasRenderingContext2D, g: { readonly x: number; readonly y: number; readonly w: number; readonly h: number }, P: Project, erx: number, now: number): void => {
+  const foot = P(g.x + g.w / 2, g.y + g.h / 2), top = P(g.x + g.w / 2, g.y + g.h / 2, 2.6)
+  const half = Math.max(6, Math.round(g.w * erx * 0.32))
+  ctx.save()
+  ctx.globalCompositeOperation = "lighter"
+  const col = ctx.createLinearGradient(0, top.y, 0, foot.y)
+  const breathe = 0.3 + 0.1 * Math.sin(now * 3)
+  col.addColorStop(0, "rgba(125,255,154,0)")
+  col.addColorStop(1, `rgba(125,255,154,${breathe.toFixed(3)})`)
+  ctx.fillStyle = col
+  ctx.fillRect(Math.round(foot.x - half), Math.round(top.y), half * 2, Math.round(foot.y - top.y))
+  ctx.restore()
+  const bounce = Math.round(Math.abs(Math.sin(now * 4)) * 5)
+  bitmap(ctx, DOWN_ARROW, foot.x, top.y - 10 + bounce, { o: INK, g: "#7dff9a" }, 3)
+}
+
+/** Chevrons marching from one floor point toward another, in real time: go this way. */
+const chevronsToward = (
+  ctx: CanvasRenderingContext2D, from: { readonly x: number; readonly y: number }, to: { readonly x: number; readonly y: number },
+  P: Project, now: number, colour: string, reach = 4.6
+): void => {
+  const dx = to.x - from.x, dy = to.y - from.y, d = Math.hypot(dx, dy)
+  if (d <= 2) return
+  const ux = dx / d, uy = dy / d, a = Math.atan2(uy * SQUASH, ux)
+  const shift = (now * 1.5) % 0.7
+  for (let k = 1.2 + shift; k < Math.min(d - 1.2, reach); k += 0.7) {
+    const c = P(from.x + ux * k, from.y + uy * k)
+    const tipPt = { x: c.x + Math.cos(a) * 2, y: c.y + Math.sin(a) * 2 }
+    for (const side of [-1, 1]) {
+      const end = { x: c.x - Math.cos(a) * 2 + Math.sin(a) * side * 3, y: c.y - Math.sin(a) * 2 - Math.cos(a) * side * 3 }
+      pixelLine(ctx, tipPt, end, INK, 3); pixelLine(ctx, tipPt, end, colour)
+    }
+  }
+}
+
+/**
+ * The Blade's traffic light: one lane of footprints through the gap, left of the hub (straight through the hub
+ * always meets the bar, and on the right the bar sweeps into you: there a dash is almost never safe). It is green
+ * when a full-speed dash up it, started from its foot now, would get through (checked against where the bar will be
+ * when you reach each step, with the game's own hit distance), red when it would not (about 40% of a turn is green),
+ * with a go or stop sign at its foot. Standing still keeps it as it is: moving turns the blade.
+ */
+const bladeLaneHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project): void => {
+  const p = view.player
+  const blade = (ROOMS[view.room.index]?.hazards ?? []).find((hz): hz is Blade => hz.kind === "blade")
+  if (p === null || blade === undefined) return
+  const { x, foot, end } = bladeLane(blade)
+  // Only until you are through.
+  if (p.y < end) return
+  const safe = bladeLaneSafe(blade, view.world)
+  const colour = safe ? "#7dff9a" : "#ff4055"
+  let step = 0
+  for (let y = foot - 0.3; y >= end; y -= 0.5, step++) {
+    const c = P(x + (step % 2 === 0 ? -0.14 : 0.14), y)
+    ctx.fillStyle = INK; ctx.fillRect(Math.round(c.x) - 3, Math.round(c.y) - 4, 6, 7)
+    ctx.fillStyle = colour; ctx.fillRect(Math.round(c.x) - 2, Math.round(c.y) - 3, 4, 5)
+  }
+  const sign = P(x, foot + 0.5)
+  bitmap(ctx, safe ? GO_SIGN : STOP_SIGN, sign.x, sign.y - 7, { o: INK, g: "#7dff9a", r: "#ff4055" }, 2)
+}
+
+/** The Blade's signs, 7 wide: an arrow up (go) and a cross (not now). */
+const GO_SIGN = ["...o...", "..ogo..", ".ogggo.", "oogggoo", "..ogo..", "..ogo..", "..ooo.."] as const
+const STOP_SIGN = ["oo...oo", "oro.oro", ".orooro", "..orro.", ".orooro", "oro.oro", "oo...oo"] as const
+
+/** Goal pictograms (`o` ink; other letters are colours, see `goalSplash`): a door with an arrow up into it,
+ * crossed blades, an hourglass. */
+const GOAL_ICONS = {
+  exit: [
+    "ooooooooooo",
+    "oaaaaaaaaao",
+    "oadddgdddao",
+    "oaddgggddao",
+    "oadgggggdao",
+    "oadddgdddao",
+    "oadddgdddao",
+    "oadddgdddao",
+    "oadddddydao",
+    "oadddddddao",
+    "ooooooooooo"
+  ],
+  clear: [
+    "oo.......oo",
+    "oso.....oso",
+    ".oso...oso.",
+    "..oso.oso..",
+    "...osoos...",
+    "....oso....",
+    "...osoos...",
+    "..oho.oho..",
+    ".ohho.ohho.",
+    "ohho...ohho",
+    "oo.......oo"
+  ],
+  survive: [
+    "ooooooooooo",
+    "olllllllllo",
+    ".ossssssso.",
+    "..ossssso..",
+    "...ossso...",
+    "....oso....",
+    "...o.s.o...",
+    "..o..s..o..",
+    ".o.sssss.o.",
+    "olllllllllo",
+    "ooooooooooo"
+  ]
+} as const
+
+/**
+ * The room's goal as a picture at the start of each attempt: it pops in at the centre, holds, and fades by 1.8 s.
+ * A door to reach, crossed blades with the enemy count, or an hourglass with the seconds to last.
+ */
+const goalSplash = (ctx: CanvasRenderingContext2D, view: FightView, cw: number, ch: number, age: number): void => {
+  if (age < 0 || age > 1.8) return
+  const goal = view.room.goal
+  const icon = goal.kind === "exit" ? GOAL_ICONS.exit : goal.kind === "survive" ? GOAL_ICONS.survive : GOAL_ICONS.clear
+  const colours: Record<string, string> = {
+    o: INK, a: "#c6a17a", d: "#263234", g: "#7dff9a", y: "#edc66c",
+    s: "#e8ecf4", h: "#947058", l: "#c6a17a"
+  }
+  const pop = age < 0.15 ? 2 + Math.round((age / 0.15) * 2) : 4
+  const alpha = age > 1.4 ? 1 - (age - 1.4) / 0.4 : 1
+  const x = cw / 2, y = Math.round(ch * 0.36)
+  ctx.save()
+  ctx.globalAlpha = alpha
+  // A dark disc behind it, so it reads over any room.
+  ctx.fillStyle = "rgba(11,13,18,0.72)"
+  ctx.beginPath(); ctx.arc(x, y + (11 * pop) / 2, 11 * pop * 0.85, 0, Math.PI * 2); ctx.fill()
+  bitmap(ctx, icon, x, y, colours, pop)
+  // The number that goes with it: enemies to down, or seconds to last.
+  const count = goal.kind === "clear" ? view.enemies.length : goal.kind === "survive" ? goal.seconds : 0
+  if (count > 0) {
+    ctx.textAlign = "center"; ctx.textBaseline = "top"
+    ctx.font = "700 16px Silkscreen, ui-monospace, monospace"
+    const text = goal.kind === "survive" ? `${count}s` : `×${count}`
+    const ty = y + 11 * pop + 4
+    ctx.fillStyle = INK
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(text, x + dx, ty + dy)
+    ctx.fillStyle = goal.kind === "survive" ? "#7fd8ff" : "#ff6845"
+    ctx.fillText(text, x, ty)
+  }
   ctx.restore()
 }
 
@@ -664,6 +842,24 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }, glow.canvas)
   } else discardLights(ctx)
 
+  // Frozen time drains the world of colour; only what can hurt you (shots, lines, lasers) and your own glow keep theirs.
+  // Moving floods it back. The emissive layer is laid back over the grey, so threats stay vivid.
+  if (view.flow === "playing") {
+    const still = 1 - speedOf(view)
+    if (still > 0.05) {
+      ctx.save()
+      ctx.globalCompositeOperation = "saturation"
+      ctx.globalAlpha = Math.min(1, still * 0.9)
+      ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, cw, ch)
+      ctx.restore()
+      ctx.drawImage(glow.canvas, 0, 0)
+    }
+  }
+  // Dust in the air drifts on the world's clock: it hangs when you stop and streams when you run.
+  motes(ctx, view, P)
+  // The exit is a beacon: a column of light and a bouncing arrow over the pad.
+  if (view.room.goal.kind === "exit" && view.flow === "playing") exitBeacon(ctx, view.room.goal, P, erx, presentation?.now ?? view.world)
+
   // Frozen time closes in: a cold vignette, as strong as the world is still.
   if (view.flow === "playing") {
     const still = 1 - speedOf(view)
@@ -691,6 +887,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   if (view.room.index === 0 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(0)) {
     dragHint(ctx, P(view.player.x, view.player.y), presentation.now)
   }
+  // The first room points the way: chevrons from you to the exit.
+  if (view.room.index === 0 && view.flow === "playing" && view.player !== null && view.room.goal.kind === "exit") {
+    const g = view.room.goal
+    chevronsToward(ctx, view.player, { x: g.x + g.w / 2, y: g.y + g.h / 2 }, P, presentation?.now ?? 0, "#7dff9a", 8)
+  }
+  // The blade's room lights the way through as a traffic light: green footprints when a straight dash now gets through.
+  if (view.room.name === "The Blade" && view.flow === "playing" && view.player !== null) bladeLaneHint(ctx, view, P)
   // The cut's room shows the cut: what to run into, how far your blade reaches, and when to step aside.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
     cutHint(ctx, view, P, erx, ery, presentation.now, !presentation.hasMoved(view.room.index))
@@ -770,6 +973,22 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, t < 0.4 ? "#e98a49" : "#899692", 2, true)
   }
 
+  // Each attempt opens with the room's goal as a picture: a door to reach, enemies to down, or time to last.
+  if (presentation !== null && view.flow === "playing") goalSplash(ctx, view, cw, ch, presentation.now - presentation.attemptAt)
+  // The exit, when it is off screen: a green arrow at the edge pointing to it.
+  if (view.room.goal.kind === "exit" && view.flow === "playing") {
+    const g = view.room.goal, sp = P(g.x + g.w / 2, g.y + g.h / 2)
+    if (sp.x < 0 || sp.x > cw || sp.y < TOP || sp.y > ch - BOTTOM) {
+      const mx = cw / 2, my = TOP + (ch - TOP - BOTTOM) / 2, dx = sp.x - mx, dy = sp.y - my
+      const k = Math.min((cw / 2 - 16) / Math.abs(dx || 1e-6), ((ch - TOP - BOTTOM) / 2 - 16) / Math.abs(dy || 1e-6))
+      const a = Math.atan2(dy, dx), x = mx + dx * k, y = my + dy * k
+      const tip = { x: x + Math.cos(a) * 6, y: y + Math.sin(a) * 6 }
+      for (const side of [-1, 1]) {
+        const end = { x: x - Math.cos(a) * 4 + Math.sin(a) * side * 5, y: y - Math.sin(a) * 4 - Math.cos(a) * side * 5 }
+        pixelLine(ctx, tip, end, INK, 5); pixelLine(ctx, tip, end, "#7dff9a", 3)
+      }
+    }
+  }
   // Enemies off screen (and not shut away behind a door): a marker at the edge, bright when it can see you.
   const pad = 14
   const midX = cw / 2, midY = TOP + (ch - TOP - BOTTOM) / 2
