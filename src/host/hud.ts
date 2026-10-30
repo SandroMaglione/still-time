@@ -9,7 +9,7 @@
  * borders stay crisp.
  */
 import type { FightView, PlateView } from "../sim/view.ts"
-import { VANISH_LIFE, type Presentation } from "./fx.ts"
+import { CLEAR_PANEL_AT, starPopAt, type Presentation } from "./fx.ts"
 import { ICONS, fromHtml, hourglass, pixelSvg, star } from "./ui-pixels.ts"
 
 const CELLS = 10
@@ -64,7 +64,7 @@ export const messages = (ctx: CanvasRenderingContext2D, view: FightView, present
   if (active === undefined) return
   const deathAge = presentation?.playerDeathAge ?? -1
   if (view.flow === "dead" && (presentation === null || deathAge >= 0.52)) active.message({ kind: "dead", canRetry: view.canRetry })
-  else if (view.result !== null && (view.flow === "cleared" || view.flow === "won") && (presentation === null || presentation.clearAge < 0 || presentation.clearAge >= VANISH_LIFE - 0.2)) active.message({ kind: view.flow, view })
+  else if (view.result !== null && (view.flow === "cleared" || view.flow === "won") && (presentation === null || presentation.clearAge < 0 || presentation.clearAge >= CLEAR_PANEL_AT)) active.message({ kind: view.flow, view })
   else active.message({ kind: "none" })
 }
 
@@ -229,7 +229,7 @@ export class Hud {
     this.msgTitle.textContent = won ? "all rooms clear" : "clear"
     for (let i = 0; i < 3; i++) {
       const s = fromHtml(star(i < result.stars, won ? 4 : 3, "pop"))
-      ;(s as SVGElement).style.animationDelay = `${0.12 + i * 0.16}s`
+      ;(s as SVGElement).style.animationDelay = `${(starPopAt(i) - CLEAR_PANEL_AT).toFixed(2)}s`
       this.msgStars.append(s)
     }
     const add = (cls: string, text: string): HTMLElement => {

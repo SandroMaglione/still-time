@@ -378,14 +378,14 @@ const goalSplash = (ctx: CanvasRenderingContext2D, view: FightView, cw: number, 
 }
 
 /**
- * The ninja vanish when a room is cleared. First a beat where you stay and gather (a teal glow that pulses white,
- * sparks rising), then a white pop where your body goes, then afterimages rising slowly away and fading, white
- * speed lines, and a puff of smoke left where you stood.
+ * The ninja vanish when a room is cleared, in place. First a beat where you stay and gather (a teal outline that
+ * pulses white, sparks rising), then the afterimage dodge: your body flickers between afterimages a step to each
+ * side, with horizontal speed lines, while the real you fades out where you stood; a small puff of smoke stays.
  */
 const vanishBurst = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, flip: boolean, age: number): void => {
   const body = bodyName("player")
   ctx.save()
-  // Gather: your outline glows and pulses, faster as the pop nears; sparks rise round you.
+  // Gather: your outline glows and pulses, faster as the dodge nears; sparks rise round you.
   if (age < VANISH_POP) {
     const k = age / VANISH_POP
     const pulse = Math.sin(age * (10 + k * 30)) * 0.5 + 0.5
@@ -398,34 +398,43 @@ const vanishBurst = (ctx: CanvasRenderingContext2D, at: { readonly x: number; re
     }
   }
   const after = age - VANISH_POP
+  const dodge = 0.4
+  if (after >= 0 && after < dodge) {
+    const k = after / dodge
+    // The real you, fading out in place.
+    ctx.globalAlpha = 1 - k
+    posedSprite(ctx, body, at.x, at.y, { flip })
+    // Afterimages a step to each side, flickering: a new spot every frame-and-a-bit, each fading.
+    const spots = [-11, 8, -6, 12, -13, 5]
+    const now = Math.floor(after * 30)
+    for (let i = 0; i < spots.length; i++) {
+      const lag = now - i
+      if (lag < 0) continue
+      const fade = Math.max(0, 1 - lag / 6) * (1 - k)
+      if (fade <= 0) continue
+      ctx.globalAlpha = 1
+      silhouette(ctx, body, at.x + spots[i]!, at.y, flip, i % 2 === 0 ? GHOST : "#e8ffff", fade * 0.75)
+    }
+    // Horizontal speed lines at chest height, both sides.
+    ctx.globalAlpha = 1
+    for (let i = 0; i < 4; i++) {
+      const y = Math.round(at.y - 18 + i * 4), len = 8 + ((i * 5) % 7), off = 10 + Math.round(k * 10)
+      ctx.fillStyle = `rgba(232,255,255,${(1 - k).toFixed(3)})`
+      ctx.fillRect(Math.round(at.x - off - len), y, len, 1)
+      ctx.fillRect(Math.round(at.x + off), y + 2, len, 1)
+    }
+  }
+  // A small puff of smoke where you stood.
   if (after >= 0) {
-    // The pop: a white silhouette that fades as you go.
-    if (after < 0.15) silhouette(ctx, body, at.x, at.y, flip, "#ffffff", 1 - after / 0.15)
-    // Afterimages, each a little higher and fainter, rising away over half a second.
-    for (let i = 0; i < 6; i++) {
-      const t = after - i * 0.05
-      if (t < 0 || t > 0.55) continue
-      silhouette(ctx, body, at.x, at.y - 4 - i * 8 - t * 70, flip, i === 0 ? "#e8ffff" : GHOST, (1 - t / 0.55) * (0.85 - i * 0.1))
-    }
-    // Speed lines.
-    if (after < 0.45) {
-      for (let i = 0; i < 5; i++) {
-        const x = Math.round(at.x - 10 + i * 5), len = 18 + ((i * 7) % 11), top = Math.round(at.y - 28 - after * 80 - (i % 2) * 6)
-        ctx.fillStyle = `rgba(232,255,255,${(1 - after / 0.45).toFixed(3)})`; ctx.fillRect(x, top, 1, len)
-      }
-    }
-    // A puff of smoke where you stood: grey clusters pushing out and fading.
     const smoke = VANISH_LIFE - VANISH_POP
-    if (after < smoke) {
-      const k = after / smoke
-      for (let i = 0; i < 12; i++) {
-        const a = (i / 12) * Math.PI * 2 + 0.3
-        const r = 4 + Math.sqrt(k) * 16
-        const x = Math.round(at.x + Math.cos(a) * r), y = Math.round(at.y - 4 + Math.sin(a) * r * 0.55 - k * 6)
-        const size = k < 0.4 ? 3 : 2
-        ctx.fillStyle = `rgba(${i % 3 === 0 ? "232,236,244" : "137,150,146"},${(0.85 * (1 - k)).toFixed(3)})`
-        ctx.fillRect(x - 1, y - 1, size, size)
-      }
+    const k = Math.min(1, after / smoke)
+    ctx.globalAlpha = 1
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + 0.3
+      const r = 3 + Math.sqrt(k) * 11
+      const x = Math.round(at.x + Math.cos(a) * r), y = Math.round(at.y - 3 + Math.sin(a) * r * 0.5 - k * 3)
+      ctx.fillStyle = `rgba(${i % 3 === 0 ? "232,236,244" : "137,150,146"},${(0.75 * (1 - k)).toFixed(3)})`
+      ctx.fillRect(x - 1, y - 1, k < 0.4 ? 3 : 2, k < 0.4 ? 3 : 2)
     }
   }
   ctx.restore()

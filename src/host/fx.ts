@@ -32,7 +32,10 @@ export interface Stop { readonly x: number; readonly y: number; readonly born: n
 export interface Callout { readonly title: string; readonly line: string; readonly born: number }
 export const STOP_LIFE = 0.5
 /** The vanish on a clear, in real seconds: you gather until the pop, then you are gone; the effect ends at its life. */
-export const VANISH_POP = 0.35, VANISH_LIFE = 1.3
+export const VANISH_POP = 0.35, VANISH_LIFE = 1.0
+/** When (real s after the clear) the clear panel shows, and when its i-th star pops in: the HUD and the chimes both keep this. */
+export const CLEAR_PANEL_AT = VANISH_LIFE - 0.2
+export const starPopAt = (i: number): number => CLEAR_PANEL_AT + 0.12 + i * 0.16
 export const CALLOUT_LIFE = 1.8
 /** The rooms that name the freeze (The Blade and First Cut: the first room only teaches the move), and how many times. */
 const TEACH_FROM = 1, TEACH_ROOMS = 3, TEACH_TIMES = 3

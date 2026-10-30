@@ -10,6 +10,7 @@
  */
 import type { FightView } from "../sim/view.ts"
 import type { SoundName } from "./audio-bank.ts"
+import { starPopAt } from "./fx.ts"
 
 export type Bus = "world" | "real" | "ui"
 
@@ -126,7 +127,8 @@ export const cuesBetween = (old: FightView, view: FightView): Array<Cue> => {
     cues.push(cue(view.flow === "won" ? "run.won" : "room.clear", "ui"))
     const stars = view.result?.stars ?? 0
     const chimes = ["star.1", "star.2", "star.3"] as const
-    chimes.slice(0, stars).forEach((name, i) => cues.push(cue(name, "ui", null, 0.55 + i * 0.28)))
+    // Each chime lands as its star pops in on the clear panel (mid-pop: the star is at its biggest).
+    chimes.slice(0, stars).forEach((name, i) => cues.push(cue(name, "ui", null, starPopAt(i) + 0.06)))
   }
   return cues
 }
