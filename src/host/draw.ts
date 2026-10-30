@@ -12,6 +12,7 @@ import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
 import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
+import { isBriefed } from "./briefed.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
@@ -123,7 +124,7 @@ const tinted = (name: Sprite, colour: string): HTMLCanvasElement | undefined => 
   return c
 }
 /** A sprite's silhouette in one colour, anchored like `sprite` (feet on the point). */
-const silhouette = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: number, flip: boolean, colour: string, alpha: number): void => {
+export const silhouette = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: number, flip: boolean, colour: string, alpha: number): void => {
   const t = tinted(name, colour)
   if (t === undefined || alpha <= 0) return
   ctx.save()
@@ -150,7 +151,7 @@ const HAND = [
   "..oooooo."
 ] as const
 /** The hand at twice the art's pixel size: a hint has to be seen before it is read. Its fingertip is on (x, y). */
-const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, pressed: boolean): void => {
+export const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, pressed: boolean): void => {
   const s = 2, left = Math.round(x) - 4 * s, top = Math.round(y) + (pressed ? 1 : 0)
   HAND.forEach((row, j) => {
     for (let i = 0; i < row.length; i++) {
@@ -168,19 +169,24 @@ const touchFirst = (): boolean => typeof window !== "undefined" && !window.match
  * and keeps holding while a ghost of you walks ahead with it; then the hand lets go and the ghost stops dead with a
  * cold ring. Hold to keep moving; let go to stop. The label sits over everything.
  */
-const dragHint = (ctx: CanvasRenderingContext2D, player: { readonly x: number; readonly y: number }, P: Project, now: number): void => {
+export const dragHint = (
+  ctx: CanvasRenderingContext2D, player: { readonly x: number; readonly y: number }, P: Project, now: number,
+  dir: { readonly x: number; readonly y: number } = { x: 0, y: -1 }
+): void => {
   const t = now % 2.8
   const at = P(player.x, player.y)
-  const start = { x: Math.round(at.x + 26), y: Math.round(at.y + 4) }
+  // The hand sits beside you, on the side away from where the ghost walks, and drags the way it goes.
+  const side = dir.x > 0.3 ? -1 : 1
+  const start = { x: Math.round(at.x + side * 26), y: Math.round(at.y + 4) }
   const drag = t < 0.2 ? 0 : t < 0.5 ? (t - 0.2) / 0.3 : 1
   const held = t < 1.9
   const fade = t > 2.4 ? 1 - (t - 2.4) / 0.4 : 1
   // The ghost of you walks while the hand holds (0.4 to 1.9 s), then stands where it stopped.
   const walk = Math.max(0, Math.min(1, (t - 0.4) / 1.5))
-  const ghost = P(player.x, player.y - walk * 2.2)
+  const ghost = P(player.x + dir.x * walk * 2.2, player.y + dir.y * walk * 2.2)
   ctx.save()
   ctx.globalAlpha = fade
-  silhouette(ctx, bodyName("player"), ghost.x, ghost.y, false, GHOST, 0.55)
+  silhouette(ctx, bodyName("player"), ghost.x, ghost.y, dir.x < 0, GHOST, 0.55)
   if (!held && t < 2.3) {
     const r = 6 + (t - 1.9) * 40
     pixelArc(ctx, ghost, r, r * 0.7, 0, Math.PI * 2, "#7fd8ff", 1)
@@ -189,7 +195,8 @@ const dragHint = (ctx: CanvasRenderingContext2D, player: { readonly x: number; r
     pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, INK, 3)
     pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, "#7fd8ff", 1)
   }
-  const tip = { x: start.x, y: start.y - Math.round(18 * drag) - (held ? 0 : Math.round((t - 1.9) * 30)) }
+  const sx = P(player.x + dir.x, player.y + dir.y).x - at.x, sy = P(player.x + dir.x, player.y + dir.y).y - at.y, sl = Math.hypot(sx, sy) || 1
+  const tip = { x: start.x + Math.round((sx / sl) * 18 * drag), y: start.y + Math.round((sy / sl) * 18 * drag) - (held ? 0 : Math.round((t - 1.9) * 30)) }
   if (drag > 0 && held) {
     pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, INK, 3, 2)
     pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, "#7fd8ff", 1, 2)
@@ -224,12 +231,12 @@ const PLAY_SIGN = [
   "oo...oo...",
   "o....o...."
 ] as const
-const clockSign = (ctx: CanvasRenderingContext2D, x: number, y: number, running: boolean, now: number): void => {
+export const clockSign = (ctx: CanvasRenderingContext2D, x: number, y: number, running: boolean, now: number): void => {
   const nudge = running ? Math.round(Math.sin(now * 18)) : 0
   bitmap(ctx, running ? PLAY_SIGN : PAUSE_SIGN, x + nudge + 1, y, { o: INK, b: "#7fd8ff", g: "#edc66c" }, 2)
 }
 
-type Project = (x: number, y: number, z?: number) => { x: number; y: number }
+export type Project = (x: number, y: number, z?: number) => { x: number; y: number }
 
 /** Dust motes on the world's clock: each drifts from a fixed seed by world time, so a frozen world holds them still. */
 const motes = (ctx: CanvasRenderingContext2D, view: FightView, P: Project): void => {
@@ -278,7 +285,7 @@ const exitBeacon = (ctx: CanvasRenderingContext2D, g: { readonly x: number; read
 }
 
 /** Chevrons marching from one floor point toward another, in real time: go this way. */
-const chevronsToward = (
+export const chevronsToward = (
   ctx: CanvasRenderingContext2D, from: { readonly x: number; readonly y: number }, to: { readonly x: number; readonly y: number },
   P: Project, now: number, colour: string, reach = 4.6
 ): void => {
@@ -441,7 +448,7 @@ const vanishBurst = (ctx: CanvasRenderingContext2D, at: { readonly x: number; re
 }
 
 /** One line of hint text in the pixel font, outlined in ink, centred on x. */
-const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, colour: string): void => {
+export const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, colour: string): void => {
   ctx.save()
   ctx.textAlign = "center"; ctx.textBaseline = "top"
   ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
@@ -456,7 +463,7 @@ const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: num
  * (2.4 real s): it comes within touching range, a cut flashes, the gunner blinks white. Gold brackets mark the
  * gunner and teal chevrons point at it until it falls; with a shot coming and the world frozen, "step out of the red line".
  */
-const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number, fresh: boolean): void => {
+const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number, fresh: boolean, brackets: boolean): void => {
   const p = view.player
   const target = view.enemies[0]
   if (p === null || target === undefined) return
@@ -464,7 +471,7 @@ const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now
   const pulse = Math.floor(now * 4) % 2
   // Target brackets round the enemy, breathing by a pixel.
   const half = 12 + pulse, top = them.y - 27 - pulse, bottom = them.y + 3 + pulse
-  for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
+  if (brackets) for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
     const cx = Math.round(them.x + sx * half), cy = Math.round(sy)
     const v = sy === top ? 4 : -4
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
@@ -532,7 +539,8 @@ const cracks = (ctx: CanvasRenderingContext2D, b: Pillar, P: (x: number, y: numb
   }
 }
 
-export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): void => {
+/** Draws the view; returns where floor points (metres, z up) land on the canvas this frame, for overlays drawn after it. */
+export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): Project => {
   // Margins are in source pixels, so short desktop/landscape views need smaller ones.
   const TOP = Math.min(32, Math.round(ch * 0.08)), BOTTOM = Math.min(42, Math.round(ch * 0.12))
   const u = unitFor(cw)
@@ -976,7 +984,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   // The first two rooms show the move until you make it: a hand presses, drags and keeps holding while a ghost of
   // you walks ahead; then lets go, and the ghost stops.
-  if (view.room.index <= 1 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(view.room.index)) {
+  if (view.room.index >= 0 && view.room.index <= 1 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(view.room.index)) {
     dragHint(ctx, view.player, P, presentation.now)
   }
   // After the first room, the tutorial shows the clock you drive: a pause sign over you while you are still, a play
@@ -993,11 +1001,14 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   // The cut's room shows the cut: what to run into, how far your blade reaches, and when to step aside.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
-    cutHint(ctx, view, P, presentation.now, !presentation.hasMoved(view.room.index))
+    // Briefed: the ghost's demo waits until you have stood idle a while, and the brackets go (they read as a button).
+    const briefed = isBriefed()
+    const idle = !presentation.hasMoved(view.room.index) && (!briefed || presentation.now - presentation.attemptAt > 4)
+    cutHint(ctx, view, P, presentation.now, idle, !briefed)
   }
-  // In the first rooms, the freeze is named the first times it happens.
+  // In the first rooms, the freeze is named the first times it happens (a briefed player has already done it).
   const callout = presentation?.callout ?? null
-  if (callout !== null && view.flow === "playing") {
+  if (callout !== null && view.flow === "playing" && !isBriefed()) {
     const age = presentation!.now - callout.born
     const alpha = Math.min(1, age / 0.12, (CALLOUT_LIFE - age) / 0.45)
     if (alpha > 0) {
@@ -1071,8 +1082,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
 
   // Each attempt opens with the room's goal as a picture: a door to reach, enemies to down, or time to last.
-  // (Not in the three tutorial rooms: their own pointers already say it.)
-  if (presentation !== null && view.flow === "playing" && view.room.index >= 3) goalSplash(ctx, view, cw, ch, presentation.now - presentation.attemptAt)
+  // (Not in the three tutorial rooms for an unbriefed player: their own pointers already say it.)
+  if (presentation !== null && view.flow === "playing" && (view.room.index >= 3 || (view.room.index >= 0 && isBriefed()))) goalSplash(ctx, view, cw, ch, presentation.now - presentation.attemptAt)
   // The exit, when it is off screen: a green arrow at the edge pointing to it.
   if (view.room.goal.kind === "exit" && view.flow === "playing") {
     const g = view.room.goal, sp = P(g.x + g.w / 2, g.y + g.h / 2)
@@ -1113,4 +1124,5 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
 
   // Messages: a hit, or a clear with its stars (pixel-styled page elements, see `hud.ts`).
   messages(ctx, view, presentation)
+  return P
 }

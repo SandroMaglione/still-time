@@ -7,13 +7,12 @@ import { Ops } from "@typeonce/ritmo"
 import { settle } from "../geometry.ts"
 import { BELT, TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { Doors, Enemy, Flow, Game, Input, Pace, Run, Slashes, Time, Wear } from "../schema.ts"
+import { paceToward, pushOf } from "../pace.ts"
 import { blow } from "./blows.ts"
 import { EnemyRead, MeleeRead, PlainRead, PlayerQuery, PlayerRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
-/** How hard the thumb pushes, 0 to 1, shaped for finer control near the press point. */
-const pushOf = (x: number, y: number): number => Ops.pow(Math.min(1, Ops.hypot(x, y)), TUNING.player.curve)
 
 /** World speed follows your push: frozen while you are still, real time at full push. */
 export const PaceSystem = Game.System(
@@ -21,9 +20,7 @@ export const PaceSystem = Game.System(
   { when: playing, resources: { time: Game.System.readResource(Time), input: Game.System.readResource(Input), pace: Game.System.writeResource(Pace) } },
   ({ resources }) => {
     const { x, y } = resources.input.get()
-    const target = TUNING.slow + (1 - TUNING.slow) * pushOf(x, y)
-    const scale = resources.pace.get().scale
-    resources.pace.set({ scale: scale + (target - scale) * Math.min(1, TUNING.timeEase * resources.time.get().dt) })
+    resources.pace.set({ scale: paceToward(resources.pace.get().scale, x, y, resources.time.get().dt) })
   }
 )
 

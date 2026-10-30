@@ -17,6 +17,8 @@ import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
 import { Hud } from "./hud.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
+import { Briefing } from "./briefing.ts"
+import { isBriefed } from "./briefed.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
 // A CPU-backed canvas: the scene is tiny (about 240 px across) and made of thousands of small draws, which a
@@ -52,6 +54,11 @@ class ThumbSource {
     this.tapped = true
   }
 
+  /** The current push, without taking a tap (the briefing reads the same thumb). */
+  peek(): { readonly x: number; readonly y: number } {
+    return this.push
+  }
+
   snapshot(): Thumb {
     const thumb = { x: this.push.x, y: this.push.y, tap: this.tapped }
     this.tapped = false
@@ -75,11 +82,22 @@ const save = (best: Best): void => {
   app.runFork(progress.record(best).pipe(Effect.catchTag("ProgressSaveError", (e) => Effect.logWarning("Still Time: progress not saved", e.cause))))
 }
 
+/**
+ * The briefing (how to play) before the first room, until it has been done once: a short practice scene that
+ * takes over input and drawing while it runs, then hands over to a room or back to the title.
+ */
+let briefing: { readonly scene: Briefing; readonly fx: Presentation; readonly after: number | "title" } | null = null
+const goTo = (room: number): void => {
+  if (room !== fight.view().room.index || fight.view().flow !== "playing") fight.send({ kind: "goToRoom", room })
+}
+
 const menu = new Menu(document.body, {
   play: (room) => {
-    if (room !== fight.view().room.index || fight.view().flow !== "playing") fight.send({ kind: "goToRoom", room })
-    menu.close()
+    // The first time (and not when a room was asked for in the address), the briefing comes first.
+    if (!isBriefed() && asked === null) startBriefing(room)
+    else { goTo(room); menu.close() }
   },
+  brief: () => startBriefing("title"),
   resume: () => menu.close(),
   restart: () => {
     fight.send({ kind: "restart" })
@@ -88,6 +106,27 @@ const menu = new Menu(document.body, {
   sound: { settings: soundSettings, setSound: setSoundEnabled, setMusic: setMusicEnabled }
 })
 if (asked === null) menu.show("title", fight.view())
+
+function startBriefing(after: number | "title"): void {
+  menu.close()
+  lift(); held.clear()
+  briefing = { scene: new Briefing(), fx: new Presentation(), after }
+  document.body.classList.add("briefing")
+  camera.reset()
+}
+function endBriefing(): void {
+  const done = briefing
+  briefing = null
+  lift(); held.clear()
+  document.body.classList.remove("briefing")
+  camera.reset()
+  if (done === null) return
+  if (done.after === "title") menu.show("title", fight.view())
+  else goTo(done.after)
+}
+el("skip").addEventListener("click", () => endBriefing())
+// `?brief` plays the briefing straight away (testing).
+if (params.has("brief")) queueMicrotask(() => startBriefing(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1)))
 
 el("restart").addEventListener("click", () => fight.send({ kind: "restart" }))
 el("pause").addEventListener("click", () => menu.show("pause", fight.view()))
@@ -100,10 +139,13 @@ const DEAD_ZONE = 8
 const REACH = 72
 let stick: Stick | null = null
 let consumed = false
+/** A press that never drags is a tap (the briefing answers a tap on the enemy): when and where it began, how far it went. */
+let press = { at: 0, x: 0, y: 0, far: 0 }
 
 canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId)
-  if (fight.view().flow !== "playing") {
+  press = { at: performance.now(), x: e.clientX, y: e.clientY, far: 0 }
+  if (fight.view().flow !== "playing" && briefing === null) {
     thumb.tap()
     consumed = true
     return
@@ -112,6 +154,7 @@ canvas.addEventListener("pointerdown", (e) => {
 })
 canvas.addEventListener("pointermove", (e) => {
   if (stick === null || consumed) return
+  press.far = Math.max(press.far, Math.hypot(e.clientX - press.x, e.clientY - press.y))
   let dx = e.clientX - stick.ox
   let dy = e.clientY - stick.oy
   let len = Math.hypot(dx, dy)
@@ -127,17 +170,28 @@ canvas.addEventListener("pointermove", (e) => {
   stick.y = e.clientY
   thumb.setScreenPush(dx, dy, Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE))))
 })
-const lift = (): void => {
+function lift(): void {
   stick = null
   consumed = false
   thumb.setScreenPush(0, 0, 0)
 }
-canvas.addEventListener("pointerup", lift)
-canvas.addEventListener("pointercancel", lift)
+canvas.addEventListener("pointerup", () => {
+  if (briefing !== null && performance.now() - press.at < 250 && press.far < 12) briefing.scene.tap()
+  lift()
+})
+// A cancelled press, a hidden tab or a lost window resets input; in the briefing it never counts as a lift.
+const cancelInput = (): void => {
+  lift(); held.clear()
+  briefing?.scene.cancel()
+}
+canvas.addEventListener("pointercancel", cancelInput)
+window.addEventListener("blur", cancelInput)
+document.addEventListener("visibilitychange", () => { if (document.hidden) cancelInput() })
 
 // Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 and 0 jump to rooms 1-10,
 // [ and ] step to the previous and next room (open rooms only), Escape or M pauses (and closes the pause or room select).
 const held = new Set<string>()
+const heldKeys = (): Iterable<string> => [...held].filter((k) => DIRS[k] !== undefined)
 const DIRS: Record<string, readonly [number, number]> = {
   ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0]
 }
@@ -152,6 +206,13 @@ const keyPush = (): void => {
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
   if (e.repeat) return
+  // In the briefing only moving counts; Escape skips it.
+  if (briefing !== null) {
+    if (key === "Escape") endBriefing()
+    else if (DIRS[key] !== undefined) { held.add(key); keyPush() }
+    e.preventDefault()
+    return
+  }
   // Escape or M pauses, and closes the pause or the room select (the title stays until you pick Play).
   if (key === "Escape" || key === "m") {
     if (menu.current === "pause" || menu.current === "rooms") menu.close()
@@ -213,6 +274,16 @@ FixedLoop.start({
   maxStepsPerFrame: 5,
   // A menu pauses the game.
   update: () => {
+    if (briefing !== null) {
+      // The briefing steps on the game's clock, read by the same renderer, effects and audio.
+      const down = stick !== null || [...heldKeys()].length > 0
+      briefing.scene.input(thumb.peek(), down)
+      briefing.scene.tick()
+      const view = briefing.scene.view()
+      briefing.fx.observe(view)
+      audio.observe(view)
+      return Result.success(undefined)
+    }
     if (menu.isOpen) return Result.success(undefined)
     const result = fight.runtime.tick(updateSchedule)
     if (result.ok) {
@@ -222,6 +293,19 @@ FixedLoop.start({
     return result
   },
   render: (frame) => {
+    if (briefing !== null) {
+      const view = briefing.scene.view()
+      briefing.scene.advance(frame.elapsedSeconds)
+      briefing.fx.advance(frame.elapsedSeconds)
+      audio.advance(frame.elapsedSeconds, null, view)
+      camera.follow(view, frame.elapsedSeconds)
+      const k = 1 / cssPerPixel
+      const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
+      const P = draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, briefing.fx, lit)
+      briefing.scene.overlay(ctx, P, canvas.width, canvas.height)
+      if (briefing.scene.finished) endBriefing()
+      return
+    }
     const view = fight.view()
     presentation.advance(frame.elapsedSeconds)
     audio.advance(frame.elapsedSeconds, menu.current, view)

@@ -47,6 +47,10 @@ Rooms open one by one: the first always, each next once the one before is cleare
 
 Progress is saved on the device, in the browser's local storage (itch.io has no save API for HTML games): each room's best, by room name, so a build that adds or reorders rooms keeps it. itch.io serves every HTML game from one origin, so every key starts with `still-time/`. The format is versioned; a save that cannot be read is kept aside (`still-time/progress.unreadable`) and the game starts fresh; when the storage cannot be read at all, nothing is written over it. Saves are per browser and device (no sync), and a browser may clear them.
 
+## Briefing
+
+Before the first room, until it has been done once on the device (`still-time/briefed`), a short practice scene teaches the rules by gesture, not text (agreed between two design proposals after playtests where players never connected their movement with time, swiped instead of holding, and tapped an enemy to shoot it). A gunner fires one shot at you that moves only while your thumb drags: dodge out of its line and lift (it hangs), then move until a second shot visibly leaves where it hung and lift again, then walk into the gunner and the cut fires by itself (a tap only shows the walk-in). Nothing advances on a timer; a shot that reaches you resets the beat with a red flash. It is skippable, replayable from the title's How to play, and once done the tutorial rooms drop their text callouts. Code: `src/host/briefing.ts`, sharing the pace rule with the game through `src/sim/pace.ts`.
+
 ## Rooms
 
 Each room adds one thing, with few enemies, and the rooms grow from there:

@@ -19,6 +19,8 @@ export interface MenuActions {
   readonly resume: () => void
   /** Closes the menu and starts the room over. */
   readonly restart: () => void
+  /** Plays the briefing (how to play), then comes back to the title. */
+  readonly brief: () => void
   /** The sound settings, read for the toggles and written by them. */
   readonly sound: SoundToggles
 }
@@ -155,7 +157,9 @@ export class Menu {
     play.addEventListener("click", () => this.actions.play(next))
     const rooms = button("", "Rooms")
     rooms.addEventListener("click", () => this.show("rooms", view))
-    box.append(play, rooms, this.toggles())
+    const how = button("", "How to play")
+    how.addEventListener("click", () => this.actions.brief())
+    box.append(play, rooms, how, this.toggles())
     if (!fresh) box.append(total(best))
     return box
   }
