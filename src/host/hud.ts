@@ -202,10 +202,7 @@ export class Hud {
     const goal = view.room.goal
     line("tip-goal", goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? `survive ${goal.seconds} s` : "down every enemy")
     if (view.room.tip !== null) line("tip-text", view.room.tip)
-    // The first room teaches only the move; the second, the freeze.
-    const keys = window.matchMedia("(pointer: fine)").matches
-    if (view.room.index === 0) line("tip-hint", keys ? "arrows or wasd to move" : "drag anywhere to move")
-    else if (view.room.index === 1) line("tip-hint", keys ? "let go of the keys to freeze time" : "lift your finger to freeze time")
+    // (The first two rooms' how-to is the step-by-step lesson under the room, see `lesson.ts`.)
     return frag
   }
 

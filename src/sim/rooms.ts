@@ -94,7 +94,7 @@ const crate = (x: number, y: number, size = 1.2): Pillar => ({ x: x - size / 2, 
  * A stream of bolts along one lane, one leaving every `every` world seconds: as many bolts as are in the air at once,
  * each on the stream's full cycle, staggered by `every`.
  */
-const stream = (x1: number, y1: number, x2: number, y2: number, every: number, offset = 0): ReadonlyArray<Hazard> => {
+export const stream = (x1: number, y1: number, x2: number, y2: number, every: number, offset = 0): ReadonlyArray<Hazard> => {
   const flight = Ops.hypot(x2 - x1, y2 - y1) / SHOTS.bullet.speed
   const count = Math.ceil(flight / every) + 1
   return Array.from({ length: count }, (_, i) => ({ kind: "bolt" as const, x1, y1, x2, y2, period: count * every, offset: offset + i * every }))
@@ -123,29 +123,25 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
-    // The first lesson: the whole rule, where it cannot be skipped. Three aisles in a zig-zag, joined by doorways, and
-    // across each a stream of bullets. Rush straight through and one usually finds you; stop, and they hang where they
-    // are (labels over each stream say so as it happens), so you pick a gap and cross.
+    // The first lesson: the move, taught step by step on screen (press, hold, slide a little, slide further, let go).
+    // Nothing can hurt you; blades along the walls spin only while you move, so the clock is there to be seen.
     name: "First Step",
-    w: 12,
-    h: 26,
-    start: { x: 2, y: 24.5 },
-    pillars: [
-      // Aisle 1 (bottom) opens into aisle 2 at the right; aisle 2 into aisle 3 at the left.
-      { x: 0, y: 18.6, w: 9.4, h: 0.8 },
-      { x: 2.6, y: 11.6, w: 9.4, h: 0.8 }
-    ],
+    w: 10,
+    h: 22,
+    start: { x: 5, y: 20 },
+    pillars: [],
     doors: [],
+    // Blades along the walls, out of reach of a walk up the middle: there to be watched, spinning only while you move.
     hazards: [
-      ...stream(12, 22, 0, 22, 0.5),
-      ...stream(0, 15.5, 12, 15.5, 0.5, 0.17),
-      ...stream(12, 6, 0, 6, 0.55, 0.31)
+      { kind: "blade", x: 1.5, y: 15, length: 1.1, speed: 2.4, phase: 0.3 },
+      { kind: "blade", x: 8.5, y: 15, length: 1.1, speed: -2.4, phase: 1.9 },
+      { kind: "blade", x: 1.5, y: 8.5, length: 1.1, speed: -2.4, phase: 1.1 },
+      { kind: "blade", x: 8.5, y: 8.5, length: 1.1, speed: 2.4, phase: 2.6 }
     ],
     enemies: [],
-    goal: { kind: "exit", x: 8.5, y: 0.7, w: 3, h: 2.2 },
+    goal: { kind: "exit", x: 3.5, y: 0.7, w: 3, h: 2.2 },
     par: 6,
-    tip: "cross the bullets to the exit",
-    route: [{ x: 10.7, y: 19 }, { x: 1.3, y: 12 }, { x: 10, y: 1.8 }]
+    tip: "walk to the exit, and watch the blades"
   },
   {
     // The second lesson, the freeze, with nothing to fight: a blade bar as wide as the only gap turns only while you move.

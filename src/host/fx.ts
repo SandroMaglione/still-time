@@ -39,8 +39,8 @@ export const VANISH_POP = 0.35, VANISH_LIFE = 1.0
 export const CLEAR_PANEL_AT = VANISH_LIFE - 0.2
 export const starPopAt = (i: number): number => CLEAR_PANEL_AT + 0.12 + i * 0.16
 export const CALLOUT_LIFE = 1.8
-/** The rooms that name the freeze (The Blade and First Cut: the first room only teaches the move), and how many times. */
-const TEACH_FROM = 1, TEACH_ROOMS = 3, TEACH_TIMES = 3
+/** The rooms that name the freeze (First Cut: the first two rooms have their own lesson, see `lesson.ts`), and how many times. */
+const TEACH_FROM = 2, TEACH_ROOMS = 3, TEACH_TIMES = 3
 
 /** World speed as 0 (frozen) to 1 (full speed). */
 export const speedOf = (view: FightView): number => Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))

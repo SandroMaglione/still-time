@@ -16,6 +16,7 @@ import { storageLayer } from "./storage.ts"
 import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
 import { Hud } from "./hud.ts"
+import { Lesson, type LessonInput } from "./lesson.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
@@ -104,6 +105,10 @@ el("title-after").addEventListener("click", () => menu.show("title", fight.view(
 const DEAD_ZONE = 8
 const REACH = 72
 let stick: Stick | null = null
+/** The stick's push, 0..1, while a finger is down (for the lesson). */
+let stickPush = 0
+/** Which control you last used: the first rooms' lesson teaches that one. */
+let usingKeys = window.matchMedia("(pointer: fine)").matches
 let consumed = false
 
 canvas.addEventListener("pointerdown", (e) => {
@@ -114,6 +119,8 @@ canvas.addEventListener("pointerdown", (e) => {
     return
   }
   stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, reach: REACH }
+  stickPush = 0
+  usingKeys = false
 })
 canvas.addEventListener("pointermove", (e) => {
   if (stick === null || consumed) return
@@ -130,10 +137,12 @@ canvas.addEventListener("pointermove", (e) => {
   }
   stick.x = e.clientX
   stick.y = e.clientY
-  thumb.setScreenPush(dx, dy, Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE))))
+  stickPush = Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE)))
+  thumb.setScreenPush(dx, dy, stickPush)
 })
 function lift(): void {
   stick = null
+  stickPush = 0
   consumed = false
   thumb.setScreenPush(0, 0, 0)
 }
@@ -173,6 +182,7 @@ window.addEventListener("keydown", (e) => {
   if (menu.isOpen) return
   if (DIRS[key] !== undefined) {
     held.add(key)
+    usingKeys = true
     if (fight.view().flow !== "playing") thumb.tap()
     else keyPush()
   } else if (key === " " || key === "Enter") thumb.tap()
@@ -216,6 +226,15 @@ const audio = createAudio()
 audio.unlockOn(window)
 audio.observe(fight.view())
 const hud = new Hud(canvas)
+const lesson = new Lesson()
+/** The thumb as the lesson reads it: a finger (or an arrow) down, and how hard it pushes. */
+const lessonInput = (): LessonInput => {
+  if (usingKeys) {
+    const down = [...held].some((k) => DIRS[k] !== undefined)
+    return { down, push: down ? 1 : 0, keys: true }
+  }
+  return { down: stick !== null && !consumed, push: stickPush, keys: false }
+}
 await loadArt()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
@@ -249,6 +268,10 @@ FixedLoop.start({
     const k = 1 / cssPerPixel
     const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
     draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
+    // The first rooms' step-by-step lesson, over everything.
+    const input = lessonInput()
+    lesson.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, input)
+    lesson.draw(ctx, canvas.width, canvas.height, view, input)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

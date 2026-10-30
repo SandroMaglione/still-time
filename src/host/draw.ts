@@ -182,53 +182,6 @@ export const thumbPad = (ctx: CanvasRenderingContext2D, base: { readonly x: numb
   disc(ctx, knob.x, knob.y, 5, "#e8f6ff")
   disc(ctx, knob.x - 1, knob.y - 1, 2, "#ffffff")
 }
-/**
- * The first rooms' lesson, the move, looped every 2.8 real s. On touch, a stick sits in the thumb's corner of the
- * screen (under the room, where your thumb rests): a hand presses it and pushes the knob toward the way to go, and a
- * ghost of you walks for as long as the hand holds; then the hand lets go, the knob springs back and the ghost stops
- * dead with a cold ring. The stick is what you drive, not the ninja. With keys, the ghost walks while "hold an arrow".
- */
-export const dragHint = (
-  ctx: CanvasRenderingContext2D, player: { readonly x: number; readonly y: number }, P: Project, now: number,
-  dir: { readonly x: number; readonly y: number }, pad: { readonly x: number; readonly y: number }
-): void => {
-  const t = now % 2.8
-  const at = P(player.x, player.y)
-  const held = t > 0.2 && t < 1.9
-  const fade = t > 2.4 ? 1 - (t - 2.4) / 0.4 : 1
-  // The ghost of you walks while the hand holds (0.5 to 1.9 s), then stands where it stopped.
-  const walk = Math.max(0, Math.min(1, (t - 0.5) / 1.4))
-  const ghost = P(player.x + dir.x * walk * 2.2, player.y + dir.y * walk * 2.2)
-  ctx.save()
-  ctx.globalAlpha = fade
-  if (t > 0.5) silhouette(ctx, bodyName("player"), ghost.x, ghost.y, dir.x < 0, GHOST, 0.55)
-  if (t >= 1.9 && t < 2.3) {
-    const r = 6 + (t - 1.9) * 40
-    pixelArc(ctx, ghost, r, r * 0.7, 0, Math.PI * 2, "#7fd8ff", 1)
-  }
-  if (!touchFirst()) {
-    hintText(ctx, held || t < 0.2 ? "HOLD AN ARROW" : "LET GO: STOP", at.x, Math.round(at.y + 14), held || t < 0.2 ? "#f4efda" : "#7fd8ff")
-    ctx.restore()
-    return
-  }
-  // The stick: the knob goes out the way the ghost walks (on screen) while held, and springs back on release.
-  const reach = 20
-  const step = P(player.x + dir.x, player.y + dir.y)
-  const sx = step.x - at.x, sy = step.y - at.y, sl = Math.hypot(sx, sy) || 1
-  const out = t < 0.2 ? 0 : t < 0.5 ? (t - 0.2) / 0.3 : held ? 1 : 0
-  const knob = { x: pad.x + Math.round((sx / sl) * reach * out), y: pad.y + Math.round((sy / sl) * reach * out) }
-  // The hand under the knob (fingertip on it while it holds, lifting away after), the knob over the fingertip.
-  hand(ctx, knob.x, knob.y + 2 - (held || t < 0.2 ? 0 : Math.round((t - 1.9) * 30)), held)
-  thumbPad(ctx, pad, knob, reach)
-  if (t < 0.2) {
-    const r = 4 + t * 60
-    pixelArc(ctx, pad, r, r, 0, Math.PI * 2, "#e8f6ff", 1)
-  }
-  const label = held || t < 0.2 ? "DRAG ANYWHERE TO MOVE" : "LET GO: TIME STOPS"
-  hintText(ctx, label, pad.x, pad.y - reach - 12, held || t < 0.2 ? "#f4efda" : "#7fd8ff")
-  ctx.restore()
-}
-
 /** A pause sign (still: the world waits) or a fast-forward sign (moving: the world runs), 10×9, drawn twice the size. */
 const PAUSE_SIGN = [
   "ooo..ooo..",
@@ -951,26 +904,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
     }
   }
-  // The first room points the way: chevrons from you to the next point of its route (the next doorway, then the exit).
+  // The first room points the way: chevrons from you to the next point of its route, or to the exit.
   if (view.room.index === 0 && view.flow === "playing" && view.player !== null) {
     const me = view.player
     const route = ROOMS[0]?.route ?? []
-    const next = route.find((pt) => pt.y < me.y - 0.6) ?? route.at(-1)
+    const g = view.room.goal
+    const next = route.find((pt) => pt.y < me.y - 0.6) ?? route.at(-1) ?? (g.kind === "exit" ? { x: g.x + g.w / 2, y: g.y + g.h / 2 } : undefined)
     if (next !== undefined) chevronsToward(ctx, me, next, P, presentation?.now ?? 0, "#7dff9a", 8)
   }
-  // The first two rooms show the move until you make it: a hand presses, drags and keeps holding while a ghost of
-  // you walks ahead; then lets go, and the ghost stops.
-  if (view.room.index >= 0 && view.room.index <= 1 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(view.room.index)) {
-    // Toward the next point of the room's route when it has one (First Step's first doorway is to the right), else up.
-    const me = view.player
-    const next = (ROOMS[view.room.index]?.route ?? []).find((pt) => pt.y < me.y - 0.6)
-    const d = next === undefined ? 0 : Math.hypot(next.x - me.x, next.y - me.y) || 1
-    dragHint(ctx, me, P, presentation.now, next === undefined ? { x: 0, y: -1 } : { x: (next.x - me.x) / d, y: (next.y - me.y) / d }, { x: Math.round(cw / 2), y: ch - 34 })
-  }
-  // The first room names what is happening, over its bullet streams, as it happens: they fly only while you move.
+  // The first room names what is happening, over its blades, as it happens: they spin only while you move.
   if (view.room.index === 0 && view.flow === "playing") {
     const moving = speedOf(view) > 0.15
-    const rows = [...new Set((ROOMS[0]?.hazards ?? []).map((hz) => (hz.kind === "bolt" ? hz.y1 : -1)).filter((y) => y >= 0))]
+    const rows = [...new Set((ROOMS[0]?.hazards ?? []).map((hz) => (hz.kind === "blade" ? hz.y : -1)).filter((y) => y >= 0))]
     for (const y of rows) {
       // Above each pair, clear of the blades' tips, and drawn after the chevrons and the hand so nothing covers it.
       const at = P(view.room.w / 2, y - 1.6, 0)
