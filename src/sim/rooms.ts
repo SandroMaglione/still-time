@@ -107,17 +107,24 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
-    // The first lesson, only the move: walk round two crates to the exit. Nothing here can hurt you.
+    // The first lesson, the whole idea on a straight walk: blades spin along both walls, only while you move, and
+    // labels over them say so as it happens. Walk up the middle to the exit; the blades stay out of reach of it.
     name: "First Step",
     w: 10,
-    h: 14,
-    start: { x: 5, y: 12 },
-    pillars: [crate(3, 7.5), crate(7, 6)],
+    h: 22,
+    start: { x: 5, y: 20 },
+    pillars: [],
     doors: [],
+    hazards: [
+      { kind: "blade", x: 1.5, y: 15, length: 1.1, speed: 2.4, phase: 0.3 },
+      { kind: "blade", x: 8.5, y: 15, length: 1.1, speed: -2.4, phase: 1.9 },
+      { kind: "blade", x: 1.5, y: 8.5, length: 1.1, speed: -2.4, phase: 1.1 },
+      { kind: "blade", x: 8.5, y: 8.5, length: 1.1, speed: 2.4, phase: 2.6 }
+    ],
     enemies: [],
     goal: { kind: "exit", x: 3.5, y: 0.7, w: 3, h: 2.2 },
-    par: 4,
-    tip: "nothing here can hurt you"
+    par: 5,
+    tip: "walk to the exit, and watch the blades"
   },
   {
     // The second lesson, the freeze, with nothing to fight: a blade bar as wide as the only gap turns only while you move.

@@ -1,6 +1,7 @@
 /**
  * The three first rooms, played headless, one lesson each: First Step the
- * move (nothing can hurt you), The Blade the freeze (a blade that turns only
+ * move and the clock (blades that spin only while you move, out of reach of a
+ * straight walk), The Blade the freeze (a blade in your way that turns only
  * while you move), First Cut the cut (one gunner).
  */
 import assert from "node:assert/strict"
@@ -17,17 +18,19 @@ const barAngle = (fight: Fight): number => {
   return ((a % Math.PI) + Math.PI) % Math.PI
 }
 
-test("First Step: only the move; walking up round the crates reaches the exit", () => {
+test("First Step: the blades spin only while you move, and a straight walk up the middle reaches the exit", () => {
   const { fight, thumb } = fightIn("First Step")
   assert.equal(fight.view().room.index, 0, "it is the first room")
   assert.equal(fight.view().enemies.length, 0)
-  assert.equal(fight.view().hazards.length, 0, "nothing here can hurt you")
-  // Up, then a side-step round whatever is in the way.
-  runUntil(fight, 900, () => fight.view().flow !== "playing", () => {
-    const p = fight.view().player
-    thumb.push = { x: p !== null && p.x < 4.6 ? 1 : p !== null && p.x > 5.4 ? -1 : 0, y: -1 }
-  })
+  assert.ok(fight.view().hazards.length > 0, "blades along the walls")
+  const angle = (): number => { const h = fight.view().hazards[0]!; return Math.atan2(h.by - h.ay, h.bx - h.ax) }
+  const before = angle()
+  runUntil(fight, 120, () => false)
+  assert.ok(Math.abs(angle() - before) < 0.25, "still, they barely turn")
+  // Straight up the middle, never steering: the blades stay out of reach of it.
+  runUntil(fight, 900, () => fight.view().flow !== "playing", () => { thumb.push = { x: 0, y: -1 } })
   assert.equal(fight.view().flow, "cleared")
+  assert.equal(fight.view().hits, 0)
 })
 
 test("The Blade: standing still holds the blade; timed, the gap can be crossed to the exit", () => {

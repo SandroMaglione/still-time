@@ -12,7 +12,6 @@ import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
 import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
-import { isBriefed } from "./briefed.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
@@ -304,85 +303,6 @@ export const chevronsToward = (
 }
 
 
-/** Goal pictograms (`o` ink; other letters are colours, see `goalSplash`): a door with an arrow up into it,
- * crossed blades, an hourglass. */
-const GOAL_ICONS = {
-  exit: [
-    "ooooooooooo",
-    "oaaaaaaaaao",
-    "oadddgdddao",
-    "oaddgggddao",
-    "oadgggggdao",
-    "oadddgdddao",
-    "oadddgdddao",
-    "oadddgdddao",
-    "oadddddydao",
-    "oadddddddao",
-    "ooooooooooo"
-  ],
-  clear: [
-    "oo.......oo",
-    "oso.....oso",
-    ".oso...oso.",
-    "..oso.oso..",
-    "...osoos...",
-    "....oso....",
-    "...osoos...",
-    "..oho.oho..",
-    ".ohho.ohho.",
-    "ohho...ohho",
-    "oo.......oo"
-  ],
-  survive: [
-    "ooooooooooo",
-    "olllllllllo",
-    ".ossssssso.",
-    "..ossssso..",
-    "...ossso...",
-    "....oso....",
-    "...o.s.o...",
-    "..o..s..o..",
-    ".o.sssss.o.",
-    "olllllllllo",
-    "ooooooooooo"
-  ]
-} as const
-
-/**
- * The room's goal as a picture at the start of each attempt: it pops in at the centre, holds, and fades by 1.8 s.
- * A door to reach, crossed blades with the enemy count, or an hourglass with the seconds to last.
- */
-const goalSplash = (ctx: CanvasRenderingContext2D, view: FightView, cw: number, ch: number, age: number): void => {
-  if (age < 0 || age > 1.8) return
-  const goal = view.room.goal
-  const icon = goal.kind === "exit" ? GOAL_ICONS.exit : goal.kind === "survive" ? GOAL_ICONS.survive : GOAL_ICONS.clear
-  const colours: Record<string, string> = {
-    o: INK, a: "#c6a17a", d: "#263234", g: "#7dff9a", y: "#edc66c",
-    s: "#e8ecf4", h: "#947058", l: "#c6a17a"
-  }
-  const pop = age < 0.15 ? 2 + Math.round((age / 0.15) * 2) : 4
-  const alpha = age > 1.4 ? 1 - (age - 1.4) / 0.4 : 1
-  const x = cw / 2, y = Math.round(ch * 0.36)
-  ctx.save()
-  ctx.globalAlpha = alpha
-  // A dark disc behind it, so it reads over any room.
-  ctx.fillStyle = "rgba(11,13,18,0.72)"
-  ctx.beginPath(); ctx.arc(x, y + (11 * pop) / 2, 11 * pop * 0.85, 0, Math.PI * 2); ctx.fill()
-  bitmap(ctx, icon, x, y, colours, pop)
-  // The number that goes with it: enemies to down, or seconds to last.
-  const count = goal.kind === "clear" ? view.enemies.length : goal.kind === "survive" ? goal.seconds : 0
-  if (count > 0) {
-    ctx.textAlign = "center"; ctx.textBaseline = "top"
-    ctx.font = "700 16px Silkscreen, ui-monospace, monospace"
-    const text = goal.kind === "survive" ? `${count}s` : `×${count}`
-    const ty = y + 11 * pop + 4
-    ctx.fillStyle = INK
-    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(text, x + dx, ty + dy)
-    ctx.fillStyle = goal.kind === "survive" ? "#7fd8ff" : "#ff6845"
-    ctx.fillText(text, x, ty)
-  }
-  ctx.restore()
-}
 
 /**
  * The ninja vanish when a room is cleared, in place. First a beat where you stay and gather (a teal outline that
@@ -463,7 +383,7 @@ export const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number,
  * (2.4 real s): it comes within touching range, a cut flashes, the gunner blinks white. Gold brackets mark the
  * gunner and teal chevrons point at it until it falls; with a shot coming and the world frozen, "step out of the red line".
  */
-const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number, fresh: boolean, brackets: boolean): void => {
+const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number, fresh: boolean): void => {
   const p = view.player
   const target = view.enemies[0]
   if (p === null || target === undefined) return
@@ -471,7 +391,7 @@ const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now
   const pulse = Math.floor(now * 4) % 2
   // Target brackets round the enemy, breathing by a pixel.
   const half = 12 + pulse, top = them.y - 27 - pulse, bottom = them.y + 3 + pulse
-  if (brackets) for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
+  for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
     const cx = Math.round(them.x + sx * half), cy = Math.round(sy)
     const v = sy === top ? 4 : -4
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
@@ -987,6 +907,16 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   if (view.room.index >= 0 && view.room.index <= 1 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(view.room.index)) {
     dragHint(ctx, view.player, P, presentation.now)
   }
+  // The first room names what is happening, over its blades, as it happens: they spin only while you move.
+  if (view.room.index === 0 && view.flow === "playing") {
+    const moving = speedOf(view) > 0.15
+    const rows = [...new Set((ROOMS[0]?.hazards ?? []).map((hz) => (hz.kind === "blade" ? hz.y : -1)).filter((y) => y >= 0))]
+    for (const y of rows) {
+      // Above each pair, clear of the blades' tips, and drawn after the chevrons and the hand so nothing covers it.
+      const at = P(view.room.w / 2, y - 1.6, 0)
+      hintText(ctx, moving ? "TIME MOVES AS YOU MOVE" : "TIME STOPS WHEN YOU DO", at.x, at.y, moving ? "#edc66c" : "#7fd8ff")
+    }
+  }
   // After the first room, the tutorial shows the clock you drive: a pause sign over you while you are still, a play
   // sign while you move, and the same sign on the blade's hub: you play the world.
   if (view.room.index >= 1 && view.room.index <= 2 && view.flow === "playing" && view.player !== null) {
@@ -1001,14 +931,11 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   // The cut's room shows the cut: what to run into, how far your blade reaches, and when to step aside.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
-    // Briefed: the ghost's demo waits until you have stood idle a while, and the brackets go (they read as a button).
-    const briefed = isBriefed()
-    const idle = !presentation.hasMoved(view.room.index) && (!briefed || presentation.now - presentation.attemptAt > 4)
-    cutHint(ctx, view, P, presentation.now, idle, !briefed)
+    cutHint(ctx, view, P, presentation.now, !presentation.hasMoved(view.room.index))
   }
-  // In the first rooms, the freeze is named the first times it happens (a briefed player has already done it).
+  // In the first rooms, the freeze is named the first times it happens.
   const callout = presentation?.callout ?? null
-  if (callout !== null && view.flow === "playing" && !isBriefed()) {
+  if (callout !== null && view.flow === "playing") {
     const age = presentation!.now - callout.born
     const alpha = Math.min(1, age / 0.12, (CALLOUT_LIFE - age) / 0.45)
     if (alpha > 0) {
@@ -1081,9 +1008,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, t < 0.4 ? "#e98a49" : "#899692", 2, true)
   }
 
-  // Each attempt opens with the room's goal as a picture: a door to reach, enemies to down, or time to last.
-  // (Not in the three tutorial rooms for an unbriefed player: their own pointers already say it.)
-  if (presentation !== null && view.flow === "playing" && (view.room.index >= 3 || (view.room.index >= 0 && isBriefed()))) goalSplash(ctx, view, cw, ch, presentation.now - presentation.attemptAt)
   // The exit, when it is off screen: a green arrow at the edge pointing to it.
   if (view.room.goal.kind === "exit" && view.flow === "playing") {
     const g = view.room.goal, sp = P(g.x + g.w / 2, g.y + g.h / 2)

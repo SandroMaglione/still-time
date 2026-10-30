@@ -189,10 +189,6 @@
       .btn .sub { font-weight: 400; font-size: var(--t0); line-height: var(--l0); opacity: 0.8; }
       .btn.continue { flex-direction: column; gap: calc(var(--u) * 2); padding: calc(var(--u) * 5) calc(var(--u) * 7) calc(var(--u) * 6); }
       .btn.back { gap: calc(var(--u) * 3); padding: 0 calc(var(--u) * 6) 0 calc(var(--u) * 5); }
-      /* The briefing: the game's HUD, tip and messages hide; a small Skip shows at the top right. */
-      .skip { display: none; position: fixed; z-index: 5; top: calc(env(safe-area-inset-top) + var(--u) * 4); right: calc(env(safe-area-inset-right) + var(--u) * 4); min-height: 44px; padding: 0 calc(var(--u) * 6); }
-      body.briefing .skip { display: flex; align-items: center; }
-      body.briefing #hud, body.briefing #tip, body.briefing #message { display: none !important; }
       .btn.back.icon-only { padding: 0; min-width: max(44px, calc(var(--u) * 22)); justify-content: center; }
       .pause-screen .btn { width: 100%; box-sizing: border-box; }
       /* Sound and music: two on/off toggles side by side; off is a sunken, darker stone. */
@@ -261,7 +257,6 @@
         </div>
       </div>
     </div>
-    <button id="skip" class="btn skip" type="button">Skip</button>
     <script type="module" src="/src/host/main.ts"></script>
   </body>
 </html>
