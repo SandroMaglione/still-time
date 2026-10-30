@@ -5,6 +5,7 @@
  */
 import { Clock, Ops } from "@typeonce/ritmo"
 
+import { unlocked } from "../progress.ts"
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
 import { Blade, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult } from "../schema.ts"
 import { CROWD, LOCKS, MELEE, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
@@ -19,7 +20,7 @@ export const OpenRunSystem = Game.System(
   }
 )
 
-/** Taps and page commands: retry after a hit, next room after a clear, restart, jump to a room. */
+/** Taps and page commands: retry after a hit, next room after a clear, restart, jump to an open room. */
 export const ApplyIntentSystem = Game.System(
   "Slap/ApplyIntent",
   {
@@ -29,7 +30,8 @@ export const ApplyIntentSystem = Game.System(
   },
   ({ resources, machines, events }) => {
     const flow = machines.flow.get()
-    const room = resources.run.get().room
+    const run = resources.run.get()
+    const room = run.room
     if (resources.input.get().tap) {
       if (flow._tag === "Dead" && Clock.reached(resources.time.get(), flow.retryAt)) events.enter.emit({ room, fresh: false })
       else if (flow._tag === "Cleared") events.enter.emit({ room: room + 1, fresh: true })
@@ -38,7 +40,7 @@ export const ApplyIntentSystem = Game.System(
     for (const intent of events.intents.all()) {
       // A restart mid-room counts as a retry; after a clear it is a fresh go at the room.
       if (intent.kind === "restart") events.enter.emit({ room, fresh: flow._tag === "Cleared" || flow._tag === "Won" })
-      else if (intent.room >= 0 && intent.room < ROOMS.length) events.enter.emit({ room: intent.room, fresh: true })
+      else if (intent.room >= 0 && intent.room < ROOMS.length && (run.open || unlocked(run.best, intent.room))) events.enter.emit({ room: intent.room, fresh: true })
     }
   }
 )
@@ -89,7 +91,7 @@ export const BuildRoomSystem = Game.System(
       }
     }
     const run = resources.run.get()
-    resources.run.set({ room: asked.room, deaths: run.deaths, hits: asked.fresh ? 0 : run.hits, world: 0, best: run.best })
+    resources.run.set({ room: asked.room, deaths: run.deaths, hits: asked.fresh ? 0 : run.hits, world: 0, best: run.best, open: run.open })
     resources.doors.set(room.doors.map(() => false))
     resources.keys.set(keys)
     resources.pace.set({ scale: TUNING.slow })

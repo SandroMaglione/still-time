@@ -16,12 +16,38 @@
       .hint { opacity: 0.6; font-size: 11px; text-align: center; }
       .dim { opacity: 0.6; }
       .tip { font-size: 12px; color: #9effa8; text-align: center; }
+      .buttons { display: flex; gap: 6px; }
+      .top > span { white-space: nowrap; }
+      #rooms-after { margin-bottom: 6px; }
+      [hidden] { display: none !important; }
+      .menu { position: fixed; inset: 0; z-index: 10; background: #06070ae0; display: flex; justify-content: center; overflow-y: auto; padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px); box-sizing: border-box; }
+      .menu button { font-size: 15px; padding: 10px 18px; }
+      .menu .primary { background: #9effa826; border-color: #9effa8; color: #d9ffe0; }
+      .title-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; width: 100%; max-width: 360px; min-height: 100%; }
+      .game-title { margin: 0; font-size: 40px; letter-spacing: 6px; color: #e8ecf4; }
+      .tagline { margin: 0 0 18px; opacity: 0.6; font-size: 13px; }
+      .title-screen button { width: 100%; }
+      .total { color: #ffd25a; font-size: 13px; }
+      .rooms-screen { width: 100%; max-width: 420px; }
+      .rooms-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+      .rooms-head h2 { margin: 0; font-size: 20px; flex: 1; }
+      .menu .icon { padding: 6px 12px; }
+      .rooms-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .menu .room-card { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 4px 10px; align-items: center; text-align: left; border-radius: 12px; padding: 10px 12px; }
+      .room-number { grid-row: span 2; font-size: 22px; font-weight: bold; opacity: 0.5; min-width: 1.4em; text-align: center; }
+      .room-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .room-meta { display: flex; gap: 8px; align-items: center; }
+      .room-best { font-size: 11px; opacity: 0.7; }
+      .stars { color: #ffffff30; font-size: 13px; letter-spacing: 1px; }
+      .star.lit { color: #ffd25a; }
+      .room-card.current { border-color: #9effa8; }
+      .room-card.locked { opacity: 0.35; }
     </style>
   </head>
   <body>
     <canvas id="view"></canvas>
-    <div class="bar top"><span id="room"></span><span id="pace" class="dim"></span><button id="restart" type="button">↺</button></div>
-    <div class="bar bottom"><span id="tip" class="tip"></span><span class="hint">drag further = faster · lift to freeze time</span></div>
+    <div class="bar top"><span id="room"></span><span id="pace" class="dim"></span><span class="buttons"><button id="rooms" type="button" aria-label="Rooms">☰</button><button id="restart" type="button" aria-label="Restart">↺</button></span></div>
+    <div class="bar bottom"><button id="rooms-after" type="button" hidden>Rooms</button><span id="tip" class="tip"></span><span class="hint">drag further = faster · lift to freeze time</span></div>
     <script type="module" src="/src/host/main.ts"></script>
   </body>
 </html>

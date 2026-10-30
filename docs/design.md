@@ -35,6 +35,12 @@ An upright 2D room with a slight Pokémon-style camera lean: mostly tops, short 
 
 The iso and steeper tilts were tried and rejected ("too isometric").
 
+## Progress
+
+Rooms open one by one: the first always, each next once the one before is cleared (the simulation refuses a jump to a locked room). The game opens on a title (continue at the first room not cleared, or pick a room); the room select shows every room with its best stars and world time, locked rooms dimmed. A menu pauses the game.
+
+Progress is saved on the device, in the browser's local storage (itch.io has no save API for HTML games): each room's best, by room name, so a build that adds or reorders rooms keeps it. itch.io serves every HTML game from one origin, so every key starts with `still-time/`. The format is versioned; a save that cannot be read is kept aside (`still-time/progress.unreadable`) and the game starts fresh; when the storage cannot be read at all, nothing is written over it. Saves are per browser and device (no sync), and a browser may clear them.
+
 ## Rooms
 
 Each room adds one thing, with few enemies, and the rooms grow from there:

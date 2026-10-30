@@ -98,6 +98,9 @@ export interface FightView {
   /** The clear just made (Cleared or Won), and the run's best per room. */
   readonly result: ResultView | null
   readonly best: ReadonlyArray<ResultView | null>
+  /** Every room's name, in order, and whether every room is open regardless of progress (testing). */
+  readonly roomNames: ReadonlyArray<string>
+  readonly open: boolean
   readonly flow: "playing" | "dead" | "cleared" | "won"
   readonly canRetry: boolean
   readonly scale: number
@@ -233,6 +236,8 @@ export const FightViewInspector = Game.Inspector(
       world: run.world,
       result: flow._tag === "Cleared" || flow._tag === "Won" ? { stars: flow.stars, world: flow.world } : null,
       best: run.best,
+      roomNames: ROOMS.map((r) => r.name),
+      open: run.open,
       flow: flow._tag === "Playing" ? "playing" : flow._tag === "Dead" ? "dead" : flow._tag === "Cleared" ? "cleared" : "won",
       canRetry: flow._tag !== "Dead" || Clock.reached(time, flow.retryAt),
       scale: resources.pace.get().scale,
