@@ -8,8 +8,16 @@ import { chromium } from "playwright"
 const base = process.argv[2] ?? "http://localhost:5301"
 const shots: ReadonlyArray<{ readonly name: string; readonly room: number; readonly hold?: string; readonly ms: number }> = [
   { name: "duel", room: 1, ms: 600 },
-  { name: "market", room: 4, hold: "ArrowUp", ms: 900 },
-  { name: "fortress", room: 7, ms: 600 }
+  { name: "gatehouse", room: 5, ms: 600 },
+  { name: "throne", room: 6, hold: "ArrowUp", ms: 900 },
+  { name: "thief", room: 7, hold: "ArrowUp", ms: 1200 },
+  { name: "shieldwall", room: 10, hold: "ArrowUp", ms: 900 },
+  { name: "watchtower", room: 11, hold: "ArrowUp", ms: 1500 },
+  { name: "powder-room", room: 14, hold: "ArrowUp", ms: 900 },
+  { name: "combination", room: 16, hold: "ArrowUp", ms: 900 },
+  { name: "mill", room: 17, hold: "ArrowUp", ms: 900 },
+  { name: "conveyor", room: 22, ms: 900 },
+  { name: "fortress", room: 23, ms: 600 }
 ]
 
 mkdirSync("output", { recursive: true })

@@ -1,0 +1,666 @@
+{
+  "version": 1,
+  "about": "In the rooms: a held breath over a moving low end. A heartbeat kick, a dark pad, a pulsing bass line with octave jumps and a held reese underneath; sparse on top, so it never tires.",
+  "tempo": 68,
+  "key": "D harmonic minor",
+  "bars": 8,
+  "master": 0.65,
+  "tracks": [
+    {
+      "name": "Pad",
+      "instrument": "pad",
+      "volume": 0.32,
+      "reverb": 0.5,
+      "notes": [
+        {
+          "at": 0,
+          "length": 8,
+          "pitch": "D3",
+          "velocity": 0.55
+        },
+        {
+          "at": 0,
+          "length": 8,
+          "pitch": "F3",
+          "velocity": 0.55
+        },
+        {
+          "at": 0,
+          "length": 8,
+          "pitch": "A3",
+          "velocity": 0.55
+        },
+        {
+          "at": 8,
+          "length": 8,
+          "pitch": "Bb2",
+          "velocity": 0.55
+        },
+        {
+          "at": 8,
+          "length": 8,
+          "pitch": "D3",
+          "velocity": 0.55
+        },
+        {
+          "at": 8,
+          "length": 8,
+          "pitch": "F3",
+          "velocity": 0.55
+        },
+        {
+          "at": 16,
+          "length": 8,
+          "pitch": "G2",
+          "velocity": 0.55
+        },
+        {
+          "at": 16,
+          "length": 8,
+          "pitch": "Bb2",
+          "velocity": 0.55
+        },
+        {
+          "at": 16,
+          "length": 8,
+          "pitch": "D3",
+          "velocity": 0.55
+        },
+        {
+          "at": 24,
+          "length": 8,
+          "pitch": "A2",
+          "velocity": 0.55
+        },
+        {
+          "at": 24,
+          "length": 8,
+          "pitch": "C#3",
+          "velocity": 0.55
+        },
+        {
+          "at": 24,
+          "length": 8,
+          "pitch": "E3",
+          "velocity": 0.55
+        }
+      ]
+    },
+    {
+      "name": "Bass",
+      "instrument": "bass",
+      "volume": 1,
+      "reverb": 0.2,
+      "notes": [
+        {
+          "at": 0,
+          "length": 1.25,
+          "pitch": "D2",
+          "velocity": 0.78
+        },
+        {
+          "at": 1.5,
+          "length": 0.5,
+          "pitch": "D2",
+          "velocity": 0.56
+        },
+        {
+          "at": 2,
+          "length": 0.75,
+          "pitch": "D3",
+          "velocity": 0.62
+        },
+        {
+          "at": 3,
+          "length": 0.75,
+          "pitch": "D2",
+          "velocity": 0.56
+        },
+        {
+          "at": 4,
+          "length": 0.75,
+          "pitch": "D2",
+          "velocity": 0.78
+        },
+        {
+          "at": 4.75,
+          "length": 0.5,
+          "pitch": "D3",
+          "velocity": 0.5
+        },
+        {
+          "at": 5.5,
+          "length": 0.5,
+          "pitch": "D2",
+          "velocity": 0.56
+        },
+        {
+          "at": 6,
+          "length": 0.75,
+          "pitch": "A2",
+          "velocity": 0.62
+        },
+        {
+          "at": 7,
+          "length": 0.5,
+          "pitch": "D3",
+          "velocity": 0.5
+        },
+        {
+          "at": 7.5,
+          "length": 0.5,
+          "pitch": "E2",
+          "velocity": 0.6
+        },
+        {
+          "at": 8,
+          "length": 1.25,
+          "pitch": "Bb1",
+          "velocity": 0.78
+        },
+        {
+          "at": 9.5,
+          "length": 0.5,
+          "pitch": "Bb1",
+          "velocity": 0.56
+        },
+        {
+          "at": 10,
+          "length": 0.75,
+          "pitch": "Bb2",
+          "velocity": 0.62
+        },
+        {
+          "at": 11,
+          "length": 0.75,
+          "pitch": "Bb1",
+          "velocity": 0.56
+        },
+        {
+          "at": 12,
+          "length": 0.75,
+          "pitch": "Bb1",
+          "velocity": 0.78
+        },
+        {
+          "at": 12.75,
+          "length": 0.5,
+          "pitch": "Bb2",
+          "velocity": 0.5
+        },
+        {
+          "at": 13.5,
+          "length": 0.5,
+          "pitch": "Bb1",
+          "velocity": 0.56
+        },
+        {
+          "at": 14,
+          "length": 0.75,
+          "pitch": "F2",
+          "velocity": 0.62
+        },
+        {
+          "at": 15,
+          "length": 0.5,
+          "pitch": "Bb2",
+          "velocity": 0.5
+        },
+        {
+          "at": 15.5,
+          "length": 0.5,
+          "pitch": "A1",
+          "velocity": 0.6
+        },
+        {
+          "at": 16,
+          "length": 1.25,
+          "pitch": "G1",
+          "velocity": 0.78
+        },
+        {
+          "at": 17.5,
+          "length": 0.5,
+          "pitch": "G1",
+          "velocity": 0.56
+        },
+        {
+          "at": 18,
+          "length": 0.75,
+          "pitch": "G2",
+          "velocity": 0.62
+        },
+        {
+          "at": 19,
+          "length": 0.75,
+          "pitch": "G1",
+          "velocity": 0.56
+        },
+        {
+          "at": 20,
+          "length": 0.75,
+          "pitch": "G1",
+          "velocity": 0.78
+        },
+        {
+          "at": 20.75,
+          "length": 0.5,
+          "pitch": "G2",
+          "velocity": 0.5
+        },
+        {
+          "at": 21.5,
+          "length": 0.5,
+          "pitch": "G1",
+          "velocity": 0.56
+        },
+        {
+          "at": 22,
+          "length": 0.75,
+          "pitch": "D2",
+          "velocity": 0.62
+        },
+        {
+          "at": 23,
+          "length": 0.5,
+          "pitch": "G2",
+          "velocity": 0.5
+        },
+        {
+          "at": 23.5,
+          "length": 0.5,
+          "pitch": "Bb1",
+          "velocity": 0.6
+        },
+        {
+          "at": 24,
+          "length": 1.25,
+          "pitch": "A1",
+          "velocity": 0.78
+        },
+        {
+          "at": 25.5,
+          "length": 0.5,
+          "pitch": "A1",
+          "velocity": 0.56
+        },
+        {
+          "at": 26,
+          "length": 0.75,
+          "pitch": "A2",
+          "velocity": 0.62
+        },
+        {
+          "at": 27,
+          "length": 0.75,
+          "pitch": "A1",
+          "velocity": 0.56
+        },
+        {
+          "at": 28,
+          "length": 0.75,
+          "pitch": "A1",
+          "velocity": 0.78
+        },
+        {
+          "at": 28.75,
+          "length": 0.5,
+          "pitch": "A2",
+          "velocity": 0.5
+        },
+        {
+          "at": 29.5,
+          "length": 0.5,
+          "pitch": "A1",
+          "velocity": 0.56
+        },
+        {
+          "at": 30,
+          "length": 0.75,
+          "pitch": "E2",
+          "velocity": 0.62
+        },
+        {
+          "at": 31,
+          "length": 0.5,
+          "pitch": "A2",
+          "velocity": 0.5
+        },
+        {
+          "at": 31.5,
+          "length": 0.5,
+          "pitch": "C#2",
+          "velocity": 0.6
+        }
+      ]
+    },
+    {
+      "name": "Heart",
+      "instrument": "drums",
+      "volume": 1,
+      "reverb": 0.2,
+      "notes": [
+        {
+          "at": 0,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 0.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 4,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 4.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 6,
+          "length": 0.25,
+          "pitch": "rim",
+          "velocity": 0.4
+        },
+        {
+          "at": 8,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 8.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 10.5,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.45
+        },
+        {
+          "at": 12,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 12.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 14,
+          "length": 0.25,
+          "pitch": "rim",
+          "velocity": 0.4
+        },
+        {
+          "at": 15,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.3
+        },
+        {
+          "at": 15.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.35
+        },
+        {
+          "at": 16,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 16.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 18,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.7
+        },
+        {
+          "at": 18.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.5
+        },
+        {
+          "at": 16.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 17.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 19,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 19.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.35
+        },
+        {
+          "at": 20,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 20.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 22,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.7
+        },
+        {
+          "at": 22.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.5
+        },
+        {
+          "at": 22,
+          "length": 0.25,
+          "pitch": "rim",
+          "velocity": 0.4
+        },
+        {
+          "at": 20.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 21.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 23,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 23.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.35
+        },
+        {
+          "at": 23.5,
+          "length": 0.25,
+          "pitch": "tomLow",
+          "velocity": 0.4
+        },
+        {
+          "at": 24,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 24.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 26,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.7
+        },
+        {
+          "at": 26.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.5
+        },
+        {
+          "at": 24.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 25.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 27,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.22
+        },
+        {
+          "at": 27.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.35
+        },
+        {
+          "at": 28,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.85
+        },
+        {
+          "at": 28.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.6
+        },
+        {
+          "at": 30,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.7
+        },
+        {
+          "at": 30.6,
+          "length": 0.5,
+          "pitch": "kick",
+          "velocity": 0.5
+        },
+        {
+          "at": 30,
+          "length": 0.25,
+          "pitch": "rim",
+          "velocity": 0.4
+        },
+        {
+          "at": 29.5,
+          "length": 0.25,
+          "pitch": "shaker",
+          "velocity": 0.25
+        },
+        {
+          "at": 30.5,
+          "length": 0.5,
+          "pitch": "tomLow",
+          "velocity": 0.45
+        },
+        {
+          "at": 31,
+          "length": 0.5,
+          "pitch": "tomHigh",
+          "velocity": 0.4
+        },
+        {
+          "at": 31.5,
+          "length": 0.5,
+          "pitch": "tomLow",
+          "velocity": 0.5
+        }
+      ]
+    },
+    {
+      "name": "Low",
+      "instrument": "reese",
+      "volume": 0.75,
+      "reverb": 0.15,
+      "notes": [
+        {
+          "at": 0,
+          "length": 7.5,
+          "pitch": "D2",
+          "velocity": 0.5
+        },
+        {
+          "at": 8,
+          "length": 7.5,
+          "pitch": "Bb1",
+          "velocity": 0.5
+        },
+        {
+          "at": 16,
+          "length": 7.5,
+          "pitch": "G1",
+          "velocity": 0.5
+        },
+        {
+          "at": 24,
+          "length": 7.5,
+          "pitch": "A1",
+          "velocity": 0.5
+        }
+      ]
+    }
+  ]
+}

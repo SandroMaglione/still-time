@@ -6,9 +6,13 @@ import { InputCapture } from "@typeonce/ritmo-browser"
 import { Clock, type HostClock } from "@typeonce/ritmo"
 
 import { Flow, Game, Input, IntentEvent, STEP, ThumbInput, Time, type Intent, type Thumb } from "./schema.ts"
-import { BrutesSystem, CrowdSystem, ShootersSystem } from "./systems/enemies.ts"
+import type { Best } from "./progress.ts"
+import { ROOMS } from "./rooms.ts"
+import { CrowdSystem, MeleeSystem, RunnersSystem, ShootersSystem, StalkersSystem } from "./systems/enemies.ts"
 import { CutSystem, MovePlayerSystem, PaceSystem } from "./systems/player.ts"
-import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
+import { BombsSystem } from "./systems/bombs.ts"
+import { HazardsSystem } from "./systems/hazards.ts"
+import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, LocksSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
 import { ShotsSystem } from "./systems/shots.ts"
 import { FightViewInspector, type FightView } from "./view.ts"
 
@@ -18,7 +22,7 @@ const CaptureThumb = InputCapture.system(Game, { name: "Slap/CaptureThumb", sour
 /** Builds the first room. */
 export const setupSchedule = Game.Schedule(OpenRunSystem, BuildRoomSystem, Game.Schedule.applyDeferred(), Game.Schedule.applyStateTransitions())
 
-/** One step: input, the run, you, the enemies, the shots, the outcome. */
+/** One step: input, the run, you, the enemies, the shots, the locks, the outcome. */
 export const updateSchedule = Game.Schedule(
   AdvanceTime,
   CaptureThumb,
@@ -31,11 +35,16 @@ export const updateSchedule = Game.Schedule(
   CutSystem,
   Game.Schedule.applyDeferred(),
   ShootersSystem,
-  BrutesSystem,
+  MeleeSystem,
+  RunnersSystem,
+  StalkersSystem,
   CrowdSystem,
   ShotsSystem,
+  BombsSystem,
+  HazardsSystem,
   FadeSlashesSystem,
   Game.Schedule.applyDeferred(),
+  LocksSystem,
   OutcomeSystem,
   Game.Schedule.applyStateTransitions()
 )
@@ -45,15 +54,29 @@ export const IDLE_THUMB: Thumb = { x: 0, y: 0, tap: false }
 
 type DebugOption = { readonly hostClock: HostClock.HostClock } | undefined
 
+/**
+ * How a run starts: the device's saved best per room (none on a new device),
+ * and whether every room is open regardless of progress (testing).
+ */
+export interface RunStart {
+  readonly best?: Best
+  readonly open?: boolean
+}
+
 /** The runtime for a run starting at `room`, reading the thumb from `thumb`. */
-export const makeRuntime = <const Debug extends DebugOption>(options: { readonly room: number; readonly thumb: { readonly snapshot: () => Thumb }; readonly debug: Debug }) => {
+export const makeRuntime = <const Debug extends DebugOption>(options: { readonly room: number; readonly thumb: { readonly snapshot: () => Thumb }; readonly debug: Debug } & RunStart) => {
   const made = Game.Runtime.make({
     services: Game.Runtime.services(Game.Runtime.service(ThumbInput, options.thumb)),
     resources: {
       Time: Clock.start(STEP),
-      Run: { room: options.room, deaths: 0 },
+      Run: { room: options.room, deaths: 0, hits: 0, world: 0, best: ROOMS.map((_, i) => options.best?.[i] ?? null), open: options.open ?? false },
       Pace: { scale: 1 },
       Slashes: [],
+      Blasts: [],
+      Doors: [],
+      Wear: [],
+      Plates: { down: [], on: null, missed: null },
+      Keys: [],
       Input: IDLE_THUMB
     },
     machines: Game.Runtime.machines(Game.Runtime.machine(Flow, { _tag: "Playing" })),
@@ -67,8 +90,8 @@ export const makeRuntime = <const Debug extends DebugOption>(options: { readonly
 export class Fight<const Debug extends DebugOption = undefined> {
   readonly runtime: ReturnType<typeof makeRuntime<Debug>>
 
-  constructor(room: number, thumb: { readonly snapshot: () => Thumb }, debug: Debug) {
-    this.runtime = makeRuntime({ room, thumb, debug })
+  constructor(room: number, thumb: { readonly snapshot: () => Thumb }, debug: Debug, start: RunStart = {}) {
+    this.runtime = makeRuntime({ room, thumb, debug, ...start })
     const ran = this.runtime.tick(setupSchedule)
     if (!ran.ok) throw new Error(`Slap: setup failed ${JSON.stringify(ran.error)}`)
   }
@@ -89,7 +112,7 @@ export class Fight<const Debug extends DebugOption = undefined> {
   }
 }
 
-export const createFight = (room: number, thumb: { readonly snapshot: () => Thumb }): Fight => new Fight(room, thumb, undefined)
+export const createFight = (room: number, thumb: { readonly snapshot: () => Thumb }, start: RunStart = {}): Fight => new Fight(room, thumb, undefined, start)
 
 /** The lint entry: a debug runtime and the schedules the page ticks. */
 export const lintTarget = async () => {

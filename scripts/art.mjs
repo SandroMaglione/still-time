@@ -1,0 +1,27 @@
+// Sprite text is canonical. Drafts, intermediate fixes and review exports stay in ignored output/.
+import { existsSync, readdirSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import './batch2-art.mjs'
+import './batch3-art.mjs'
+import './art-assassin.mjs'
+// art-hero.mjs drew the earlier hat hero; art-assassin.mjs authors only the new body and batch-3–5 objects.
+
+const out = 'output/art'
+for (const folder of ['previews', 'reports']) mkdirSync(`${out}/${folder}`, { recursive: true })
+mkdirSync('public/art', { recursive: true })
+for (const file of readdirSync('assets/art/source').filter(name => name.endsWith('.sprite.txt'))) {
+  const name = file.replace('.sprite.txt', '')
+  // A sprite with its own palette (the player) renders and lints against it.
+  const config = `assets/art/${name}.pixel.config.json`
+  const own = existsSync(config) ? ['--config', config] : []
+  for (const [label, args] of [
+    [name, ['render', `assets/art/source/${file}`, '--out', `public/art/${name}`, '--scale', '8', ...own]],
+    [`${name}-lint`, ['lint', `public/art/${name}.png`, ...own]]
+  ]) {
+    const result = spawnSync('pnpm', ['exec', 'ritmo-tools', 'pixel', ...args], { encoding: 'utf8' })
+    writeFileSync(`${out}/reports/${label}.json`, result.stdout)
+    if (result.status !== 0) throw new Error(result.stdout + result.stderr)
+  }
+  for (const suffix of ['@8x.png', '.svg', '.preview.png']) renameSync(`public/art/${name}${suffix}`, `${out}/previews/${name}${suffix}`)
+}
+console.log('Rendered and linted canonical character sprites; previews and reports are in output/art/.')

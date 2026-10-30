@@ -1,0 +1,1172 @@
+{
+  "version": 1,
+  "master": 0.6,
+  "sounds": {
+    "player.slash": {
+      "about": "Your blade through the air: a thin, fast cut.",
+      "reverb": 0.08,
+      "interval": 0.06,
+      "layers": [
+        {
+          "type": "swish",
+          "low": 1200,
+          "peak": 6500,
+          "peakAt": 0.3,
+          "q": 1.6,
+          "duration": 0.13,
+          "gain": 0.55
+        },
+        {
+          "type": "noise",
+          "filter": "highpass",
+          "from": 7000,
+          "to": 4000,
+          "q": 0.7,
+          "duration": 0.05,
+          "attack": 0.001,
+          "gain": 0.18
+        }
+      ]
+    },
+    "player.kill": {
+      "about": "A cut that kills: the blade bites, a wet crack and a low thump.",
+      "reverb": 0.1,
+      "interval": 0.05,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.35
+        },
+        {
+          "type": "swish",
+          "low": 1500,
+          "peak": 7000,
+          "peakAt": 0.2,
+          "q": 1.8,
+          "duration": 0.1,
+          "gain": 0.45
+        },
+        {
+          "type": "crunch",
+          "from": 2600,
+          "to": 700,
+          "duration": 0.09,
+          "gain": 0.32,
+          "delay": 0.015
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 150,
+          "to": 50,
+          "duration": 0.14,
+          "attack": 0.002,
+          "gain": 0.55,
+          "delay": 0.015
+        }
+      ]
+    },
+    "player.guarded": {
+      "about": "Your blow stopped by a guard or shield: a bright metallic clink.",
+      "reverb": 0.14,
+      "interval": 0.08,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.4
+        },
+        {
+          "type": "metal",
+          "pitch": 1450,
+          "duration": 0.32,
+          "gain": 0.42
+        },
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 5200,
+          "to": 3200,
+          "q": 3,
+          "duration": 0.04,
+          "attack": 0.001,
+          "gain": 0.25
+        }
+      ]
+    },
+    "player.death": {
+      "about": "You are hit: a heavy blow, a drop in the chest, the held breath let go.",
+      "reverb": 0.22,
+      "heavy": true,
+      "interval": 0.4,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.45
+        },
+        {
+          "type": "crunch",
+          "from": 1800,
+          "to": 300,
+          "duration": 0.16,
+          "gain": 0.4
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 120,
+          "to": 32,
+          "duration": 0.55,
+          "attack": 0.002,
+          "gain": 0.75
+        },
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 330,
+          "to": 110,
+          "duration": 0.5,
+          "attack": 0.01,
+          "gain": 0.16,
+          "delay": 0.05
+        }
+      ]
+    },
+    "player.step": {
+      "about": "One footstep on stone: soft and dry; repeats faster the faster you move.",
+      "reverb": 0.05,
+      "interval": 0.08,
+      "layers": [
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 900,
+          "to": 400,
+          "q": 1.4,
+          "duration": 0.045,
+          "attack": 0.001,
+          "gain": 0.4
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 110,
+          "to": 70,
+          "duration": 0.05,
+          "attack": 0.001,
+          "gain": 0.3
+        }
+      ]
+    },
+    "player.dash": {
+      "about": "Bursting from still into a run: a low whoosh as time starts again.",
+      "reverb": 0.12,
+      "interval": 0.35,
+      "layers": [
+        {
+          "type": "swish",
+          "low": 250,
+          "peak": 2200,
+          "peakAt": 0.35,
+          "q": 0.9,
+          "duration": 0.28,
+          "gain": 0.5
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 70,
+          "to": 140,
+          "duration": 0.2,
+          "attack": 0.03,
+          "gain": 0.22
+        }
+      ]
+    },
+    "shot.bullet": {
+      "about": "A gunner fires: a dry pop with a short crack.",
+      "reverb": 0.12,
+      "interval": 0.04,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.4
+        },
+        {
+          "type": "noise",
+          "filter": "lowpass",
+          "from": 3800,
+          "to": 600,
+          "q": 1,
+          "duration": 0.09,
+          "attack": 0.001,
+          "gain": 0.5
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 190,
+          "to": 70,
+          "duration": 0.08,
+          "attack": 0.001,
+          "gain": 0.45
+        }
+      ]
+    },
+    "shot.arrow": {
+      "about": "An archer looses: a taut string twang and a thin whistle.",
+      "reverb": 0.1,
+      "interval": 0.04,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 260,
+          "to": 180,
+          "duration": 0.14,
+          "attack": 0.001,
+          "gain": 0.45
+        },
+        {
+          "type": "click",
+          "gain": 0.25
+        },
+        {
+          "type": "swish",
+          "low": 2500,
+          "peak": 6000,
+          "peakAt": 0.15,
+          "q": 3,
+          "duration": 0.16,
+          "gain": 0.25,
+          "delay": 0.01
+        }
+      ]
+    },
+    "shot.knife": {
+      "about": "A thrower's fan of three knives: a quick three-part shing.",
+      "reverb": 0.1,
+      "interval": 0.06,
+      "layers": [
+        {
+          "type": "swish",
+          "low": 2000,
+          "peak": 7500,
+          "peakAt": 0.3,
+          "q": 2.5,
+          "duration": 0.07,
+          "gain": 0.63
+        },
+        {
+          "type": "swish",
+          "low": 2200,
+          "peak": 8000,
+          "peakAt": 0.3,
+          "q": 2.5,
+          "duration": 0.07,
+          "gain": 0.58,
+          "delay": 0.035
+        },
+        {
+          "type": "swish",
+          "low": 2400,
+          "peak": 8500,
+          "peakAt": 0.3,
+          "q": 2.5,
+          "duration": 0.07,
+          "gain": 0.54,
+          "delay": 0.07
+        },
+        {
+          "type": "metal",
+          "pitch": 2600,
+          "duration": 0.12,
+          "gain": 0.22
+        }
+      ]
+    },
+    "shot.slug": {
+      "about": "The sniper fires: a hard, heavy crack down the locked line.",
+      "reverb": 0.25,
+      "heavy": true,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.5
+        },
+        {
+          "type": "crunch",
+          "from": 4200,
+          "to": 900,
+          "duration": 0.07,
+          "gain": 0.38
+        },
+        {
+          "type": "noise",
+          "filter": "lowpass",
+          "from": 2600,
+          "to": 200,
+          "q": 1,
+          "duration": 0.22,
+          "attack": 0.001,
+          "gain": 0.5
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 140,
+          "to": 40,
+          "duration": 0.24,
+          "attack": 0.001,
+          "gain": 0.6
+        }
+      ]
+    },
+    "sniper.charge": {
+      "about": "A sniper's laser finds you: a thin rising whine.",
+      "reverb": 0.15,
+      "interval": 0.3,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 600,
+          "to": 1400,
+          "duration": 0.45,
+          "attack": 0.05,
+          "gain": 0.28
+        },
+        {
+          "type": "tone",
+          "wave": "square",
+          "from": 1200,
+          "to": 2800,
+          "duration": 0.45,
+          "attack": 0.08,
+          "gain": 0.04
+        }
+      ]
+    },
+    "sniper.lock": {
+      "about": "The laser locks: two sharp beeps. Step off the line.",
+      "reverb": 0.08,
+      "interval": 0.3,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "square",
+          "from": 1760,
+          "to": 1760,
+          "duration": 0.05,
+          "attack": 0.002,
+          "gain": 0.18
+        },
+        {
+          "type": "tone",
+          "wave": "square",
+          "from": 1760,
+          "to": 1760,
+          "duration": 0.06,
+          "attack": 0.002,
+          "gain": 0.18,
+          "delay": 0.09
+        }
+      ]
+    },
+    "brute.windup": {
+      "about": "A brute winds up: a low grunt and a blade drawn back.",
+      "reverb": 0.12,
+      "interval": 0.2,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "sawtooth",
+          "from": 85,
+          "to": 120,
+          "duration": 0.22,
+          "attack": 0.03,
+          "gain": 0.16
+        },
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 500,
+          "to": 1400,
+          "q": 2,
+          "duration": 0.25,
+          "attack": 0.05,
+          "gain": 0.3
+        },
+        {
+          "type": "metal",
+          "pitch": 700,
+          "duration": 0.15,
+          "gain": 0.08,
+          "delay": 0.05
+        }
+      ]
+    },
+    "brute.swing": {
+      "about": "A brute's swing: a heavy, wide whoosh.",
+      "reverb": 0.12,
+      "interval": 0.15,
+      "layers": [
+        {
+          "type": "swish",
+          "low": 180,
+          "peak": 1800,
+          "peakAt": 0.4,
+          "q": 0.8,
+          "duration": 0.3,
+          "gain": 0.6
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 90,
+          "to": 55,
+          "duration": 0.22,
+          "attack": 0.04,
+          "gain": 0.25
+        }
+      ]
+    },
+    "clockwork.windup": {
+      "about": "The clockwork winds up: a brass ratchet, ticking in real time.",
+      "reverb": 0.14,
+      "interval": 0.2,
+      "layers": [
+        {
+          "type": "metal",
+          "pitch": 980,
+          "duration": 0.06,
+          "gain": 0.3
+        },
+        {
+          "type": "metal",
+          "pitch": 1040,
+          "duration": 0.06,
+          "gain": 0.28,
+          "delay": 0.07
+        },
+        {
+          "type": "metal",
+          "pitch": 1100,
+          "duration": 0.06,
+          "gain": 0.26,
+          "delay": 0.14
+        },
+        {
+          "type": "click",
+          "gain": 0.25
+        }
+      ]
+    },
+    "bomb.throw": {
+      "about": "A grenadier lobs a bomb: a soft toss and a turning whoosh.",
+      "reverb": 0.1,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "swish",
+          "low": 300,
+          "peak": 1500,
+          "peakAt": 0.5,
+          "q": 1.2,
+          "duration": 0.22,
+          "gain": 0.4
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 160,
+          "to": 120,
+          "duration": 0.06,
+          "attack": 0.002,
+          "gain": 0.25
+        }
+      ]
+    },
+    "bomb.land": {
+      "about": "The bomb lands lit: a dull iron thunk and the fuse catching.",
+      "reverb": 0.12,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.3
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 130,
+          "to": 70,
+          "duration": 0.1,
+          "attack": 0.001,
+          "gain": 0.5
+        },
+        {
+          "type": "metal",
+          "pitch": 420,
+          "duration": 0.12,
+          "gain": 0.15
+        },
+        {
+          "type": "noise",
+          "filter": "highpass",
+          "from": 5000,
+          "to": 6000,
+          "q": 0.7,
+          "duration": 0.2,
+          "attack": 0.02,
+          "gain": 0.18,
+          "delay": 0.05
+        }
+      ]
+    },
+    "bomb.fuse": {
+      "about": "The fuse burning: a short sputter, repeated while it burns.",
+      "reverb": 0.04,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "noise",
+          "filter": "highpass",
+          "from": 4500,
+          "to": 7000,
+          "q": 1,
+          "duration": 0.08,
+          "attack": 0.002,
+          "gain": 0.3
+        },
+        {
+          "type": "click",
+          "gain": 0.12
+        }
+      ]
+    },
+    "bomb.blast": {
+      "about": "The blast: a deep boom and falling rubble.",
+      "reverb": 0.3,
+      "heavy": true,
+      "interval": 0.15,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.5
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 110,
+          "to": 28,
+          "duration": 0.7,
+          "attack": 0.002,
+          "gain": 0.8
+        },
+        {
+          "type": "noise",
+          "filter": "lowpass",
+          "from": 3000,
+          "to": 150,
+          "q": 1,
+          "duration": 0.65,
+          "attack": 0.002,
+          "gain": 0.6
+        },
+        {
+          "type": "crunch",
+          "from": 1600,
+          "to": 300,
+          "duration": 0.25,
+          "gain": 0.3,
+          "delay": 0.04
+        }
+      ]
+    },
+    "crate.hit": {
+      "about": "A shot bites a crate: a hollow wooden knock.",
+      "reverb": 0.08,
+      "interval": 0.05,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 330,
+          "to": 220,
+          "duration": 0.06,
+          "attack": 0.001,
+          "gain": 0.4
+        },
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 1400,
+          "to": 800,
+          "q": 2.5,
+          "duration": 0.05,
+          "attack": 0.001,
+          "gain": 0.35
+        }
+      ]
+    },
+    "crate.break": {
+      "about": "A crate splinters: dry wood cracking apart.",
+      "reverb": 0.12,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "crunch",
+          "from": 2800,
+          "to": 900,
+          "duration": 0.16,
+          "gain": 0.4
+        },
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 280,
+          "to": 140,
+          "duration": 0.09,
+          "attack": 0.001,
+          "gain": 0.35
+        },
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 1800,
+          "to": 600,
+          "q": 3,
+          "duration": 0.05,
+          "attack": 0.001,
+          "gain": 0.3,
+          "delay": 0.06
+        },
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 2200,
+          "to": 700,
+          "q": 3,
+          "duration": 0.05,
+          "attack": 0.001,
+          "gain": 0.25,
+          "delay": 0.12
+        }
+      ]
+    },
+    "wall.break": {
+      "about": "A cracked wall gives: stone breaking and tumbling.",
+      "reverb": 0.25,
+      "heavy": true,
+      "interval": 0.15,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.4
+        },
+        {
+          "type": "crunch",
+          "from": 1400,
+          "to": 250,
+          "duration": 0.3,
+          "gain": 0.45
+        },
+        {
+          "type": "noise",
+          "filter": "lowpass",
+          "from": 1800,
+          "to": 120,
+          "q": 1,
+          "duration": 0.55,
+          "attack": 0.004,
+          "gain": 0.45
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 80,
+          "to": 35,
+          "duration": 0.4,
+          "attack": 0.002,
+          "gain": 0.5
+        }
+      ]
+    },
+    "shot.impact": {
+      "about": "A shot hits stone: a small dry tick.",
+      "reverb": 0.06,
+      "interval": 0.04,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.4
+        },
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 3000,
+          "to": 1800,
+          "q": 2,
+          "duration": 0.035,
+          "attack": 0.001,
+          "gain": 0.48
+        }
+      ]
+    },
+    "shield.block": {
+      "about": "A shot rings off a shield: a duller clang than your blade's.",
+      "reverb": 0.14,
+      "interval": 0.06,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.3
+        },
+        {
+          "type": "metal",
+          "pitch": 820,
+          "duration": 0.25,
+          "gain": 0.35
+        }
+      ]
+    },
+    "enemy.death": {
+      "about": "An enemy falls: a body hitting the floor.",
+      "reverb": 0.12,
+      "interval": 0.05,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 95,
+          "to": 45,
+          "duration": 0.18,
+          "attack": 0.002,
+          "gain": 0.6,
+          "delay": 0.02
+        },
+        {
+          "type": "noise",
+          "filter": "lowpass",
+          "from": 900,
+          "to": 200,
+          "q": 1,
+          "duration": 0.12,
+          "attack": 0.002,
+          "gain": 0.4,
+          "delay": 0.02
+        }
+      ]
+    },
+    "door.open": {
+      "about": "A door opens: a heavy stone-and-iron grind.",
+      "reverb": 0.25,
+      "interval": 0.2,
+      "layers": [
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 300,
+          "to": 520,
+          "q": 2.5,
+          "duration": 0.55,
+          "attack": 0.03,
+          "gain": 0.5
+        },
+        {
+          "type": "tone",
+          "wave": "sawtooth",
+          "from": 55,
+          "to": 62,
+          "duration": 0.5,
+          "attack": 0.04,
+          "gain": 0.1
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 90,
+          "to": 45,
+          "duration": 0.2,
+          "attack": 0.002,
+          "gain": 0.5,
+          "delay": 0.5
+        }
+      ]
+    },
+    "plate.press": {
+      "about": "A pressure plate sinks: a stone click and a low clunk.",
+      "reverb": 0.15,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.35
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 160,
+          "to": 90,
+          "duration": 0.1,
+          "attack": 0.001,
+          "gain": 0.5
+        },
+        {
+          "type": "noise",
+          "filter": "bandpass",
+          "from": 1200,
+          "to": 700,
+          "q": 2,
+          "duration": 0.04,
+          "attack": 0.001,
+          "gain": 0.25
+        }
+      ]
+    },
+    "plate.wrong": {
+      "about": "A plate pressed out of order: the plates pop back with a low buzz.",
+      "reverb": 0.12,
+      "interval": 0.3,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "square",
+          "from": 110,
+          "to": 98,
+          "duration": 0.25,
+          "attack": 0.005,
+          "gain": 0.12
+        },
+        {
+          "type": "tone",
+          "wave": "sawtooth",
+          "from": 116,
+          "to": 104,
+          "duration": 0.25,
+          "attack": 0.005,
+          "gain": 0.1
+        },
+        {
+          "type": "click",
+          "gain": 0.25
+        }
+      ]
+    },
+    "key.pickup": {
+      "about": "You take the key: a small bright jingle.",
+      "reverb": 0.2,
+      "interval": 0.2,
+      "layers": [
+        {
+          "type": "metal",
+          "pitch": 2100,
+          "duration": 0.18,
+          "gain": 0.25
+        },
+        {
+          "type": "metal",
+          "pitch": 2800,
+          "duration": 0.22,
+          "gain": 0.22,
+          "delay": 0.07
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 1568,
+          "to": 1568,
+          "duration": 0.25,
+          "attack": 0.003,
+          "gain": 0.18,
+          "delay": 0.07
+        }
+      ]
+    },
+    "key.drop": {
+      "about": "A thief falls and its key clatters to the floor.",
+      "reverb": 0.15,
+      "interval": 0.2,
+      "layers": [
+        {
+          "type": "metal",
+          "pitch": 1900,
+          "duration": 0.1,
+          "gain": 0.22
+        },
+        {
+          "type": "metal",
+          "pitch": 2200,
+          "duration": 0.1,
+          "gain": 0.18,
+          "delay": 0.08
+        },
+        {
+          "type": "metal",
+          "pitch": 2050,
+          "duration": 0.08,
+          "gain": 0.12,
+          "delay": 0.14
+        }
+      ]
+    },
+    "gate.warn": {
+      "about": "A laser gate arming: a crackling electric tick.",
+      "reverb": 0.08,
+      "interval": 0.15,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "square",
+          "from": 880,
+          "to": 880,
+          "duration": 0.04,
+          "attack": 0.002,
+          "gain": 0.1
+        },
+        {
+          "type": "noise",
+          "filter": "highpass",
+          "from": 3000,
+          "to": 3000,
+          "q": 1,
+          "duration": 0.04,
+          "attack": 0.001,
+          "gain": 0.22
+        }
+      ]
+    },
+    "gate.on": {
+      "about": "A laser gate fires: a buzzing zap.",
+      "reverb": 0.12,
+      "interval": 0.15,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.3
+        },
+        {
+          "type": "tone",
+          "wave": "sawtooth",
+          "from": 220,
+          "to": 160,
+          "duration": 0.28,
+          "attack": 0.003,
+          "gain": 0.16
+        },
+        {
+          "type": "tone",
+          "wave": "square",
+          "from": 1100,
+          "to": 400,
+          "duration": 0.12,
+          "attack": 0.002,
+          "gain": 0.08
+        },
+        {
+          "type": "noise",
+          "filter": "highpass",
+          "from": 2500,
+          "to": 1500,
+          "q": 1,
+          "duration": 0.18,
+          "attack": 0.002,
+          "gain": 0.2
+        }
+      ]
+    },
+    "room.clear": {
+      "about": "The room is clear: a low bell and an open fifth, the breath let out.",
+      "reverb": 0.4,
+      "interval": 0.5,
+      "layers": [
+        {
+          "type": "metal",
+          "pitch": 392,
+          "duration": 0.8,
+          "gain": 0.25
+        },
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 196,
+          "to": 196,
+          "duration": 0.75,
+          "attack": 0.01,
+          "gain": 0.3
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 293.7,
+          "to": 293.7,
+          "duration": 0.7,
+          "attack": 0.02,
+          "gain": 0.22,
+          "delay": 0.08
+        }
+      ]
+    },
+    "star.1": {
+      "about": "The first star: a soft chime.",
+      "reverb": 0.3,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 1174.7,
+          "to": 1174.7,
+          "duration": 0.35,
+          "attack": 0.002,
+          "gain": 0.3
+        },
+        {
+          "type": "metal",
+          "pitch": 2349,
+          "duration": 0.2,
+          "gain": 0.1
+        }
+      ]
+    },
+    "star.2": {
+      "about": "The second star: the chime a step up.",
+      "reverb": 0.3,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 1396.9,
+          "to": 1396.9,
+          "duration": 0.35,
+          "attack": 0.002,
+          "gain": 0.3
+        },
+        {
+          "type": "metal",
+          "pitch": 2794,
+          "duration": 0.2,
+          "gain": 0.1
+        }
+      ]
+    },
+    "star.3": {
+      "about": "The third star: the chime at the top, ringing longer.",
+      "reverb": 0.35,
+      "interval": 0.1,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 1760,
+          "to": 1760,
+          "duration": 0.55,
+          "attack": 0.002,
+          "gain": 0.3
+        },
+        {
+          "type": "metal",
+          "pitch": 3520,
+          "duration": 0.3,
+          "gain": 0.12
+        }
+      ]
+    },
+    "run.won": {
+      "about": "Every room clear: a rising arpeggio and a bell.",
+      "reverb": 0.4,
+      "heavy": true,
+      "interval": 1,
+      "layers": [
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 293.7,
+          "to": 293.7,
+          "duration": 0.3,
+          "attack": 0.003,
+          "gain": 0.3
+        },
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 440,
+          "to": 440,
+          "duration": 0.3,
+          "attack": 0.003,
+          "gain": 0.28,
+          "delay": 0.12
+        },
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 587.3,
+          "to": 587.3,
+          "duration": 0.35,
+          "attack": 0.003,
+          "gain": 0.26,
+          "delay": 0.24
+        },
+        {
+          "type": "tone",
+          "wave": "sine",
+          "from": 880,
+          "to": 880,
+          "duration": 0.9,
+          "attack": 0.003,
+          "gain": 0.26,
+          "delay": 0.36
+        },
+        {
+          "type": "metal",
+          "pitch": 587,
+          "duration": 1,
+          "gain": 0.18,
+          "delay": 0.36
+        }
+      ]
+    },
+    "ui.click": {
+      "about": "A menu button: a small dry tick.",
+      "reverb": 0,
+      "interval": 0.04,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.3
+        },
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 1300,
+          "to": 1100,
+          "duration": 0.03,
+          "attack": 0.001,
+          "gain": 0.25
+        }
+      ]
+    },
+    "ui.back": {
+      "about": "Closing a menu: the tick a step lower.",
+      "reverb": 0,
+      "interval": 0.04,
+      "layers": [
+        {
+          "type": "click",
+          "gain": 0.28
+        },
+        {
+          "type": "tone",
+          "wave": "triangle",
+          "from": 900,
+          "to": 750,
+          "duration": 0.035,
+          "attack": 0.001,
+          "gain": 0.25
+        }
+      ]
+    }
+  }
+}

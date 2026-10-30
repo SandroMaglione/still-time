@@ -1,15 +1,27 @@
 /**
  * The page: one canvas drawing the fight view, a hidden floating thumb-stick
- * (and keys for desktop) feeding the thumb source, and the fixed-step loop.
+ * (and keys for desktop) feeding the thumb source, the menus, the device's
+ * saved progress (through Effect), and the fixed-step loop.
  */
 import { BrowserTickSource } from "@typeonce/ritmo-browser"
-import { FixedLoop } from "@typeonce/ritmo"
+import { FixedLoop, Result } from "@typeonce/ritmo"
+import { Effect, Layer, ManagedRuntime } from "effect"
 
 import { STEP, createFight, updateSchedule, type Thumb } from "../sim/simulation.ts"
+import { continueRoom, type Best } from "../sim/progress.ts"
 import { Camera, draw, screenToWorld, type Stick } from "./draw.ts"
+import { Menu } from "./menu.ts"
+import { Progress, layer as progressLayer } from "./progress.ts"
+import { storageLayer } from "./storage.ts"
+import { loadArt } from "./art.ts"
+import { Presentation } from "./fx.ts"
+import { Hud } from "./hud.ts"
+import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
-const ctx = canvas?.getContext("2d")
+// A CPU-backed canvas: the scene is tiny (about 240 px across) and made of thousands of small draws, which a
+// GPU-backed canvas pays for per call; software raster draws them in a fraction of the time.
+const ctx = canvas?.getContext("2d", { willReadFrequently: true })
 const el = (id: string): HTMLElement => {
   const found = document.getElementById(id)
   if (found === null) throw new Error(`Slap: #${id} missing`)
@@ -47,11 +59,40 @@ class ThumbSource {
   }
 }
 
+// The device's progress, through Effect: loaded before the run starts, saved on every clear.
+const app = ManagedRuntime.make(progressLayer.pipe(Layer.provide(storageLayer)))
+const progress = await app.runPromise(Effect.gen(function*() { return yield* Progress }))
+const saved = await app.runPromise(progress.best)
+
+// `?room=N` opens a room straight away and `?all` opens every room (testing); otherwise the title comes first.
 const params = new URLSearchParams(window.location.search)
+const asked = params.get("room")
 const thumb = new ThumbSource()
-const fight = createFight(Math.max(0, Number(params.get("room") ?? "1") - 1), thumb)
+const fight = createFight(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1), thumb, { best: saved, open: params.has("all") })
+
+/** Folds this run's bests into the device's save, in the background. */
+const save = (best: Best): void => {
+  app.runFork(progress.record(best).pipe(Effect.catchTag("ProgressSaveError", (e) => Effect.logWarning("Still Time: progress not saved", e.cause))))
+}
+
+const menu = new Menu(document.body, {
+  play: (room) => {
+    if (room !== fight.view().room.index || fight.view().flow !== "playing") fight.send({ kind: "goToRoom", room })
+    menu.close()
+  },
+  resume: () => menu.close(),
+  restart: () => {
+    fight.send({ kind: "restart" })
+    menu.close()
+  },
+  sound: { settings: soundSettings, setSound: setSoundEnabled, setMusic: setMusicEnabled }
+})
+if (asked === null) menu.show("title", fight.view())
 
 el("restart").addEventListener("click", () => fight.send({ kind: "restart" }))
+el("pause").addEventListener("click", () => menu.show("pause", fight.view()))
+el("rooms-after").addEventListener("click", () => menu.show("rooms", fight.view()))
+el("title-after").addEventListener("click", () => menu.show("title", fight.view()))
 
 // The floating stick starts wherever the finger lands. Within DEAD_ZONE px of
 // the press point you stand still; at REACH px you run at top speed.
@@ -94,7 +135,8 @@ const lift = (): void => {
 canvas.addEventListener("pointerup", lift)
 canvas.addEventListener("pointercancel", lift)
 
-// Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 jump to a room.
+// Keys, for desktop: arrows or WASD move (screen directions), space continues, R restarts, 1-9 and 0 jump to rooms 1-10,
+// [ and ] step to the previous and next room (open rooms only), Escape or M pauses (and closes the pause or room select).
 const held = new Set<string>()
 const DIRS: Record<string, readonly [number, number]> = {
   ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0]
@@ -110,13 +152,22 @@ const keyPush = (): void => {
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
   if (e.repeat) return
+  // Escape or M pauses, and closes the pause or the room select (the title stays until you pick Play).
+  if (key === "Escape" || key === "m") {
+    if (menu.current === "pause" || menu.current === "rooms") menu.close()
+    else if (!menu.isOpen) menu.show("pause", fight.view())
+    e.preventDefault()
+    return
+  }
+  if (menu.isOpen) return
   if (DIRS[key] !== undefined) {
     held.add(key)
     if (fight.view().flow !== "playing") thumb.tap()
     else keyPush()
   } else if (key === " " || key === "Enter") thumb.tap()
   else if (key === "r") fight.send({ kind: "restart" })
-  else if (/^[1-9]$/.test(key)) fight.send({ kind: "goToRoom", room: Number(key) - 1 })
+  else if (/^[0-9]$/.test(key)) fight.send({ kind: "goToRoom", room: key === "0" ? 9 : Number(key) - 1 })
+  else if (key === "[" || key === "]") fight.send({ kind: "goToRoom", room: fight.view().room.index + (key === "]" ? 1 : -1) })
   else return
   e.preventDefault()
 })
@@ -125,35 +176,68 @@ window.addEventListener("keyup", (e) => {
   if (held.delete(key)) keyPush()
 })
 
+// The canvas holds the scene at its native pixel size (about 240 px across) and CSS enlarges it by a whole
+// number of device pixels, pixelated: the browser's compositor does the upscale instead of a full-screen copy each frame.
+let cssPerPixel = 1
 const resize = (): void => {
   const dpr = Math.min(window.devicePixelRatio || 1, 3)
-  canvas.width = Math.round(window.innerWidth * dpr)
-  canvas.height = Math.round(window.innerHeight * dpr)
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  const pixelScale = Math.max(1, Math.floor((window.innerWidth * dpr) / 240))
+  canvas.width = Math.ceil((window.innerWidth * dpr) / pixelScale)
+  canvas.height = Math.ceil((window.innerHeight * dpr) / pixelScale)
+  cssPerPixel = pixelScale / dpr
+  canvas.style.width = `${canvas.width * cssPerPixel}px`
+  canvas.style.height = `${canvas.height * cssPerPixel}px`
+  ctx.imageSmoothingEnabled = false
 }
 window.addEventListener("resize", resize)
 resize()
 
+// `?nolight` turns the lighting pass off, to compare.
+const lit = !new URLSearchParams(location.search).has("nolight")
 const camera = new Camera()
 let lastRoom = -1
-let lastDeaths = 0
-const roomEl = el("room"), paceEl = el("pace")
+let lastPlayer = -1
+let lastFlow = fight.view().flow
+const presentation = new Presentation()
+presentation.observe(fight.view())
+// Sound starts on the first press or key (browsers require one).
+const audio = createAudio()
+audio.unlockOn(window)
+audio.observe(fight.view())
+const hud = new Hud(canvas)
+await loadArt()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
   step: STEP,
   maxFrameSeconds: 0.25,
   maxStepsPerFrame: 5,
-  update: () => fight.runtime.tick(updateSchedule),
+  // A menu pauses the game.
+  update: () => {
+    if (menu.isOpen) return Result.success(undefined)
+    const result = fight.runtime.tick(updateSchedule)
+    if (result.ok) {
+      presentation.observe(fight.view())
+      audio.observe(fight.view())
+    }
+    return result
+  },
   render: (frame) => {
     const view = fight.view()
+    presentation.advance(frame.elapsedSeconds)
+    audio.advance(frame.elapsedSeconds, menu.current, view)
+    // A clear changes the run's bests: save them.
+    if ((view.flow === "cleared" || view.flow === "won") && lastFlow !== view.flow) save(view.best)
+    lastFlow = view.flow
     // A new room, or the same one restarted (the player is back at the start), snaps the camera.
-    if (view.room.index !== lastRoom || view.deaths !== lastDeaths) camera.reset()
+    if (view.room.index !== lastRoom || view.player?.id !== lastPlayer) camera.reset()
     lastRoom = view.room.index
-    lastDeaths = view.deaths
-    roomEl.textContent = `${view.room.index + 1}/${view.room.count} ${view.room.name} · ✕${view.deaths}`
-    paceEl.textContent = `time ×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`
+    lastPlayer = view.player?.id ?? -1
+    // The HUD: room, clock against par, the time-freeze gauge, the tip (messages are drawn with the scene, see `draw`).
+    hud.update(view, frame.elapsedSeconds)
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
-    draw(ctx, window.innerWidth, window.innerHeight, view, stick, camera)
+    const k = 1 / cssPerPixel
+    const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
+    draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

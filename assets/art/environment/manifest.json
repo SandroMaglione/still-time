@@ -1,0 +1,177 @@
+[
+  {
+    "name": "floor-0",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-1",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-2",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-3",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-4",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-5",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-cracked",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-moss",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "floor-drain",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "rock-0",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "rock-1",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "rock-2",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "cap",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "cover-cap-1",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "cover-cap-2",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "cover-chip",
+    "width": 16,
+    "height": 16
+  },
+  {
+    "name": "masonry",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "crate-cap",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "crate-face",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "wood-top",
+    "width": 16,
+    "height": 16
+  },
+  {
+    "name": "wood-front",
+    "width": 16,
+    "height": 16
+  },
+  {
+    "name": "iron",
+    "width": 16,
+    "height": 16
+  },
+  {
+    "name": "torch-0",
+    "width": 16,
+    "height": 24
+  },
+  {
+    "name": "torch-1",
+    "width": 16,
+    "height": 24
+  },
+  {
+    "name": "banner-red",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "banner-moss",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "brazier-0",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "brazier-1",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "rubble",
+    "width": 16,
+    "height": 16
+  },
+  {
+    "name": "pots",
+    "width": 16,
+    "height": 16
+  },
+  {
+    "name": "chain",
+    "width": 16,
+    "height": 24
+  },
+  {
+    "name": "shadow",
+    "width": 24,
+    "height": 16
+  },
+  {
+    "name": "exit-rune",
+    "width": 24,
+    "height": 24
+  },
+  {
+    "name": "bullet",
+    "width": 16,
+    "height": 16
+  },
+  {
+    "name": "spark",
+    "width": 16,
+    "height": 16
+  }
+]

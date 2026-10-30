@@ -22,49 +22,109 @@ export const TUNING = {
   slashSteps: 21
 } as const
 
-export const SHOOTER_KINDS = ["gunner", "archer", "thrower"] as const
+export const SHOOTER_KINDS = ["gunner", "archer", "thrower", "sniper", "grenadier"] as const
 export type ShooterKind = (typeof SHOOTER_KINDS)[number]
-export const ENEMY_KINDS = [...SHOOTER_KINDS, "brute"] as const
+export const MELEE_KINDS = ["brute", "shield", "clockwork"] as const
+export type MeleeKind = (typeof MELEE_KINDS)[number]
+export const ENEMY_KINDS = [...SHOOTER_KINDS, ...MELEE_KINDS, "runner", "stalker"] as const
 export type EnemyKind = (typeof ENEMY_KINDS)[number]
 
-/** Per shooter: body radius, reload `period` (world s), what it fires, and the fan of angle offsets. */
-export const SHOOTERS = {
-  /** Steady bullets. */
-  gunner: { radius: 0.38, period: 0.85, shot: "bullet", spread: [0] },
-  /** Fast arrows, slower reload. */
-  archer: { radius: 0.36, period: 1.3, shot: "arrow", spread: [0] },
-  /** A fan of three knives. */
-  thrower: { radius: 0.38, period: 1.1, shot: "knife", spread: [-0.3, 0, 0.3] }
-} as const satisfies Record<ShooterKind, { radius: number; period: number; shot: ShotKind; spread: ReadonlyArray<number> }>
+export const isShooter = (kind: EnemyKind): kind is ShooterKind => (SHOOTER_KINDS as ReadonlyArray<EnemyKind>).includes(kind)
+export const isMelee = (kind: EnemyKind): kind is MeleeKind => (MELEE_KINDS as ReadonlyArray<EnemyKind>).includes(kind)
 
 /**
- * The brute: walks at you with a blade held in front. Close enough, it stops,
- * winds up, and swings a wedge in front of it. While it attacks (wind-up and
- * swing) its front is guarded: within `guard` radians of its facing your cut
- * fails, so you cannot beat its swing by rushing in. The rest of the time it
- * can be cut from any side: step out of the swing, then hit back.
+ * Per shooter: body radius, reload `period` (world s), what it fires, the fan
+ * of angle offsets, how far it sees, and whether it creeps after you. A
+ * `scoped` shooter charges only while it sees you (hiding resets it), aims a
+ * laser at you, and for the last `lock` world seconds stops tracking: the
+ * moment to step out of the line.
  */
-export const BRUTE = {
-  radius: 0.48,
-  /** Metres and radians per world second while chasing: faster than you, and a 180° turn in about 0.3 s. */
-  speed: 5.5,
-  turn: 10,
-  /** Starts the wind-up when you are this close and in sight. */
-  trigger: 2.5,
-  /** The swing: reach in metres and half-angle in radians. */
-  reach: 2.0,
-  arc: 1.0,
-  /** Half-angle of the guarded front. */
-  guard: 1.2,
-  /** World seconds of each phase. The wind-up keeps tracking you until `lock` of it is left, then commits. */
-  windup: 0.5,
-  lock: 0.35,
-  /** While tracking in the wind-up it steps in to this distance, at this share of its speed. */
-  close: 1.6,
-  step: 0.7,
-  swing: 0.1,
-  recover: 0.8
-} as const
+export const SHOOTERS = {
+  /** Steady bullets. */
+  gunner: { radius: 0.38, period: 0.85, shot: "bullet", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 },
+  /** Fast arrows, slower reload. */
+  archer: { radius: 0.36, period: 1.3, shot: "arrow", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 },
+  /** A fan of three knives. */
+  thrower: { radius: 0.38, period: 1.1, shot: "knife", spread: [-0.3, 0, 0.3], sight: 13, creeps: true, scoped: false, lock: 0 },
+  /** Sees across the room and holds still; a laser charges on you, locks, then one very fast slug. */
+  sniper: { radius: 0.36, period: 1.5, shot: "slug", spread: [0], sight: 24, creeps: false, scoped: true, lock: 0.4 },
+  /** Lobs a bomb at where you stand (over allies: it does not care who the blast takes). */
+  grenadier: { radius: 0.4, period: 2.6, shot: "bomb", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 }
+} as const satisfies Record<ShooterKind, {
+  radius: number
+  period: number
+  shot: ShotKind | "bomb"
+  spread: ReadonlyArray<number>
+  sight: number
+  creeps: boolean
+  scoped: boolean
+  lock: number
+}>
+
+/**
+ * The melee family: each walks at you with a blade held in front. Close
+ * enough, it stops, winds up (tracking you, then committed for the last
+ * `lock`), swings a wedge in front of it, and recovers. Its front is guarded
+ * within `guardArc` of its facing: while it attacks (`guard: "attack"`), or
+ * always (`"always"`, the shield-bearer). A guarded front stops your cut and
+ * any shot; any other blow downs it.
+ *
+ * - brute: fast, guarded only while it attacks.
+ * - clockwork: a slow brass brute whose `clock` is real time: it walks,
+ *   winds up and swings at its own pace however still you stand.
+ * - shield-bearer: slow and slow to turn (circling it within 3 m at full
+ *   speed outpaces its turn), its shield always up: go round it.
+ */
+export const MELEE = {
+  brute: {
+    radius: 0.48,
+    /** Metres and radians per world second while chasing: faster than you, and a 180° turn in about 0.3 s. */
+    speed: 5.5,
+    turn: 10,
+    /** Starts the wind-up when you are this close and in sight. */
+    trigger: 2.5,
+    /** The swing: reach in metres and half-angle in radians. */
+    reach: 2.0,
+    arc: 1.0,
+    guard: "attack",
+    /** Half-angle of the guarded front. */
+    guardArc: 1.2,
+    /** World seconds of each phase. The wind-up keeps tracking you until `lock` of it is left, then commits. */
+    windup: 0.5,
+    lock: 0.35,
+    /** While tracking in the wind-up it steps in to this distance, at this share of its speed. */
+    close: 1.6,
+    step: 0.7,
+    swing: 0.1,
+    recover: 0.8,
+    /** World time (slowed with the world) or real time (never slowed). */
+    clock: "world"
+  },
+  shield: {
+    radius: 0.5, speed: 2.6, turn: 1.5, trigger: 2.0, reach: 1.7, arc: 0.8, guard: "always", guardArc: 1.25,
+    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9, clock: "world"
+  },
+  clockwork: {
+    radius: 0.46, speed: 1.6, turn: 3, trigger: 2.2, reach: 1.8, arc: 0.9, guard: "attack", guardArc: 1.2,
+    windup: 0.8, lock: 0.45, close: 1.4, step: 0.5, swing: 0.12, recover: 1, clock: "real"
+  }
+} as const satisfies Record<MeleeKind, {
+  radius: number
+  speed: number
+  turn: number
+  trigger: number
+  reach: number
+  arc: number
+  guard: "attack" | "always"
+  guardArc: number
+  windup: number
+  lock: number
+  close: number
+  step: number
+  swing: number
+  recover: number
+  clock: "world" | "real"
+}>
 
 /**
  * Shooters reposition a little: they sidestep when an ally stands in their line
@@ -79,8 +139,8 @@ export const SHOOTER_MOVE = {
 } as const
 
 /**
- * Enemies have solid bodies: they never overlap, and a brute steers round an
- * ally in its way. Brutes also walk at different paces, picked at spawn from
+ * Enemies have solid bodies: they never overlap, and a melee enemy steers round an
+ * ally in its way. They also walk at different paces, picked at spawn from
  * `paces` in turn, so two of them do not arrive in step.
  */
 export const CROWD = {
@@ -93,14 +153,85 @@ export const CROWD = {
   paces: [1, 0.82, 0.92]
 } as const
 
-export const radiusOf = (kind: EnemyKind): number => (kind === "brute" ? BRUTE.radius : SHOOTERS[kind].radius)
+/** How much each kind gives way when two enemies are pushed apart: shooters hold their ground, the melee family is shoved. */
+export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, grenadier: 0.25, brute: 1, shield: 0.5, clockwork: 0.4, runner: 0.6, stalker: 0.6 } as const satisfies Record<EnemyKind, number>
 
-export const SHOT_KINDS = ["bullet", "arrow", "knife"] as const
+/**
+ * A bomb flies (in world time) to where you stood when it was thrown, lands,
+ * and burns its fuse; then its blast takes everyone within `radius` with
+ * nothing solid in between (you, allies, the grenadier itself) and breaks
+ * any cracked wall or crate it reaches.
+ */
+export const BOMB = {
+  speed: 7,
+  fuse: 1.3,
+  radius: 1.9,
+  /** A blast mark stays on screen this many steps (real time): 0.4 s. */
+  showSteps: 24
+} as const
+
+/**
+ * Cover that breaks. A crate splinters after `crateHits` shots; a cracked
+ * wall only gives to a brute's swing (whose blade reaches `swingBite`
+ * metres past its swing into the wall) or a blast.
+ */
+export const COVER = { crateHits: 3, swingBite: 0.4 } as const
+
+/**
+ * Hazards: a blade's bar is `width` thick; a laser gate warns for `warn`
+ * world seconds before it comes on.
+ */
+export const HAZARD = { width: 0.12, warn: 0.45 } as const
+
+/**
+ * The runner (a thief): it never attacks, carries a key, and runs from you
+ * while it can see you. Out of sight it stands still, so you can sneak up
+ * behind cover. Wherever it falls (your cut or a stray shot), it drops its key.
+ */
+export const RUNNER = {
+  radius: 0.34,
+  /** Metres per world second: slower than you, so you catch it in the open, but it reaches corners first. */
+  speed: 3.6,
+  /** How far ahead it weighs each way out, in metres. */
+  look: 1.6,
+  /** How many ways out it weighs. */
+  ways: 16
+} as const
+
+/** Keys, doors and plates. */
+export const LOCKS = {
+  /** You stand on a plate within this distance of its centre. */
+  plate: 0.55,
+  /** A wrong plate's red flash, in steps (real time): 0.5 s. */
+  missSteps: 30,
+  /** You pick up a key within this distance of it. */
+  pickup: 0.7,
+  /** A key door opens when you come within this distance of it holding its key. */
+  reach: 0.9
+} as const
+
+/**
+ * The stalker: it creeps toward you in real time, but only as fast as you
+ * are still (full `speed` when you stand frozen, none at a full push). It
+ * strikes anyone within `reach` (just past your cut) while you are at least
+ * `wakes` still: hesitate near it and it takes you; rush it at a hard push
+ * and it stays frozen for your cut, which downs it like anyone.
+ */
+export const STALKER = { radius: 0.4, speed: 2.4, reach: 1.35, wakes: 0.5 } as const
+
+/** Conveyor belts carry you at `speed` (real m/s) along them, whether or not you push, so time stays frozen while you ride. */
+export const BELT = { speed: 2.6 } as const
+
+export const radiusOf = (kind: EnemyKind): number =>
+  isMelee(kind) ? MELEE[kind].radius : kind === "runner" ? RUNNER.radius : kind === "stalker" ? STALKER.radius : SHOOTERS[kind].radius
+
+export const SHOT_KINDS = ["bullet", "arrow", "knife", "slug"] as const
 export type ShotKind = (typeof SHOT_KINDS)[number]
 
 /** Per shot: radius and speed (m per world second). */
 export const SHOTS = {
   bullet: { radius: 0.12, speed: 9 },
   arrow: { radius: 0.09, speed: 18 },
-  knife: { radius: 0.1, speed: 12 }
+  knife: { radius: 0.1, speed: 12 },
+  slug: { radius: 0.1, speed: 30 }
 } as const satisfies Record<ShotKind, { radius: number; speed: number }>
