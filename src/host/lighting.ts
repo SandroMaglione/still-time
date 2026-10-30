@@ -63,7 +63,10 @@ const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((n) => 
 /** Light steps per channel: few enough to read as painted bands. */
 const LEVELS = 5
 
-interface Buffers { light: HTMLCanvasElement; layer: HTMLCanvasElement }
+/** Scene pixels per light-map cell: light is computed in 2×2 cells, which also keeps the bands chunky. */
+const CELL = 2
+
+interface Buffers { light: HTMLCanvasElement; layer: HTMLCanvasElement; final: HTMLCanvasElement; mask: HTMLCanvasElement }
 const buffers = new WeakMap<CanvasRenderingContext2D, Buffers>()
 
 const canvasOf = (w: number, h: number, old?: HTMLCanvasElement): HTMLCanvasElement => {
@@ -108,14 +111,21 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
   const lights = pending.get(ctx) ?? []
   pending.set(ctx, [])
   const w = ctx.canvas.width, h = ctx.canvas.height
+  const lw = Math.ceil(w / CELL), lh = Math.ceil(h / CELL)
   const old = buffers.get(ctx)
-  const b: Buffers = { light: canvasOf(w, h, old?.light), layer: canvasOf(w, h, old?.layer) }
+  const b: Buffers = {
+    light: canvasOf(lw, lh, old?.light), layer: canvasOf(lw, lh, old?.layer),
+    final: canvasOf(w, h, old?.final), mask: canvasOf(w, h, old?.mask)
+  }
   buffers.set(ctx, b)
   const lc = b.light.getContext("2d", { willReadFrequently: true })!
   const yc = b.layer.getContext("2d")!
   // Sources first, on black: only their light is banded, so unlit floor stays flat instead of dithering everywhere.
+  lc.setTransform(1, 0, 0, 1, 0, 0)
   lc.globalCompositeOperation = "source-over"
-  lc.fillStyle = "#000"; lc.fillRect(0, 0, w, h)
+  lc.fillStyle = "#000"; lc.fillRect(0, 0, lw, lh)
+  // Lights are placed in scene pixels and drawn into the cell grid.
+  yc.setTransform(1 / CELL, 0, 0, 1 / CELL, 0, 0)
 
   const { P, u, squash } = frame
   // Box faces on screen: the top and the front, lit by distance but never shadowed by themselves.
@@ -128,6 +138,12 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
   for (const light of lights) {
     const rx = light.radius * u, ry = rx * squash
     if (light.x + rx < 0 || light.x - rx > w || light.y + ry < 0 || light.y - ry > h) continue
+    // Every step below stays inside the light's own box, in scene pixels and in cells.
+    const x0 = Math.max(0, Math.floor(light.x - rx)), y0 = Math.max(0, Math.floor(light.y - ry))
+    const x1 = Math.min(w, Math.ceil(light.x + rx)), y1 = Math.min(h, Math.ceil(light.y + ry))
+    const cx0 = Math.floor(x0 / CELL), cy0 = Math.floor(y0 / CELL)
+    const cw = Math.min(lw, Math.ceil(x1 / CELL)) - cx0, ch = Math.min(lh, Math.ceil(y1 / CELL)) - cy0
+    if (cw <= 0 || ch <= 0) continue
     const paint = (): void => {
       yc.save()
       yc.translate(light.x, light.y); yc.scale(1, squash)
@@ -140,7 +156,7 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
       yc.restore()
     }
     yc.globalCompositeOperation = "source-over"
-    yc.clearRect(0, 0, w, h)
+    yc.clearRect(x0 - CELL, y0 - CELL, x1 - x0 + CELL * 2, y1 - y0 + CELL * 2)
     paint()
     if (light.shadows !== false && frame.blockers.length > 0) {
       const at = frame.toFloor(light.x, light.y)
@@ -149,6 +165,8 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
       for (const p of frame.blockers) {
         // A light inside a box (a torch on a pillar) lights its surroundings instead of being swallowed.
         if (at.x > p.x - 0.05 && at.x < p.x + p.w + 0.05 && at.y > p.y - 0.05 && at.y < p.y + p.h + 0.05) continue
+        // Boxes beyond the light's reach throw nothing it could see.
+        if (p.x > at.x + light.radius || p.x + p.w < at.x - light.radius || p.y > at.y + light.radius || p.y + p.h < at.y - light.radius) continue
         const hull = shadowHull(at.x, at.y, p, light.radius * 2)
         yc.beginPath()
         hull.forEach((q, i) => { const s = P(q.x, q.y); if (i === 0) yc.moveTo(s.x, s.y); else yc.lineTo(s.x, s.y) })
@@ -161,44 +179,51 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
       for (const f of faces) yc.rect(f.x, f.y, f.w, f.h)
       yc.rect(wallTop.x - 8, wallTop.y - 8, wallFoot.x - wallTop.x + 16, wallFoot.y - wallTop.y + 8)
       yc.clip()
-      yc.clearRect(0, 0, w, h)
+      yc.clearRect(x0, y0, x1 - x0, y1 - y0)
       paint()
       yc.restore()
     }
     lc.globalCompositeOperation = "lighter"
-    lc.drawImage(b.layer, 0, 0)
+    lc.drawImage(b.layer, cx0, cy0, cw, ch, cx0, cy0, cw, ch)
   }
 
   // Hard bands, dithered at their edges: per channel, quantise with a Bayer threshold.
-  const image = lc.getImageData(0, 0, w, h)
+  const image = lc.getImageData(0, 0, lw, lh)
   const d = image.data
-  for (let y = 0; y < h; y++) {
+  for (let y = 0; y < lh; y++) {
     const row = (y & 3) * 4
-    for (let x = 0; x < w; x++) {
+    for (let x = 0; x < lw; x++) {
+      const i = (y * lw + x) * 4
+      if (d[i] === 0 && d[i + 1] === 0 && d[i + 2] === 0) continue
       const t = BAYER[row + (x & 3)]!
-      const i = (y * w + x) * 4
       for (let c = 0; c < 3; c++) d[i + c] = Math.min(255, Math.round(Math.floor((d[i + c]! / 255) * LEVELS + t) / LEVELS * 255))
-      d[i + 3] = 255
     }
   }
   lc.putImageData(image, 0, 0)
   lc.globalCompositeOperation = "lighter"
-  lc.fillStyle = rgba(frame.ambient); lc.fillRect(0, 0, w, h)
+  lc.fillStyle = rgba(frame.ambient); lc.fillRect(0, 0, lw, lh)
 
-  // Emissive pixels keep full light: their mask, filled white, over the light map.
+  // The cell map, enlarged to scene pixels without smoothing.
+  const fc = b.final.getContext("2d")!
+  fc.setTransform(1, 0, 0, 1, 0, 0)
+  fc.globalCompositeOperation = "source-over"
+  fc.imageSmoothingEnabled = false
+  fc.drawImage(b.light, 0, 0, lw * CELL, lh * CELL)
+  // Emissive pixels keep full light: their mask, filled white, over the light map at full resolution.
   if (emissive !== null) {
-    yc.globalCompositeOperation = "source-over"
-    yc.clearRect(0, 0, w, h)
-    yc.drawImage(emissive, 0, 0)
-    yc.globalCompositeOperation = "source-in"
-    yc.fillStyle = "#fff"; yc.fillRect(0, 0, w, h)
-    lc.globalCompositeOperation = "source-over"
-    lc.drawImage(b.layer, 0, 0)
+    const mc = b.mask.getContext("2d")!
+    mc.setTransform(1, 0, 0, 1, 0, 0)
+    mc.globalCompositeOperation = "source-over"
+    mc.clearRect(0, 0, w, h)
+    mc.drawImage(emissive, 0, 0)
+    mc.globalCompositeOperation = "source-in"
+    mc.fillStyle = "#fff"; mc.fillRect(0, 0, w, h)
+    fc.drawImage(b.mask, 0, 0)
   }
 
   ctx.save()
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.globalCompositeOperation = "multiply"
-  ctx.drawImage(b.light, 0, 0)
+  ctx.drawImage(b.final, 0, 0)
   ctx.restore()
 }

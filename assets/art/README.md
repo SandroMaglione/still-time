@@ -75,6 +75,10 @@ Use `--round-4` for lit phone captures of rooms 1, 4, 9 and 11, plus an unlit
 room 9. `node scripts/art-review.ts <url>` makes the player options sheet,
 4× production-renderer crops and a matching unlit scene in `output/review-4/`.
 
+Use `--round-5` for rooms 1, 4, 5, 9 and 11, unlit room 9, and an 844×390
+landscape capture after moving to the left boundary. Results stay in
+`output/review-5/`.
+
 `pnpm shots:art <url>` checks phone/desktop/landscape integer pixel scaling;
 `pnpm record:fx <url>` records isolated motion studies and a live death/retry.
 All captures stay in ignored `output/`. No gameplay assertions are changed

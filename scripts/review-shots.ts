@@ -9,7 +9,8 @@ const before = process.argv.includes("--before")
 const round2 = process.argv.includes("--round-2")
 const round3 = process.argv.includes("--round-3")
 const round4 = process.argv.includes("--round-4")
-const root = `output/review-${round4 ? 4 : round3 ? 3 : round2 ? 2 : 1}`
+const round5 = process.argv.includes("--round-5")
+const root = `output/review-${round5 ? 5 : round4 ? 4 : round3 ? 3 : round2 ? 2 : 1}`
 const dir = `${root}/${before ? "before" : "after"}`
 mkdirSync(dir, { recursive: true })
 const browser = await chromium.launch()
@@ -18,7 +19,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
   page.on("pageerror", e => errors.push(String(e)))
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()) })
-  if (!before) for (const room of round4 ? [1, 4, 9, 11] : round2 || round3 ? [1, 4, 9, 11, 12] : [4, 9, 11, 12]) {
+  if (!before) for (const room of round5 ? [1, 4, 5, 9, 11] : round4 ? [1, 4, 9, 11] : round2 || round3 ? [1, 4, 9, 11, 12] : [4, 9, 11, 12]) {
     await page.goto(`${base}/?room=${room}&all`)
     await page.waitForFunction(() => document.querySelector("#room")!.textContent!.length > 0)
     await page.waitForTimeout(800)
@@ -26,13 +27,25 @@ try {
     await page.waitForTimeout(200)
     await page.screenshot({ path: `${dir}/room-${room}.png` })
   }
-  if (round4) {
+  if (round4 || round5) {
     await page.goto(`${base}/?room=9&all&nolight`)
     await page.waitForFunction(() => document.querySelector("#room")!.textContent!.includes("Armory"))
     await page.waitForTimeout(800)
     await page.keyboard.down("ArrowUp"); await page.waitForTimeout(900); await page.keyboard.up("ArrowUp")
     await page.waitForTimeout(200)
     await page.screenshot({ path: `${dir}/room-9-nolight.png` })
+  }
+  if (round5) {
+    await page.setViewportSize({ width: 844, height: 390 })
+    await page.goto(`${base}/?room=1&all`)
+    await page.waitForFunction(() => document.querySelector("#room")!.textContent!.includes("Duel"))
+    await page.waitForTimeout(800)
+    await page.keyboard.down("ArrowUp"); await page.waitForTimeout(900); await page.keyboard.up("ArrowUp")
+    // Expose the room's left boundary, rather than photographing only its interior.
+    await page.keyboard.down("ArrowLeft"); await page.waitForTimeout(1400); await page.keyboard.up("ArrowLeft")
+    await page.waitForTimeout(200)
+    await page.screenshot({ path: `${dir}/landscape-844x390.png` })
+    await page.setViewportSize({ width: 390, height: 844 })
   }
   await page.goto(`${base}/?room=1&all`)
   await page.waitForFunction(() => document.querySelector("#room")!.textContent!.includes("Duel"))
@@ -85,7 +98,7 @@ try {
     return result
   })
   for (const [name, data] of Object.entries(frames)) writeFileSync(`${dir}/${name}.png`, Buffer.from(data, "base64"))
-  if (!before && !round4) {
+  if (!before && !round4 && !round5) {
     const baseline = round3 ? "output/review-2/after" : `output/review-1/${round2 ? "after" : "before"}`
     const pairs = (round2 ? ["floor", "telegraph"] : ["floor", "telegraph", "enemies"]).map(name => ({ name, before: `data:image/png;base64,${readFileSync(`${baseline}/${name}.png`).toString("base64")}`, after: `data:image/png;base64,${readFileSync(`${dir}/${name}.png`).toString("base64")}` }))
     const comparison = await page.evaluate(async pairs => {
@@ -106,5 +119,5 @@ try {
     writeFileSync(`${root}/comparison.png`, Buffer.from(comparison, "base64"))
   }
   assert.deepEqual(errors, [])
-  console.log(`Saved ${before ? "baseline fixtures" : round4 ? "4 lit phone captures, unlit Armory and frozen wind-up" : `${round2 || round3 ? 5 : 4} phone screenshots, frozen wind-up and before/after comparison`}; no console errors.`)
+  console.log(`Saved ${before ? "baseline fixtures" : round5 ? "5 lit phone captures, unlit Armory, 844x390 landscape and frozen wind-up" : round4 ? "4 lit phone captures, unlit Armory and frozen wind-up" : `${round2 || round3 ? 5 : 4} phone screenshots, frozen wind-up and before/after comparison`}; no console errors.`)
 } finally { await browser.close() }
