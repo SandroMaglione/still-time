@@ -70,6 +70,9 @@ export const posedSprite = (ctx: CanvasRenderingContext2D, name: Sprite, x: numb
   }
 }
 
+/** The loaded image of a sprite, for effects that recolour it (afterimages, auras); undefined before `loadArt`. */
+export const spriteImage = (name: Sprite): HTMLImageElement | undefined => images.get(name)
+
 export const sprite = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: number, flip = false): void => {
   const image = images.get(name)
   if (image === undefined) return

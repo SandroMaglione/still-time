@@ -19,6 +19,15 @@ export interface Impact {
   readonly kind: "cut" | "shot" | "stone" | "player"
 }
 export interface Fire { readonly born: number; readonly aim: number }
+/** An afterimage of the player: where it stood, which way it faced, and how fast the world ran then (0 to 1). */
+export interface Ghost { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number; readonly strength: number }
+
+/** How long an afterimage lasts, and how often one is left, in real seconds. */
+export const GHOST_LIFE = 0.32
+const GHOST_EVERY = 0.09
+
+/** World speed as 0 (frozen) to 1 (full speed). */
+export const speedOf = (view: FightView): number => Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))
 const slashKey = (s: FightView["slashes"][number]): string => `${s.born}:${s.x}:${s.y}`
 
 /** Tick observations create cues; real-time presentation finishes even after a room ends. */
@@ -26,6 +35,8 @@ export class Presentation {
   now = 0
   deaths: Array<Death> = []
   impacts: Array<Impact> = []
+  ghosts: Array<Ghost> = []
+  private lastGhost = -1
   private fire = new Map<number, Fire>()
   private previous: FightView | null = null
   private deadAt: number | null = null
@@ -35,6 +46,7 @@ export class Presentation {
     this.now += Math.max(0, Math.min(seconds, 1))
     this.deaths = this.deaths.filter(d => this.now - d.born < 1.05)
     this.impacts = this.impacts.filter(i => this.now - i.born < 0.42)
+    this.ghosts = this.ghosts.filter(g => this.now - g.born < GHOST_LIFE)
   }
 
   get playerDeathAge(): number { return this.deadAt === null ? -1 : this.now - this.deadAt }
@@ -47,13 +59,20 @@ export class Presentation {
   observe(view: FightView): void {
     const old = this.previous
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
-      this.deaths = []; this.impacts = []; this.fire.clear()
+      this.deaths = []; this.impacts = []; this.ghosts = []; this.fire.clear()
       this.deadAt = null; this.clearedAt = null
       this.previous = view
       return
     }
     // Repeated renders never replay events. This observer also sees multiple ticks per frame.
     if (old.step === view.step) return
+    // Moving fast leaves afterimages, spaced in real time; standing still leaves none.
+    const p = view.player, k = speedOf(view)
+    if (p !== null && view.flow === "playing" && k > 0.12 && this.now - this.lastGhost >= GHOST_EVERY) {
+      this.ghosts.push({ x: p.x, y: p.y, flip: p.vx < 0, born: this.now, strength: k })
+      this.lastGhost = this.now
+      this.ghosts = this.ghosts.slice(-12)
+    }
     const live = new Set(view.enemies.map(e => e.id))
     for (const enemy of old.enemies) {
       if (live.has(enemy.id)) continue

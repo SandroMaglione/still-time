@@ -7,9 +7,9 @@
 import type { Lock, Pillar } from "../sim/rooms.ts"
 import { STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
-import { posedSprite, sprite } from "./art.ts"
+import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
-import type { Presentation } from "./fx.ts"
+import { GHOST_LIFE, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
@@ -113,6 +113,36 @@ const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void =
 
 /** Ambient light: cool and dim while time is frozen, warmer as the world runs. */
 const AMBIENT_FROZEN: Rgb = [64, 76, 116], AMBIENT_RUNNING: Rgb = [96, 86, 76]
+
+/** A sprite filled with one colour, cached per sprite and colour (CPU-backed, like the scene). */
+const tints = new Map<string, HTMLCanvasElement>()
+const tinted = (name: Sprite, colour: string): HTMLCanvasElement | undefined => {
+  const key = `${name}:${colour}`
+  const cached = tints.get(key)
+  if (cached !== undefined) return cached
+  const image = spriteImage(name)
+  if (image === undefined) return undefined
+  const c = document.createElement("canvas"); c.width = image.width; c.height = image.height
+  const g = c.getContext("2d", { willReadFrequently: true })!
+  g.drawImage(image, 0, 0)
+  g.globalCompositeOperation = "source-in"; g.fillStyle = colour; g.fillRect(0, 0, c.width, c.height)
+  tints.set(key, c)
+  return c
+}
+/** A sprite's silhouette in one colour, anchored like `sprite` (feet on the point). */
+const silhouette = (ctx: CanvasRenderingContext2D, name: Sprite, x: number, y: number, flip: boolean, colour: string, alpha: number): void => {
+  const t = tinted(name, colour)
+  if (t === undefined || alpha <= 0) return
+  ctx.save()
+  ctx.globalAlpha = Math.min(1, alpha)
+  ctx.translate(Math.round(x), Math.round(y))
+  if (flip) ctx.scale(-1, 1)
+  ctx.drawImage(t, -Math.floor(t.width / 2), -t.height + 1)
+  ctx.restore()
+}
+
+/** The speed effect's colours: afterimages, the aura's outline and its hot core. */
+const GHOST = "#5ff0ff", AURA = "#7ff6ff", AURA_CORE = "#e8ffff"
 
 /** Transparent layers the size of the scene, reused per context: ground decals and shots, which also mark emissive pixels. */
 const glowLayers = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
@@ -394,15 +424,53 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   if (view.player !== null && view.flow !== "dead") {
     const p = view.player
     const at = P(p.x, p.y)
-    // A faint light of your own, so you never vanish into the dark.
-    emitLight(ctx, { x: at.x, y: at.y, radius: 2.8, colour: [200, 236, 230], intensity: 0.6 })
+    const body = bodyName("player")
+    // Speed shows on the assassin: the faster the world runs, the more it glows, sparks and leaves itself behind.
+    const k = view.flow === "playing" ? speedOf(view) : 0
+    // A light of your own, so you never vanish into the dark; it brightens and turns teal with speed.
+    emitLight(ctx, {
+      x: at.x, y: at.y, radius: 2.8 + k * 1.4, colour: [Math.round(200 - 120 * k), 236, Math.round(230 + 25 * k)], intensity: 0.6 + 0.4 * k,
+      ...(k > 0.25 ? { halo: { lift: 11, radius: 0.5 + 0.6 * k, strength: 0.22 * k } } : {})
+    })
+    // Afterimages: teal silhouettes where you were, fading in real time; emissive, so they glow in the dark.
+    for (const g of presentation?.ghosts ?? []) {
+      const age = presentation!.now - g.born
+      const alpha = (1 - age / GHOST_LIFE) * g.strength * 0.7
+      if (alpha <= 0.02 || Math.hypot(g.x - p.x, g.y - p.y) < 0.12) continue
+      const spot = P(g.x, g.y)
+      actors.push({ x: g.x, y: g.y - 0.001, paint: () => { for (const c of [ctx, glow]) silhouette(c, body, spot.x, spot.y, g.flip, GHOST, alpha) } })
+    }
     actors.push({
       x: p.x, y: p.y, paint: () => {
         const speed = Math.hypot(p.vx, p.vy)
         const ground = P(p.x, p.y)
+        const flip = p.vx < 0
         sprite(ctx, "shadow", ground.x + 2, ground.y + 3)
         const bob = speed > 0.1 ? Math.round(Math.sin((p.x + p.y) * 9)) : 0
-        posedSprite(ctx, bodyName("player"), ground.x, ground.y - bob, { flip: p.vx < 0 })
+        const y = ground.y - bob
+        if (k > 0.3) {
+          // The aura: a 1 px electric outline that flickers, thicker and steadier the faster you go.
+          const strength = (k - 0.3) / 0.7, frame = Math.floor((presentation?.now ?? view.world) * 24)
+          const offsets: ReadonlyArray<readonly [number, number]> = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]
+          for (const c of [ctx, glow]) {
+            offsets.forEach(([dx, dy], i) => {
+              if (i >= 4 && strength < 0.5) return
+              if (decorationHash(i, frame, 3) % 5 === 0) return
+              silhouette(c, body, ground.x + dx, y + dy, flip, AURA, 0.45 + 0.55 * strength)
+            })
+            if (strength > 0.6) silhouette(c, body, ground.x, y, flip, AURA_CORE, 0.18 * strength)
+          }
+          // Sparks shed behind you, against the way you run.
+          const back = Math.atan2(-p.vy * SQUASH, -p.vx)
+          for (let i = 0; i < 4; i++) {
+            const h = decorationHash(i, frame, 11)
+            if (h % 3 === 0 && strength < 0.7) continue
+            const r = 6 + (h % 9), a = back + ((h >>> 4) % 9 - 4) * 0.18
+            const sx = ground.x + Math.cos(a) * r, sy = y - 10 + Math.sin(a) * r * 0.8 + ((h >>> 8) % 11) - 5
+            for (const c of [ctx, glow]) { c.fillStyle = (h >>> 12) % 3 === 0 ? AURA_CORE : AURA; c.fillRect(Math.round(sx), Math.round(sy), (h >>> 14) % 2 === 0 ? 2 : 1, 1) }
+          }
+        }
+        posedSprite(ctx, body, ground.x, y, { flip })
       }
     })
   }
