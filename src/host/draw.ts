@@ -4,11 +4,12 @@
  * as 24-pixel sprites, all painted back to front. The simulation stays flat
  * 2D; only this file knows about height.
  */
-import { ROOMS, type Lock, type Pillar } from "../sim/rooms.ts"
+import { ROOMS, type Hazard, type Lock, type Pillar } from "../sim/rooms.ts"
+
+type Blade = Extract<Hazard, { readonly kind: "blade" }>
 import { STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
-import { bladeLane, bladeLaneSafe, type Blade } from "./blade-lane.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
 import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
@@ -200,12 +201,32 @@ const dragHint = (ctx: CanvasRenderingContext2D, player: { readonly x: number; r
   ctx.restore()
 }
 
-/** A pause sign (still: the world waits) or a play sign (moving: the world runs), 9 wide, drawn twice the size. */
-const PAUSE_SIGN = ["ooo.ooo..", "obo.obo..", "obo.obo..", "obo.obo..", "obo.obo..", "obo.obo..", "ooo.ooo.."] as const
-const PLAY_SIGN = ["oo...oo..", "ogo..ogo.", "oggo.oggo", "ogggogggo", "oggo.oggo", "ogo..ogo.", "oo...oo.."] as const
+/** A pause sign (still: the world waits) or a fast-forward sign (moving: the world runs), 10×9, drawn twice the size. */
+const PAUSE_SIGN = [
+  "ooo..ooo..",
+  "obo..obo..",
+  "obo..obo..",
+  "obo..obo..",
+  "obo..obo..",
+  "obo..obo..",
+  "obo..obo..",
+  "obo..obo..",
+  "ooo..ooo.."
+] as const
+const PLAY_SIGN = [
+  "o....o....",
+  "oo...oo...",
+  "ogo..ogo..",
+  "oggo.oggo.",
+  "ogggoogggo",
+  "oggo.oggo.",
+  "ogo..ogo..",
+  "oo...oo...",
+  "o....o...."
+] as const
 const clockSign = (ctx: CanvasRenderingContext2D, x: number, y: number, running: boolean, now: number): void => {
   const nudge = running ? Math.round(Math.sin(now * 18)) : 0
-  bitmap(ctx, running ? PLAY_SIGN : PAUSE_SIGN, x + nudge + 2, y, { o: INK, b: "#7fd8ff", g: "#edc66c" }, 2)
+  bitmap(ctx, running ? PLAY_SIGN : PAUSE_SIGN, x + nudge + 1, y, { o: INK, b: "#7fd8ff", g: "#edc66c" }, 2)
 }
 
 type Project = (x: number, y: number, z?: number) => { x: number; y: number }
@@ -275,35 +296,6 @@ const chevronsToward = (
   }
 }
 
-/**
- * The Blade's traffic light: one lane of footprints through the gap, left of the hub (straight through the hub
- * always meets the bar, and on the right the bar sweeps into you: there a dash is almost never safe). It is green
- * when a full-speed dash up it, started from its foot now, would get through (checked against where the bar will be
- * when you reach each step, with the game's own hit distance), red when it would not (about 40% of a turn is green),
- * with a go or stop sign at its foot. Standing still keeps it as it is: moving turns the blade.
- */
-const bladeLaneHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project): void => {
-  const p = view.player
-  const blade = (ROOMS[view.room.index]?.hazards ?? []).find((hz): hz is Blade => hz.kind === "blade")
-  if (p === null || blade === undefined) return
-  const { x, foot, end } = bladeLane(blade)
-  // Only until you are through.
-  if (p.y < end) return
-  const safe = bladeLaneSafe(blade, view.world)
-  const colour = safe ? "#7dff9a" : "#ff4055"
-  let step = 0
-  for (let y = foot - 0.3; y >= end; y -= 0.5, step++) {
-    const c = P(x + (step % 2 === 0 ? -0.14 : 0.14), y)
-    ctx.fillStyle = INK; ctx.fillRect(Math.round(c.x) - 3, Math.round(c.y) - 4, 6, 7)
-    ctx.fillStyle = colour; ctx.fillRect(Math.round(c.x) - 2, Math.round(c.y) - 3, 4, 5)
-  }
-  const sign = P(x, foot + 0.5)
-  bitmap(ctx, safe ? GO_SIGN : STOP_SIGN, sign.x, sign.y - 7, { o: INK, g: "#7dff9a", r: "#ff4055" }, 2)
-}
-
-/** The Blade's signs, 7 wide: an arrow up (go) and a cross (not now). */
-const GO_SIGN = ["...o...", "..ogo..", ".ogggo.", "oogggoo", "..ogo..", "..ogo..", "..ooo.."] as const
-const STOP_SIGN = ["oo...oo", "oro.oro", ".orooro", "..orro.", ".orooro", "oro.oro", "oo...oo"] as const
 
 /** Goal pictograms (`o` ink; other letters are colours, see `goalSplash`): a door with an arrow up into it,
  * crossed blades, an hourglass. */
@@ -916,8 +908,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       clockSign(ctx, hub.x, hub.y - 30, running, presentation?.now ?? 0)
     }
   }
-  // The blade's room lights the way through as a traffic light: green footprints when a straight dash now gets through.
-  if (view.room.name === "The Blade" && view.flow === "playing" && view.player !== null) bladeLaneHint(ctx, view, P)
   // The cut's room shows the cut: what to run into, how far your blade reaches, and when to step aside.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
     cutHint(ctx, view, P, presentation.now, !presentation.hasMoved(view.room.index))

@@ -7,9 +7,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Fight } from "../src/sim/simulation.ts"
-import { bladeLane, bladeLaneSafe, type Blade } from "../src/host/blade-lane.ts"
-import { ROOMS } from "../src/sim/rooms.ts"
-import { fightIn, placePlayer, runUntil } from "./helpers.ts"
+import { fightIn, runUntil } from "./helpers.ts"
 
 /** The blade bar's angle, folded to [0, π): it is a line through its hub. */
 const barAngle = (fight: Fight): number => {
@@ -61,32 +59,6 @@ test("The Blade: standing still holds the blade; timed, the gap can be crossed t
   }
   assert.ok(crossings.length > 0, "some timing crosses the blade to the exit")
   assert.ok(crossings.length < tries, "and some timing does not: the blade is the lesson")
-})
-
-test("The Blade: the green sign is honest: waiting at the lane's foot for green, then dashing up, always crosses cleanly", () => {
-  const blade = ROOMS.find((r) => r.name === "The Blade")?.hazards?.find((h): h is Blade => h.kind === "blade")
-  assert.ok(blade !== undefined)
-  const { x, foot } = bladeLane(blade)
-  let crossings = 0
-  // Five different green moments: after each, start again and wait for a later one.
-  for (let wait = 0; wait < 5; wait++) {
-    const { fight, thumb } = fightIn("The Blade")
-    placePlayer(fight, x, foot)
-    // Let time run (a nudge back and forth) until the sign has gone red and back to green `wait + 1` times.
-    let flip = 1, greens = 0, was = bladeLaneSafe(blade, fight.view().world)
-    runUntil(fight, 6000, () => greens > wait, () => {
-      flip = -flip; thumb.push = { x: flip * 0.5, y: 0 }
-      const now = bladeLaneSafe(blade, fight.view().world)
-      if (now && !was) greens++
-      was = now
-    })
-    assert.ok(greens > wait, "the sign turns green")
-    runUntil(fight, 400, () => fight.view().flow !== "playing", () => { thumb.push = { x: 0, y: -1 } })
-    assert.equal(fight.view().flow, "cleared", `green moment ${wait + 1}: the dash should reach the exit`)
-    assert.equal(fight.view().hits, 0)
-    crossings++
-  }
-  assert.equal(crossings, 5)
 })
 
 test("First Cut: one gunner, the only thing to cut", () => {

@@ -124,8 +124,9 @@ export const ROOMS: ReadonlyArray<Room> = [
     // Stop, and it stops with you: read where it is, then cross.
     name: "The Blade",
     w: 10,
-    h: 16,
-    start: { x: 5, y: 14 },
+    h: 24,
+    // You start well below the blade: move, stop, and see it stop with you before you ever reach it.
+    start: { x: 5, y: 22 },
     // A 4.2 m gap the bar fills: wide enough to cross without precision, and the bar still has to be read.
     pillars: [{ x: 0, y: 7.2, w: 2.9, h: 1.6 }, { x: 7.1, y: 7.2, w: 2.9, h: 1.6 }],
     doors: [],
