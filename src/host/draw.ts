@@ -746,6 +746,22 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
+  // A launcher bolted to the wall at the start of each bullet lane, so the bullets come from somewhere; it flashes as one leaves.
+  const lanes = new Map<string, Extract<Hazard, { kind: "bolt" }>>()
+  for (const hz of ROOMS[view.room.index]?.hazards ?? []) if (hz.kind === "bolt") lanes.set(`${hz.x1},${hz.y1}`, hz)
+  for (const lane of lanes.values()) {
+    const firing = view.hazards.some((hz) => hz.kind === "bolt" && hz.live && Math.hypot((hz.ax + hz.bx) / 2 - lane.x1, (hz.ay + hz.by) / 2 - lane.y1) < 0.7)
+    const flip = lane.x2 < lane.x1
+    actors.push({
+      x: lane.x1, y: lane.y1 - 0.01, paint: () => {
+        const muzzle = P(lane.x1, lane.y1, 0.6)
+        // The plate sits on the wall and the barrel's centre row is at bullet height.
+        // On the glow layer too, like every threat: it keeps its colour while time is frozen.
+        for (const c of [ctx, glow]) sprite(c, firing ? "bolt-launcher-fire" : "bolt-launcher", muzzle.x + (flip ? -11 : 11), muzzle.y + 12, flip)
+        if (firing) emitLight(ctx, { x: muzzle.x + (flip ? -22 : 22), y: muzzle.y, radius: 1.2, colour: [255, 150, 70], intensity: 0.7, shadows: false, halo: { lift: 0, radius: 0.4, strength: 0.25 } })
+      }
+    })
+  }
   for (const hz of view.hazards) {
     if (hz.kind === "bolt") continue
     if (hz.kind === "blade") {

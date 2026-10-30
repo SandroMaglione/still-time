@@ -137,9 +137,9 @@ export const ROOMS: ReadonlyArray<Room> = [
     ],
     doors: [],
     hazards: [
-      ...stream(12, 22, 0, 22, 0.3),
-      ...stream(0, 15.5, 12, 15.5, 0.3, 0.13),
-      ...stream(12, 6, 0, 6, 0.35, 0.21)
+      ...stream(12, 22, 0, 22, 0.5),
+      ...stream(0, 15.5, 12, 15.5, 0.5, 0.17),
+      ...stream(12, 6, 0, 6, 0.55, 0.31)
     ],
     enemies: [],
     goal: { kind: "exit", x: 8.5, y: 0.7, w: 3, h: 2.2 },
