@@ -83,6 +83,23 @@
       .clock { font-weight: 700; }
       .over .clock { color: var(--red); }
       .ended .plate-row + .plate-row, .ended .clock-panel, .ended #restart { opacity: 0.5; }
+      /* A survive room: the clock counts down the world seconds left to hold out, in the player's teal, gold for the last three. */
+      .survive .clock { color: var(--teal); }
+      .survive.closing .clock { color: var(--gold); }
+      .survive .clock-sub { color: var(--teal); }
+
+      /* Ordered plates: one numbered pip per plate in pressing order, pressed ones gold, the next one blinking, all red on a wrong press. */
+      .hud-row { flex-basis: 100%; display: flex; }
+      .hud-top > .hud-row > .chip { display: flex; align-items: center; gap: calc(var(--u) * 3); padding: calc(var(--u) * 2) calc(var(--u) * 4) calc(var(--u) * 3); }
+      .chip-label { color: var(--dim); font-size: var(--t0); line-height: var(--l0); }
+      .pips { display: flex; gap: calc(var(--u) * 2); }
+      .pip {
+        width: calc(var(--u) * 9); height: calc(var(--u) * 9); display: grid; place-items: center; box-sizing: border-box;
+        font-size: var(--t0); line-height: var(--l0); font-weight: 700; color: var(--dim); background: var(--ink); box-shadow: inset 0 0 0 var(--u) var(--stone-hi);
+      }
+      .pip.down { color: var(--ink2); background: var(--gold); box-shadow: inset 0 var(--u) 0 var(--gold-hi), inset 0 calc(var(--u) * -1) 0 var(--gold-lo); }
+      .pip.next { color: var(--gold); box-shadow: inset 0 0 0 var(--u) var(--gold); animation: blink 1.1s steps(1) infinite; }
+      .missed .pip { color: var(--light); background: var(--red); box-shadow: none; animation: none; }
 
       /* The tip: up at the start of an attempt, fading once you move. */
       .tip {
@@ -173,6 +190,12 @@
       .btn.continue { flex-direction: column; gap: calc(var(--u) * 2); padding: calc(var(--u) * 5) calc(var(--u) * 7) calc(var(--u) * 6); }
       .btn.back { gap: calc(var(--u) * 3); padding: 0 calc(var(--u) * 6) 0 calc(var(--u) * 5); }
       .pause-screen .btn { width: 100%; box-sizing: border-box; }
+      /* Sound and music: two on/off toggles side by side; off is a sunken, darker stone. */
+      .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 4); width: 100%; }
+      .btn.toggle { gap: calc(var(--u) * 3); padding: 0 calc(var(--u) * 4); }
+      .btn.toggle.off { --f: #1d2233; --h: #262c40; --s: #161a28; color: var(--dim); }
+      .toggle .state { font-size: var(--t0); line-height: var(--l0); padding: var(--u) calc(var(--u) * 2) 0; background: var(--ink); color: var(--gold); }
+      .toggle.off .state { color: var(--dim); }
       .pause-head { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 2); margin-bottom: calc(var(--u) * 2); text-align: center; }
       .pause-head h2 { margin: 0; font-size: var(--t2); line-height: var(--l2); color: var(--light); }
       .total { display: inline-flex; align-items: center; gap: calc(var(--u) * 2); color: var(--gold); }
@@ -214,12 +237,13 @@
           <div class="plate-row"><span id="glass"></span><span id="gauge" class="gauge"></span><span id="pace" class="pace"></span></div>
         </div>
         <div id="clock-panel" class="panel glass clock-panel">
-          <span id="clock" class="clock"></span><span class="dim small">/<span id="par"></span>s</span>
+          <span id="clock" class="clock"></span><span id="clock-sub" class="dim small clock-sub"></span>
         </div>
         <div class="hud-buttons">
           <button id="pause" class="btn square" type="button" aria-label="Menu"></button>
           <button id="restart" class="btn square" type="button" aria-label="Restart"></button>
         </div>
+        <div id="plates-row" class="hud-row" hidden><div id="plates" class="panel glass chip"><span class="chip-label">plates</span><span id="pips" class="pips"></span></div></div>
       </div>
       <div id="tip" class="panel glass tip"></div>
       <div id="message" class="message panel" hidden>

@@ -16,6 +16,7 @@ import { storageLayer } from "./storage.ts"
 import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
 import { Hud } from "./hud.ts"
+import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
 // A CPU-backed canvas: the scene is tiny (about 240 px across) and made of thousands of small draws, which a
@@ -83,7 +84,8 @@ const menu = new Menu(document.body, {
   restart: () => {
     fight.send({ kind: "restart" })
     menu.close()
-  }
+  },
+  sound: { settings: soundSettings, setSound: setSoundEnabled, setMusic: setMusicEnabled }
 })
 if (asked === null) menu.show("title", fight.view())
 
@@ -198,6 +200,10 @@ let lastPlayer = -1
 let lastFlow = fight.view().flow
 const presentation = new Presentation()
 presentation.observe(fight.view())
+// Sound starts on the first press or key (browsers require one).
+const audio = createAudio()
+audio.unlockOn(window)
+audio.observe(fight.view())
 const hud = new Hud(canvas)
 await loadArt()
 FixedLoop.start({
@@ -209,12 +215,16 @@ FixedLoop.start({
   update: () => {
     if (menu.isOpen) return Result.success(undefined)
     const result = fight.runtime.tick(updateSchedule)
-    if (result.ok) presentation.observe(fight.view())
+    if (result.ok) {
+      presentation.observe(fight.view())
+      audio.observe(fight.view())
+    }
     return result
   },
   render: (frame) => {
     const view = fight.view()
     presentation.advance(frame.elapsedSeconds)
+    audio.advance(frame.elapsedSeconds, menu.current, view)
     // A clear changes the run's bests: save them.
     if ((view.flow === "cleared" || view.flow === "won") && lastFlow !== view.flow) save(view.best)
     lastFlow = view.flow

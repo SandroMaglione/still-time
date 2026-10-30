@@ -2,6 +2,7 @@
  * The menus over the game: the title (continue where you left off, or pick
  * a room), the pause panel (the in-game ☰: resume, restart, rooms, title)
  * and the room select, a grid of every room with its stars and best time.
+ * The title and the pause panel carry the Sound and Music toggles.
  * Rooms open one by one: a locked room shows its name dimmed. Every screen
  * reaches the title, and the title's Continue goes back to the room you
  * left. The menus only read the view and call back; the game is paused
@@ -18,6 +19,14 @@ export interface MenuActions {
   readonly resume: () => void
   /** Closes the menu and starts the room over. */
   readonly restart: () => void
+  /** The sound settings, read for the toggles and written by them. */
+  readonly sound: SoundToggles
+}
+
+export interface SoundToggles {
+  readonly settings: () => { readonly sound: boolean; readonly music: boolean }
+  readonly setSound: (on: boolean) => void
+  readonly setMusic: (on: boolean) => void
 }
 
 type Screen = "title" | "rooms" | "pause"
@@ -146,7 +155,7 @@ export class Menu {
     play.addEventListener("click", () => this.actions.play(next))
     const rooms = button("", "Rooms")
     rooms.addEventListener("click", () => this.show("rooms", view))
-    box.append(play, rooms)
+    box.append(play, rooms, this.toggles())
     if (!fresh) box.append(total(best))
     return box
   }
@@ -164,8 +173,34 @@ export class Menu {
     rooms.addEventListener("click", () => this.show("rooms", view))
     const title = button("back", fromHtml(pixelSvg(ICONS.back, { outline: true })), "Title")
     title.addEventListener("click", () => this.show("title", view))
-    box.append(head, resume, restart, rooms, title)
+    box.append(head, resume, restart, rooms, title, this.toggles())
     return box
+  }
+
+  /** Sound and Music, each an on/off button showing its state. */
+  private toggles(): HTMLElement {
+    const row = el("div", "toggles")
+    const toggle = (label: string, icon: (on: boolean) => string, read: () => boolean, write: (on: boolean) => void): HTMLButtonElement => {
+      const node = button("toggle")
+      const paint = (): void => {
+        const on = read()
+        node.classList.toggle("off", !on)
+        node.setAttribute("aria-pressed", String(on))
+        node.replaceChildren(fromHtml(icon(on)), label, el("span", "state", on ? "on" : "off"))
+      }
+      node.addEventListener("click", () => {
+        write(!read())
+        paint()
+      })
+      paint()
+      return node
+    }
+    const sound = this.actions.sound
+    row.append(
+      toggle("Sound", (on) => pixelSvg(on ? ICONS.sound : ICONS.soundOff, { outline: true, palette: on ? {} : { W: "#8996b0" } }), () => sound.settings().sound, sound.setSound),
+      toggle("Music", (on) => pixelSvg(on ? ICONS.music : ICONS.musicOff, { outline: true, palette: on ? {} : { W: "#8996b0" } }), () => sound.settings().music, sound.setMusic)
+    )
+    return row
   }
 
   /** The room select: Title on the left, and a close back to the game when it was opened from there. */

@@ -1,12 +1,14 @@
 /**
  * The page's heads-up display over the canvas, in DOM and CSS (cheap next to
- * canvas draws): the room plate, the clock against par, the time-freeze gauge
- * (how fast the world runs right now), the room's tip (it fades once you
- * move), and the messages (a hit, a clear with its stars, the run's end).
+ * canvas draws): the room plate, the clock against par (or, in a survive
+ * room, the world seconds left to hold out), the time-freeze gauge (how fast
+ * the world runs right now), the pressing order of numbered plates, the
+ * room's tip (it fades once you move), and the messages (a hit, a clear with
+ * its stars, the run's end).
  * Every size is a whole number of UI pixels (`--u`), so the pixel font and
  * borders stay crisp.
  */
-import type { FightView } from "../sim/view.ts"
+import type { FightView, PlateView } from "../sim/view.ts"
 import type { Presentation } from "./fx.ts"
 import { ICONS, fromHtml, hourglass, pixelSvg, star } from "./ui-pixels.ts"
 
@@ -16,6 +18,12 @@ const CELL_COLOURS = ["#8fb8de", "#8fb8de", "#64b6b3", "#64b6b3", "#91c69b", "#e
 /** Seconds a tip stays up at most, and the world seconds of moving that dismiss it. */
 const TIP_SECONDS = 7
 const TIP_MOVED = 0.25
+/** World seconds left in a survive room when the countdown turns gold. */
+const CLOSING = 3
+
+/** The ordered plates in pressing order (door by door), or none: an unordered plate needs no count. */
+const orderedPlates = (view: FightView): Array<PlateView> =>
+  view.plates.filter((p) => p.order !== null).sort((a, b) => a.door - b.door || (a.order ?? 0) - (b.order ?? 0))
 
 const byId = (id: string): HTMLElement => {
   const found = document.getElementById(id)
@@ -66,7 +74,10 @@ export class Hud {
   private readonly room = byId("room")
   private readonly clock = byId("clock")
   private readonly clockPanel = byId("clock-panel")
-  private readonly par = byId("par")
+  private readonly clockSub = byId("clock-sub")
+  private readonly platesRow = byId("plates-row")
+  private readonly plates = byId("plates")
+  private readonly pips = byId("pips")
   private readonly pace = byId("pace")
   private readonly gauge = byId("gauge")
   private readonly glass = byId("glass")
@@ -127,10 +138,30 @@ export class Hud {
         this.room.append(" ", tag)
       }
     }
-    // The attempt's clock in world seconds against par: it only runs while you move.
-    this.set(this.clock, view.world.toFixed(1))
-    this.set(this.par, `${view.room.par}`)
-    this.clockPanel.classList.toggle("over", view.world > view.room.par)
+    // The attempt's clock in world seconds against par: it only runs while you move. A survive room counts down instead.
+    const goal = view.room.goal
+    const left = goal.kind === "survive" ? Math.max(0, goal.seconds - view.world) : 0
+    this.set(this.clock, goal.kind === "survive" ? left.toFixed(1) : view.world.toFixed(1))
+    this.set(this.clockSub, goal.kind === "survive" ? "survive" : `/${view.room.par}s`)
+    this.clockPanel.classList.toggle("survive", goal.kind === "survive")
+    this.clockPanel.classList.toggle("closing", goal.kind === "survive" && left <= CLOSING)
+    this.clockPanel.classList.toggle("over", goal.kind !== "survive" && view.world > view.room.par)
+
+    // Numbered plates: which are pressed and which comes next (the plates themselves can be off screen).
+    const ordered = orderedPlates(view)
+    const next = ordered.findIndex((p) => !p.down)
+    const pips = ordered.map((p, i) => (p.down ? "d" : i === next ? "n" : "u")).join("")
+    this.platesRow.hidden = ordered.length === 0
+    this.plates.classList.toggle("missed", ordered.some((p) => p.missed))
+    if (this.text.get(this.pips) !== pips) {
+      this.text.set(this.pips, pips)
+      this.pips.replaceChildren(...ordered.map((p, i) => {
+        const pip = document.createElement("i")
+        pip.className = p.down ? "pip down" : i === next ? "pip next" : "pip"
+        pip.textContent = String(p.order)
+        return pip
+      }))
+    }
 
     // How fast the world runs: from frozen (still) to full speed (full push).
     const t = Math.max(0, Math.min(1, (view.scale - view.slow) / Math.max(1e-6, 1 - view.slow)))
@@ -205,8 +236,15 @@ export class Hud {
       this.msgLines.append(span)
       return span
     }
-    const over = result.world > view.room.par
-    add(over ? "line over" : "line", `${result.world.toFixed(1)}s`).append(Object.assign(document.createElement("span"), { className: "dim small", textContent: `/ par ${view.room.par}s` }))
+    const small = (text: string): HTMLElement => Object.assign(document.createElement("span"), { className: "dim small", textContent: text })
+    // A survive room ends on its time, so par says nothing there: what you held out, and the hits it cost.
+    if (view.room.goal.kind === "survive") {
+      add("line", `${view.room.goal.seconds}s`).prepend(small("survived"))
+      add("line dim small", view.hits === 0 ? "no hits" : `${view.hits} ${view.hits === 1 ? "hit" : "hits"}`)
+    } else {
+      const over = result.world > view.room.par
+      add(over ? "line over" : "line", `${result.world.toFixed(1)}s`).append(small(`/ par ${view.room.par}s`))
+    }
     if (won) {
       const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)
       const total = add("line", ` ${stars}/${view.best.length * 3}`)

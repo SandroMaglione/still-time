@@ -127,6 +127,42 @@ export const ICONS = {
     ".R.R.",
     "R...R"
   ],
+  sound: [
+    "...W.....",
+    "..WW...W.",
+    "WWWW.W..W",
+    "WWWW.W..W",
+    "WWWW.W..W",
+    "..WW...W.",
+    "...W....."
+  ],
+  soundOff: [
+    "...W.....",
+    "..WW.....",
+    "WWWW.R.R.",
+    "WWWW..R..",
+    "WWWW.R.R.",
+    "..WW.....",
+    "...W....."
+  ],
+  music: [
+    "...WWWWWW",
+    "...WWWWWW",
+    "...W....W",
+    "...W....W",
+    ".WWW..WWW",
+    "WWWW.WWWW",
+    ".WW...WW."
+  ],
+  musicOff: [
+    "...WWWWWW",
+    "...WWWWWW",
+    "...W....W",
+    "...W..R.W",
+    ".WWW.R.WW",
+    "WWWWR.WWW",
+    ".WW...WW."
+  ],
   back: [
     "...W.....",
     "..WW.....",

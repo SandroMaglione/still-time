@@ -1,0 +1,302 @@
+{
+  "version": 1,
+  "about": "The title: a slow, lonely flute over strings in the dungeon key; the game before the first breath.",
+  "tempo": 64,
+  "key": "D harmonic minor",
+  "bars": 8,
+  "master": 0.65,
+  "tracks": [
+    {
+      "name": "Flute",
+      "instrument": "flute",
+      "volume": 0.5,
+      "reverb": 0.45,
+      "notes": [
+        {
+          "at": 0,
+          "length": 1.5,
+          "pitch": "D5"
+        },
+        {
+          "at": 1.5,
+          "length": 0.5,
+          "pitch": "E5",
+          "velocity": 0.6
+        },
+        {
+          "at": 2,
+          "length": 1,
+          "pitch": "F5"
+        },
+        {
+          "at": 3,
+          "length": 1,
+          "pitch": "E5",
+          "velocity": 0.65
+        },
+        {
+          "at": 4,
+          "length": 3,
+          "pitch": "D5"
+        },
+        {
+          "at": 7,
+          "length": 1,
+          "pitch": "A4",
+          "velocity": 0.6
+        },
+        {
+          "at": 8,
+          "length": 1.5,
+          "pitch": "Bb4"
+        },
+        {
+          "at": 9.5,
+          "length": 0.5,
+          "pitch": "A4",
+          "velocity": 0.6
+        },
+        {
+          "at": 10,
+          "length": 1,
+          "pitch": "D5"
+        },
+        {
+          "at": 11,
+          "length": 1,
+          "pitch": "F5",
+          "velocity": 0.7
+        },
+        {
+          "at": 12,
+          "length": 4,
+          "pitch": "E5"
+        },
+        {
+          "at": 16,
+          "length": 1.5,
+          "pitch": "G5"
+        },
+        {
+          "at": 17.5,
+          "length": 0.5,
+          "pitch": "F5",
+          "velocity": 0.6
+        },
+        {
+          "at": 18,
+          "length": 1,
+          "pitch": "E5"
+        },
+        {
+          "at": 19,
+          "length": 1,
+          "pitch": "D5",
+          "velocity": 0.65
+        },
+        {
+          "at": 20,
+          "length": 3,
+          "pitch": "Bb4"
+        },
+        {
+          "at": 23,
+          "length": 1,
+          "pitch": "D5",
+          "velocity": 0.6
+        },
+        {
+          "at": 24,
+          "length": 2,
+          "pitch": "C#5"
+        },
+        {
+          "at": 26,
+          "length": 1,
+          "pitch": "E5",
+          "velocity": 0.7
+        },
+        {
+          "at": 27,
+          "length": 1,
+          "pitch": "A4",
+          "velocity": 0.6
+        },
+        {
+          "at": 28,
+          "length": 4,
+          "pitch": "D5",
+          "velocity": 0.7
+        }
+      ]
+    },
+    {
+      "name": "Strings",
+      "instrument": "strings",
+      "volume": 0.34,
+      "reverb": 0.5,
+      "notes": [
+        {
+          "at": 0,
+          "length": 8,
+          "pitch": "D3",
+          "velocity": 0.5
+        },
+        {
+          "at": 0,
+          "length": 8,
+          "pitch": "A3",
+          "velocity": 0.5
+        },
+        {
+          "at": 0,
+          "length": 8,
+          "pitch": "D4",
+          "velocity": 0.5
+        },
+        {
+          "at": 8,
+          "length": 8,
+          "pitch": "Bb2",
+          "velocity": 0.5
+        },
+        {
+          "at": 8,
+          "length": 8,
+          "pitch": "F3",
+          "velocity": 0.5
+        },
+        {
+          "at": 8,
+          "length": 8,
+          "pitch": "D4",
+          "velocity": 0.5
+        },
+        {
+          "at": 16,
+          "length": 8,
+          "pitch": "G2",
+          "velocity": 0.5
+        },
+        {
+          "at": 16,
+          "length": 8,
+          "pitch": "D3",
+          "velocity": 0.5
+        },
+        {
+          "at": 16,
+          "length": 8,
+          "pitch": "Bb3",
+          "velocity": 0.5
+        },
+        {
+          "at": 24,
+          "length": 8,
+          "pitch": "A2",
+          "velocity": 0.5
+        },
+        {
+          "at": 24,
+          "length": 8,
+          "pitch": "E3",
+          "velocity": 0.5
+        },
+        {
+          "at": 24,
+          "length": 8,
+          "pitch": "C#4",
+          "velocity": 0.5
+        }
+      ]
+    },
+    {
+      "name": "Bass",
+      "instrument": "bass",
+      "volume": 1,
+      "reverb": 0.2,
+      "notes": [
+        {
+          "at": 0,
+          "length": 3.5,
+          "pitch": "D2",
+          "velocity": 0.5
+        },
+        {
+          "at": 4,
+          "length": 3.5,
+          "pitch": "D2",
+          "velocity": 0.5
+        },
+        {
+          "at": 8,
+          "length": 3.5,
+          "pitch": "Bb1",
+          "velocity": 0.5
+        },
+        {
+          "at": 12,
+          "length": 3.5,
+          "pitch": "Bb1",
+          "velocity": 0.5
+        },
+        {
+          "at": 16,
+          "length": 3.5,
+          "pitch": "G1",
+          "velocity": 0.5
+        },
+        {
+          "at": 20,
+          "length": 3.5,
+          "pitch": "G1",
+          "velocity": 0.5
+        },
+        {
+          "at": 24,
+          "length": 3.5,
+          "pitch": "A1",
+          "velocity": 0.5
+        },
+        {
+          "at": 28,
+          "length": 3.5,
+          "pitch": "A1",
+          "velocity": 0.5
+        }
+      ]
+    },
+    {
+      "name": "Bells",
+      "instrument": "bells",
+      "volume": 0.6,
+      "reverb": 0.6,
+      "notes": [
+        {
+          "at": 4,
+          "length": 2,
+          "pitch": "A5",
+          "velocity": 0.3
+        },
+        {
+          "at": 12,
+          "length": 2,
+          "pitch": "C#6",
+          "velocity": 0.25
+        },
+        {
+          "at": 20,
+          "length": 2,
+          "pitch": "D6",
+          "velocity": 0.3
+        },
+        {
+          "at": 28,
+          "length": 3,
+          "pitch": "A5",
+          "velocity": 0.3
+        }
+      ]
+    }
+  ]
+}
