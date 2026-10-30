@@ -54,6 +54,8 @@ export interface Door extends Pillar { readonly lock: Lock }
 
 /** Down every enemy, reach the exit, or last `seconds` of world time (which only pass while you move). */
 export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar) | { readonly kind: "survive"; readonly seconds: number }
+  /** Cleared by the page when its lesson is done (First Step: learning the stick is the room). */
+  | { readonly kind: "lesson" }
 
 export interface EnemySpawn {
   readonly kind: EnemyKind
@@ -84,8 +86,6 @@ export interface Room {
   readonly par: number
   /** One line shown under the room, for rooms that teach something. */
   readonly tip?: string
-  /** For a room that teaches the way: the points to walk through in order (doorways, then the goal), for a guide drawn on the floor. */
-  readonly route?: ReadonlyArray<{ readonly x: number; readonly y: number }>
 }
 
 const crate = (x: number, y: number, size = 1.2): Pillar => ({ x: x - size / 2, y: y - size / 2, w: size, h: size })
@@ -123,20 +123,18 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
-    // The first lesson: the move alone, taught step by step on screen (press, hold, slide a little, slide further, let
-    // go), with nothing else moving. Two walls with gaps on alternate sides make the way wind, so you steer.
+    // The first lesson: the move alone. The room is the page's step-by-step lesson (touch, keep your finger down, slide
+    // a little, slide further, lift): done, the room is cleared. Nothing else is in it.
     name: "First Step",
     w: 10,
-    h: 22,
-    start: { x: 2.5, y: 20 },
-    pillars: [{ x: 0, y: 14.6, w: 6.8, h: 0.8 }, { x: 3.2, y: 7.6, w: 6.8, h: 0.8 }],
+    h: 14,
+    start: { x: 5, y: 9 },
+    pillars: [],
     doors: [],
     hazards: [],
     enemies: [],
-    goal: { kind: "exit", x: 6.2, y: 0.7, w: 3, h: 2.2 },
-    par: 8,
-    tip: "follow the arrows to the exit",
-    route: [{ x: 8.4, y: 15 }, { x: 1.6, y: 8 }, { x: 7.7, y: 1.8 }]
+    goal: { kind: "lesson" },
+    par: 30
   },
   {
     // The second lesson, the freeze, with nothing to fight: a blade bar as wide as the only gap turns only while you move.

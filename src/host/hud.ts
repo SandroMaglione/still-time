@@ -200,7 +200,7 @@ export class Hud {
       frag.append(span)
     }
     const goal = view.room.goal
-    line("tip-goal", goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? `survive ${goal.seconds} s` : "down every enemy")
+    line("tip-goal", goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? `survive ${goal.seconds} s` : goal.kind === "lesson" ? "learn to move" : "down every enemy")
     if (view.room.tip !== null) line("tip-text", view.room.tip)
     // (The first two rooms' how-to is the step-by-step lesson under the room, see `lesson.ts`.)
     return frag

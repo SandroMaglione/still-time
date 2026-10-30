@@ -7,7 +7,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { unlocked } from "../progress.ts"
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
-import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
+import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, LessonDone, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
 import { BOMB, COVER, CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, freshWear, roomOf } from "./queries.ts"
 
@@ -26,7 +26,7 @@ export const ApplyIntentSystem = Game.System(
   {
     resources: { run: Game.System.readResource(Run), input: Game.System.readResource(Input), time: Game.System.readResource(Time) },
     machines: { flow: Game.System.machine(Flow) },
-    events: { intents: Game.System.readEvent(IntentEvent), enter: Game.System.writeEvent(EnterRoom) }
+    events: { intents: Game.System.readEvent(IntentEvent), enter: Game.System.writeEvent(EnterRoom), lesson: Game.System.writeEvent(LessonDone) }
   },
   ({ resources, machines, events }) => {
     const flow = machines.flow.get()
@@ -40,6 +40,7 @@ export const ApplyIntentSystem = Game.System(
     for (const intent of events.intents.all()) {
       // A restart mid-room counts as a retry; after a clear it is a fresh go at the room.
       if (intent.kind === "restart") events.enter.emit({ room, fresh: flow._tag === "Cleared" || flow._tag === "Won" })
+      else if (intent.kind === "lessonDone") { if (flow._tag === "Playing") events.lesson.emit({ room }) }
       else if (intent.room >= 0 && intent.room < ROOMS.length && (run.open || unlocked(run.best, intent.room))) events.enter.emit({ room: intent.room, fresh: true })
     }
   }
@@ -209,8 +210,8 @@ export const starsFor = (hits: number, world: number, par: number): number => 1 
 
 /**
  * The clock of the attempt runs in world seconds, so it only moves while you
- * do. A hit ends the attempt; the room's goal (every enemy down, or you on
- * its exit) clears it, scores it, and keeps the room's best.
+ * do. A hit ends the attempt; the room's goal (every enemy down, you on its
+ * exit, the stretch survived, or the page's lesson done) clears it, scores it, and keeps the room's best.
  */
 export const OutcomeSystem = Game.System(
   "Slap/Outcome",
@@ -219,7 +220,7 @@ export const OutcomeSystem = Game.System(
     queries: { players: PlayerRead, enemies: EnemyRead },
     resources: { run: Game.System.writeResource(Run), time: Game.System.readResource(Time), pace: Game.System.readResource(Pace) },
     nextMachines: { flow: Game.System.nextState(Flow) },
-    events: { hits: Game.System.readEvent(PlayerHit) }
+    events: { hits: Game.System.readEvent(PlayerHit), lesson: Game.System.readEvent(LessonDone) }
   },
   ({ queries, resources, nextMachines, events }) => {
     const run = resources.run.get()
@@ -236,6 +237,7 @@ export const OutcomeSystem = Game.System(
     const goal = room.goal
     const done = goal.kind === "clear" ? queries.enemies.each().length === 0
       : goal.kind === "survive" ? world >= goal.seconds
+      : goal.kind === "lesson" ? events.lesson.all().some((l) => l.room === run.room)
       : me !== undefined && me.x >= goal.x && me.x <= goal.x + goal.w && me.y >= goal.y && me.y <= goal.y + goal.h
     if (!done) {
       resources.run.set({ ...run, world })

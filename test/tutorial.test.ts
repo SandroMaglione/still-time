@@ -18,24 +18,19 @@ const barAngle = (fight: Fight): number => {
   return ((a % Math.PI) + Math.PI) % Math.PI
 }
 
-test("First Step: nothing moves but you; the way winds through two gaps to the exit", () => {
+test("First Step: nothing in the room; walking anywhere does not clear it, the page's lesson done does", () => {
   const { fight, thumb } = fightIn("First Step")
   assert.equal(fight.view().room.index, 0, "it is the first room")
+  assert.equal(fight.view().room.goal.kind, "lesson")
   assert.equal(fight.view().enemies.length, 0)
   assert.equal(fight.view().hazards.length, 0)
-  // Straight up from the start runs into the first wall.
-  runUntil(fight, 300, () => fight.view().flow !== "playing", () => { thumb.push = { x: 0, y: -1 } })
-  assert.equal(fight.view().flow, "playing", "a straight walk does not reach the exit")
-  // Through the right gap, the left gap, then to the exit.
-  for (const [x, y] of [[8.4, 17], [8.4, 12], [1.6, 12], [1.6, 5], [7.7, 1.8]] as const) {
-    runUntil(fight, 600, () => { const p = fight.view().player; return p === null || fight.view().flow !== "playing" || Math.hypot(x - p.x, y - p.y) < 0.2 }, () => {
-      const p = fight.view().player!
-      const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy) || 1
-      thumb.push = { x: dx / d, y: dy / d }
-    })
+  for (const push of [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }]) {
+    runUntil(fight, 120, () => false, () => { thumb.push = push })
   }
-  thumb.push = { x: 0, y: -1 }
-  runUntil(fight, 300, () => fight.view().flow !== "playing")
+  assert.equal(fight.view().flow, "playing", "no exit to walk to")
+  thumb.push = { x: 0, y: 0 }
+  fight.send({ kind: "lessonDone" })
+  runUntil(fight, 5, () => fight.view().flow !== "playing")
   assert.equal(fight.view().flow, "cleared")
   assert.equal(fight.view().hits, 0)
 })

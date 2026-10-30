@@ -2,8 +2,8 @@
  * The first two rooms' lessons, one step at a time, each waiting until you have done it: the move in First Step
  * (touch, keep it down, slide a little and walk, slide further and run, lift and stop), and the clock in The Blade
  * (stand still and the blade waits, move and it turns, let go and it stops with you, then cross). The step is read
- * from your real input and written under you; on touch a stick under the room acts it out. Until a step is done the
- * thumb is held back (no move before you hold, only a walk before you have walked), so the lesson cannot be skipped.
+ * from your real input and written on a plate under you; on touch a stick under the room acts it out. First Step's
+ * goal is its lesson: done, the page clears the room (there is no exit to walk past it to).
  */
 import { ROOMS } from "../sim/rooms.ts"
 import type { FightView } from "../sim/view.ts"
@@ -34,8 +34,8 @@ interface Step {
   readonly need: number
   readonly ok: (s: Sense) => boolean
   readonly demo: Demo
-  /** The most push the thumb may give on this step: you cannot run ahead of the lesson. */
-  readonly cap: number
+  /** A warning in place of `sub` while you are overdoing the step (sliding too far on "a little"). */
+  readonly over?: (s: Sense) => boolean
   /** Lifting the finger here starts the lesson over from its first step. */
   readonly liftResets?: boolean
 }
@@ -44,32 +44,34 @@ const still = (s: Sense): boolean => s.speed < 0.05
 const moving = (s: Sense): boolean => s.speed > 0.15
 
 const MOVE_TOUCH: ReadonlyArray<Step> = [
-  { title: "TOUCH THE SCREEN", sub: "ANYWHERE, WITH ONE FINGER", need: 0, ok: (s) => s.down, demo: "tap", cap: 0 },
-  { title: "KEEP YOUR FINGER DOWN", sub: "DON'T LIFT IT", need: 0.8, ok: (s) => s.down, demo: "hold", cap: 0, liftResets: true },
-  { title: "SLIDE IT A LITTLE", sub: "A SHORT SLIDE: YOU WALK THAT WAY", need: 1.2, ok: (s) => s.down && s.push > 0.08, demo: "slow", cap: 0.45 },
-  { title: "SLIDE IT FURTHER", sub: "THE FURTHER YOU SLIDE, THE FASTER", need: 0.8, ok: (s) => s.down && s.push > 0.85, demo: "fast", cap: 1 },
-  { title: "LIFT YOUR FINGER", sub: "AND YOU STOP", need: 0, ok: (s) => !s.down, demo: "release", cap: 1 }
+  { title: "TOUCH THE SCREEN", sub: "ANYWHERE, WITH ONE FINGER", need: 0, ok: (s) => s.down, demo: "tap" },
+  { title: "KEEP YOUR FINGER DOWN", sub: "DON'T LIFT IT", need: 0.8, ok: (s) => s.down, demo: "hold", liftResets: true },
+  { title: "SLIDE IT A LITTLE", sub: "A SHORT SLIDE: YOU WALK THAT WAY", need: 1.2, ok: (s) => s.down && s.push > 0.08 && s.push < 0.6, over: (s) => s.down && s.push >= 0.6, demo: "slow" },
+  { title: "SLIDE IT FURTHER", sub: "THE FURTHER YOU SLIDE, THE FASTER", need: 0.8, ok: (s) => s.down && s.push > 0.85, demo: "fast" },
+  { title: "LIFT YOUR FINGER", sub: "AND YOU STOP", need: 0, ok: (s) => !s.down, demo: "release" }
 ]
 const MOVE_KEYS: ReadonlyArray<Step> = [
-  { title: "HOLD AN ARROW KEY", sub: "YOU WALK THAT WAY", need: 1, ok: (s) => s.down && moving(s), demo: "none", cap: 1 },
-  { title: "LET GO", sub: "AND YOU STOP", need: 0, ok: (s) => !s.down, demo: "none", cap: 1 }
+  { title: "HOLD AN ARROW KEY", sub: "YOU WALK THAT WAY", need: 1, ok: (s) => s.down && moving(s), demo: "none" },
+  { title: "LET GO", sub: "AND YOU STOP", need: 0, ok: (s) => !s.down, demo: "none" }
 ]
 const bladeY = (): number => {
   for (const hz of ROOMS[1]?.hazards ?? []) if (hz.kind === "blade") return hz.y
   return 8
 }
 const clock = (keys: boolean): ReadonlyArray<Step> => [
-  { title: "STAND STILL", sub: "THE BLADE WAITS FOR YOU", need: 1.5, ok: still, demo: "none", cap: 1 },
-  { title: keys ? "HOLD AN ARROW KEY" : "SLIDE YOUR FINGER", sub: "AS YOU MOVE, THE BLADE TURNS", need: 1, ok: moving, demo: keys ? "none" : "slow", cap: 1 },
-  { title: keys ? "LET GO" : "LIFT YOUR FINGER", sub: "THE BLADE STOPS WITH YOU", need: 0.6, ok: (s) => !s.down && still(s), demo: keys ? "none" : "release", cap: 1 },
-  { title: "CROSS WHEN THE WAY IS OPEN", sub: "", need: 0, ok: (s) => s.view.player !== null && s.view.player.y < bladeY() - 1.2, demo: "none", cap: 1 }
+  { title: "STAND STILL", sub: "THE BLADE WAITS FOR YOU", need: 1.5, ok: still, demo: "none" },
+  { title: keys ? "HOLD AN ARROW KEY" : "SLIDE YOUR FINGER", sub: "AS YOU MOVE, THE BLADE TURNS", need: 1, ok: moving, demo: keys ? "none" : "slow" },
+  { title: keys ? "LET GO" : "LIFT YOUR FINGER", sub: "THE BLADE STOPS WITH YOU", need: 0.6, ok: (s) => !s.down && still(s), demo: keys ? "none" : "release" },
+  { title: "CROSS WHEN THE WAY IS OPEN", sub: "", need: 0, ok: (s) => s.view.player !== null && s.view.player.y < bladeY() - 1.2, demo: "none" }
 ]
 const stepsFor = (room: number, keys: boolean): ReadonlyArray<Step> =>
   room === 0 ? (keys ? MOVE_KEYS : MOVE_TOUCH) : room === 1 ? clock(keys) : []
-const DONE: Record<number, readonly [string, string]> = { 0: ["GOT IT!", "FOLLOW THE ARROWS TO THE EXIT"], 1: ["GOT IT!", "TIME MOVES ONLY WHEN YOU DO"] }
+const DONE: Record<number, readonly [string, string]> = { 0: ["GOT IT!", "THAT'S HOW YOU MOVE"], 1: ["GOT IT!", "TIME MOVES ONLY WHEN YOU DO"] }
 const DONE_LIFE = 3
+/** Real s the "got it" shows before a lesson room counts as cleared. */
+const CLEAR_AFTER = 1.2
 
-const INK = "#171c2e", ICE = "#7fd8ff", GOLD = "#edc66c", GREEN = "#7dff9a"
+const INK = "#171c2e", ICE = "#7fd8ff", GOLD = "#edc66c", GREEN = "#7dff9a", WARN = "#ff6845"
 
 export class Lesson {
   private room = -1
@@ -81,6 +83,7 @@ export class Lesson {
   private stepAt = -10
   private doneAt = -1
   private now = 0
+  private reported = false
 
   /** Reads the step against your input; starts over on a new room, a restart, or a switch between touch and keys. */
   update(dt: number, view: FightView, input: LessonInput): void {
@@ -90,7 +93,7 @@ export class Lesson {
       this.room = view.room.index
       this.player = id
       this.keys = input.keys
-      this.step = 0; this.held = 0; this.doneAt = -1; this.stepAt = -10
+      this.step = 0; this.held = 0; this.doneAt = -1; this.stepAt = -10; this.reported = false
     }
     const steps = stepsFor(this.room, this.keys)
     const step = steps[this.step]
@@ -105,52 +108,67 @@ export class Lesson {
     if (this.step >= steps.length) this.doneAt = this.now
   }
 
-  /** The most push the thumb may give now (1 outside the lessons). */
-  cap(): number {
-    return stepsFor(this.room, this.keys)[this.step]?.cap ?? 1
+  /** True once, a moment after the lesson is done: the page then clears a room whose goal is the lesson. */
+  takeFinished(): boolean {
+    if (this.reported || this.doneAt < 0 || this.now - this.doneAt < CLEAR_AFTER) return false
+    this.reported = true
+    return true
   }
 
   /**
-   * The step under you, where you are already looking (pips, what to do, what it does, its progress), and on touch
-   * a stick in the strip under the room acting the gesture out.
+   * The step on a plate under you (over you when you are low on the screen): pips, what to do, what it does (or a
+   * warning when you overdo it), and its progress; on touch, a stick in the strip under the room acting it out.
    */
   draw(ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, P: Project, input: LessonInput): void {
     if (view.flow !== "playing" || view.player === null) return
     const steps = stepsFor(this.room, this.keys)
     if (steps.length === 0) return
     const step = steps[this.step]
+    const age = this.now - this.doneAt
+    if (step === undefined && (this.doneAt < 0 || age >= DONE_LIFE)) return
+    const done = DONE[this.room]
+    const sense: Sense = { ...input, speed: Math.hypot(view.player.vx, view.player.vy) / TUNING.player.speed, view }
+    const over = step?.over?.(sense) === true
+    const title = step?.title ?? done?.[0] ?? ""
+    const sub = step === undefined ? done?.[1] ?? "" : over ? "TOO FAR: SLIDE LESS" : step.sub
+    const doing = step !== undefined && step.ok(sense)
     const pad = { x: Math.round(cw / 2), y: ch - 34 }
     const reach = 20
     const showsPad = step !== undefined && step.demo !== "none"
     const me = P(view.player.x, view.player.y)
-    // At your feet's height (centred on the screen, so the lines never run off it), kept clear of the stick below.
     const x = Math.round(cw / 2)
-    const top = Math.min(Math.round(me.y) + 10, (showsPad ? pad.y - reach : ch) - 46)
-    if (step === undefined) {
-      const age = this.now - this.doneAt
-      const done = DONE[this.room]
-      if (this.doneAt >= 0 && age < DONE_LIFE && done !== undefined) {
-        ctx.save(); ctx.globalAlpha = Math.min(1, (DONE_LIFE - age) / 0.5)
-        pips(ctx, x, top, steps.length, steps.length, this.now - this.stepAt)
-        hintText(ctx, done[0], x, top + 12, GREEN)
-        hintText(ctx, done[1], x, top + 22, "#f4efda")
-        ctx.restore()
-      }
-      return
-    }
-    const sense = { ...input, speed: Math.hypot(view.player.vx, view.player.vy) / TUNING.player.speed, view }
-    const doing = step.ok(sense)
-    pips(ctx, x, top, steps.length, this.step, this.now - this.stepAt)
-    hintText(ctx, step.title, x, top + 12, doing ? GOLD : "#f4efda")
-    if (step.sub !== "") hintText(ctx, step.sub, x, top + 22, ICE)
-    if (step.need > 0) bar(ctx, x, top + 30, this.held / step.need)
-    if (!showsPad) return
+    const limit = (showsPad ? pad.y - reach - 10 : ch - 6) - PANEL_H
+    const below = Math.round(me.y) + 12
+    const top = below <= limit ? below : Math.max(4, Math.round(me.y) - 44 - PANEL_H)
+    ctx.save()
+    if (step === undefined) ctx.globalAlpha = Math.min(1, (DONE_LIFE - age) / 0.5)
+    plate(ctx, x, top, [title, sub])
+    pips(ctx, x, top + 7, steps.length, step === undefined ? steps.length : this.step, this.now - this.stepAt)
+    hintText(ctx, title, x, top + 18, step === undefined ? GREEN : doing ? GOLD : "#f4efda")
+    if (sub !== "") hintText(ctx, sub, x, top + 31, over ? WARN : step === undefined ? "#f4efda" : ICE)
+    bar(ctx, x, top + 46, step === undefined ? 1 : step.need > 0 ? this.held / step.need : 0)
+    ctx.restore()
+    if (!showsPad || step === undefined) return
     // The demo steps back (fainter) while you are doing it yourself.
     ctx.save()
     ctx.globalAlpha = doing ? 0.35 : 1
     demo(ctx, pad, step.demo, this.now)
     ctx.restore()
   }
+}
+
+const PANEL_H = 55
+
+/** The lesson's backing: a dark plate as wide as its longest line, so the step reads as one block apart from the room. */
+const plate = (ctx: CanvasRenderingContext2D, x: number, top: number, lines: ReadonlyArray<string>): void => {
+  ctx.save()
+  ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
+  const w = Math.max(110, ...lines.map((l) => Math.ceil(ctx.measureText(l).width))) + 20
+  const left = Math.round(x - w / 2)
+  ctx.fillStyle = INK; ctx.fillRect(left - 1, top - 1, w + 2, PANEL_H + 2)
+  ctx.fillStyle = "rgba(41, 51, 75, 0.92)"; ctx.fillRect(left, top, w, PANEL_H)
+  ctx.fillStyle = "#465477"; ctx.fillRect(left, top, w, 1)
+  ctx.restore()
 }
 
 /** One square per step: done ones filled (the newest blinks once), the current one outlined. */

@@ -904,14 +904,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
     }
   }
-  // The first room points the way: chevrons from you to the next point of its route, or to the exit.
-  if (view.room.index === 0 && view.flow === "playing" && view.player !== null) {
-    const me = view.player
-    const route = ROOMS[0]?.route ?? []
-    const g = view.room.goal
-    const next = route.find((pt) => pt.y < me.y - 0.6) ?? route.at(-1) ?? (g.kind === "exit" ? { x: g.x + g.w / 2, y: g.y + g.h / 2 } : undefined)
-    if (next !== undefined) chevronsToward(ctx, me, next, P, presentation?.now ?? 0, "#7dff9a", 8)
-  }
   // After the first room, the tutorial shows the clock you drive: a pause sign over you while you are still, a play
   // sign while you move, and the same sign on the blade's hub: you play the world.
   if (view.room.index >= 1 && view.room.index <= 2 && view.flow === "playing" && view.player !== null) {
