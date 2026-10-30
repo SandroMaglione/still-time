@@ -1,6 +1,9 @@
 /**
- * The guides of Time Door and First Cut, in the style of First Step's drill: one big caption at a time, placed where
- * it covers neither you nor what it is about, each step waiting until you have done it.
+ * The guides of Point Blank, Time Door and First Cut, in the style of First Step's drill: one big caption at a time,
+ * placed where it covers neither you nor what it is about, each step waiting until you have done it.
+ *
+ * Point Blank (the stop): the room opens on a bullet a few steps off, frozen: "it's frozen / until you move"; moving,
+ * "it moves with you / let go: it stops". Past it, the lanes: "bullets wait for you". Hit, the caption says why.
  *
  * Time Door (the clock): along a stretch of lanterns and wheels, "nothing moves / until you do", then "everything
  * moves / with you"; then three doors whose portcullises rise only as time runs ("doors open with time"; "it waits for
@@ -50,6 +53,20 @@ const doorsOpen = (s: Sense): boolean => s.view.doors.every((d) => d.lock.kind !
 /** At a shut door (within a couple of metres of its face). */
 const atShutDoor = (s: Sense): boolean => s.view.player !== null && s.view.doors.some((d) => !d.open && Math.abs(s.view.player!.y - (d.y + d.h)) < 2.2)
 
+// Point Blank: the first bullet is in the air when the room opens; nothing about it moves until you do.
+const BLANK: ReadonlyArray<Step> = [
+  {
+    title: (s) => (moving(s) ? "IT MOVES WITH YOU" : "IT'S FROZEN"), sub: (s) => (moving(s) ? "LET GO: IT STOPS" : "UNTIL YOU MOVE"),
+    colour: (s) => (moving(s) ? GOLD : WHITE),
+    gate: () => true, ok: (s) => s.view.world > 0.4, need: 0
+  },
+  {
+    title: (s) => (moving(s) ? "LET GO ANY TIME" : "BULLETS WAIT FOR YOU"), sub: (s) => (moving(s) ? "IT ALL STOPS" : "LOOK, THEN GO"),
+    colour: (s) => (moving(s) ? GOLD : WHITE),
+    gate: () => true, ok: (s) => s.view.player !== null && s.view.player.y < 6, need: 0
+  }
+]
+
 // Time Door: first see that nothing moves until you do, and everything moves when you walk; then the doors, whose
 // portcullises rise only as time runs (only while you move).
 const DOOR: ReadonlyArray<Step> = [
@@ -80,14 +97,18 @@ const CUT: ReadonlyArray<Step> = [
     gate: () => true, ok: (s) => s.view.enemies.length === 0, need: 0
   }
 ]
-const stepsFor = (room: number): ReadonlyArray<Step> => (room === 1 ? DOOR : room === 2 ? CUT : [])
-const DONE: Record<number, readonly [string, string]> = { 1: ["GOT IT!", "YOU MOVE, TIME MOVES"], 2: ["GOT IT!", "CLOSE = CUT"] }
+const STEPS: Record<string, ReadonlyArray<Step>> = { "Point Blank": BLANK, "Time Door": DOOR, "First Cut": CUT }
+const stepsFor = (room: string): ReadonlyArray<Step> => STEPS[room] ?? []
+const DONE: Record<string, readonly [string, string]> = { "Point Blank": ["GOT IT!", "STILL = SAFE"], "Time Door": ["GOT IT!", "YOU MOVE, TIME MOVES"], "First Cut": ["GOT IT!", "CLOSE = CUT"] }
+/** Hit in a guided room: what happened, said plainly. */
+const DEAD: Record<string, readonly [string, string]> = { "Point Blank": ["YOU MOVED, IT MOVED", "STAND STILL: IT STOPS"] }
 const DONE_LIFE = 2.2
 /** How long the "CUT!" over a fallen target lasts (real s). */
 const CUT_LIFE = 1.4
 
 export class Guide {
   private room = -1
+  private name = ""
   private player = -1
   private step = 0
   private held = 0
@@ -106,7 +127,7 @@ export class Guide {
 
   /** Whether the thumb reaches the game now (always, outside the guided rooms and once a guide is done). */
   gate(view: FightView, input: GuideInput): boolean {
-    const step = stepsFor(view.room.index)[this.step]
+    const step = stepsFor(view.room.name)[this.step]
     const sense = this.sense(view, input)
     return step === undefined || view.flow !== "playing" || step.gate(sense)
   }
@@ -115,14 +136,14 @@ export class Guide {
     this.now += dt
     const id = view.player?.id ?? -1
     if (view.room.index !== this.room || (id !== -1 && id !== this.player)) {
-      this.room = view.room.index; this.player = id
+      this.room = view.room.index; this.name = view.room.name; this.player = id
       this.step = 0; this.held = 0; this.doneAt = -1; this.labelY = null; this.standing.clear(); this.cuts = []
     }
-    const steps = stepsFor(this.room)
+    const steps = stepsFor(this.name)
     const step = steps[this.step]
     const sense = this.sense(view, input)
     // First Cut: whoever has gone since last time fell to your cut.
-    if (this.room === 2) {
+    if (this.name === "First Cut") {
       const now = new Set(view.enemies.map((e) => e.id))
       for (const [id, at] of this.standing) if (!now.has(id)) this.cuts.push({ ...at, at: this.now })
       this.standing = new Map(view.enemies.map((e) => [e.id, { x: e.x, y: e.y }]))
@@ -138,8 +159,10 @@ export class Guide {
   }
 
   draw(ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, P: Project, input: GuideInput): void {
-    const steps = stepsFor(this.room)
+    const steps = stepsFor(this.name)
     if (steps.length === 0) return
+    const dead = DEAD[this.name]
+    if (view.flow === "dead" && dead !== undefined) { caption(ctx, Math.round(cw / 2), Math.round(ch * 0.22), dead[0], dead[1], GOLD); return }
     // Over a fallen target, a big "CUT!" for a moment: what just happened (it shows through the clear, too).
     for (const c of this.cuts) if (this.now - c.at < CUT_LIFE) cutBurst(ctx, P(c.x, c.y), (this.now - c.at) / CUT_LIFE)
     // The guide speaks while you play, and its "got it" stays through the room's clear.
@@ -166,9 +189,16 @@ export class Guide {
     this.labelY = labelY
     if (step === undefined) {
       const age = this.now - this.doneAt
-      const done = DONE[this.room]
+      const done = DONE[this.name]
       if (this.doneAt >= 0 && age < DONE_LIFE && done !== undefined) caption(ctx, x, labelY, done[0], done[1], GREEN)
       return
+    }
+    // Point Blank's first step: the bullet a few steps off is small; ring it, pulsing in real time, and name it.
+    if (this.name === "Point Blank" && this.step === 0 && view.player !== null) {
+      for (const hz of view.hazards) {
+        if (hz.kind !== "bolt" || !hz.live || Math.hypot(hz.ax - view.player.x, hz.ay - view.player.y) > 6) continue
+        threatMark(ctx, P((hz.ax + hz.bx) / 2, (hz.ay + hz.by) / 2), this.now)
+      }
     }
     caption(ctx, x, labelY, step.title(sense), step.sub(sense), step.colour?.(sense) ?? WHITE)
     // The step's progress, as a thin bar under the caption.
@@ -191,5 +221,22 @@ const cutBurst = (ctx: CanvasRenderingContext2D, at: { readonly x: number; reado
   ctx.fillStyle = INK
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, -1], [0, 2]] as const) ctx.fillText("CUT!", x + dx, y + dy)
   ctx.fillStyle = k < 0.12 ? WHITE : GOLD; ctx.fillText("CUT!", x, y)
+  ctx.restore()
+}
+
+/** A bullet pointed out: a red ring pulsing round it, and "BULLET" over it. */
+const threatMark = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, now: number): void => {
+  const r = 9 + Math.round(2 * Math.sin(now * 8))
+  ctx.save()
+  ctx.strokeStyle = INK; ctx.lineWidth = 3
+  ctx.beginPath(); ctx.arc(Math.round(at.x), Math.round(at.y), r, 0, Math.PI * 2); ctx.stroke()
+  ctx.strokeStyle = "#ff5a4f"; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.arc(Math.round(at.x), Math.round(at.y), r, 0, Math.PI * 2); ctx.stroke()
+  ctx.textAlign = "center"; ctx.textBaseline = "bottom"
+  ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
+  const x = Math.round(at.x), y = Math.round(at.y - r - 3)
+  ctx.fillStyle = INK
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText("BULLET", x + dx, y + dy)
+  ctx.fillStyle = "#ff5a4f"; ctx.fillText("BULLET", x, y)
   ctx.restore()
 }

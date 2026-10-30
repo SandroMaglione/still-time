@@ -45,7 +45,8 @@ export const MovePlayerSystem = Game.System(
     const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const { x: sx, y: sy } = resources.input.get()
     const dir = Ops.hypot(sx, sy)
-    const speed = TUNING.player.speed * pushOf(sx, sy)
+    const push = pushOf(sx, sy)
+    const speed = TUNING.player.speed * (room.fullSpeed === true && push > 0 ? 1 : push)
     const vx = dir === 0 ? 0 : (sx / dir) * speed
     const vy = dir === 0 ? 0 : (sy / dir) * speed
     const dt = resources.time.get().dt

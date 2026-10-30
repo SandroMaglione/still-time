@@ -92,6 +92,9 @@ const STRIDE = 0.85
 type Screen = "title" | "rooms" | "pause" | null
 
 interface Voice { readonly source: AudioBufferSourceNode; readonly gain: GainNode }
+/** World seconds between the clock's ticks. */
+const CLOCK_BEAT = 0.5
+
 interface Graph {
   readonly ctx: AudioContext
   /** Sound effects, all buses: the Sound toggle. */
@@ -150,6 +153,8 @@ class GameAudio {
   private dashReady = true
   private stopReady = false
   private runFor = 0
+  /** The world-clock beat last ticked (half world seconds into the attempt). */
+  private beat = 0
   /** When a button was last clicked (ms): a menu closed by a click already ticked. */
   private clickedAt = -Infinity
 
@@ -208,7 +213,29 @@ class GameAudio {
     for (const voice of this.worldVoices) voice.playbackRate.setTargetAtTime(worldRate, now, glide)
     if (this.song !== null) this.song.source.playbackRate.setTargetAtTime(lerp(TIME.musicRate, m), now, glide)
     this.chooseSong()
-    if (screen === null) this.footsteps(dt, view)
+    if (screen === null) { this.footsteps(dt, view); this.clock(view) }
+  }
+
+  /**
+   * The world's clock, heard: a tick and a tock every half world second. It runs as fast as you move, so walking it
+   * ticks along, and standing still it goes quiet (a tick at most every dozen real seconds).
+   */
+  private clock(view: FightView): void {
+    const graph = this.graph
+    const beat = Math.floor(view.world / CLOCK_BEAT)
+    if (view.flow !== "playing" || beat < this.beat) { this.beat = beat; return }
+    if (beat === this.beat || graph === null || !settings.sound) { this.beat = beat; return }
+    this.beat = beat
+    const { ctx } = graph
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator(), gain = ctx.createGain()
+    osc.type = "square"
+    osc.frequency.value = beat % 2 === 0 ? 1900 : 1450
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(0.05, now + 0.003)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04)
+    osc.connect(gain).connect(graph.sfx)
+    osc.start(now); osc.stop(now + 0.05)
   }
 
   /** Applies the Sound and Music toggles. */

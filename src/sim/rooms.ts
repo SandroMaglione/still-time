@@ -93,6 +93,8 @@ export interface Room {
   readonly tip?: string
   /** Decoration that runs on the world clock (the page draws it; the game ignores it): it moves only while you do. */
   readonly decor?: ReadonlyArray<{ readonly kind: "pendulum" | "wheel"; readonly x: number; readonly y: number }>
+  /** Any push is a run at top speed (the tutorials: time is either stopped or running, nothing in between to read). */
+  readonly fullSpeed?: boolean
 }
 
 const crate = (x: number, y: number, size = 1.2): Pillar => ({ x: x - size / 2, y: y - size / 2, w: size, h: size })
@@ -122,6 +124,15 @@ const timeDoors = [gate(8, 24, 4, 3, { kind: "time", seconds: 7 }), gate(8, 16, 
 // First Cut's door between its two chambers: it opens when the first chamber's gunner is down.
 const cutDoor = gate(12, 12, 6, 3, { kind: "clear", chamber: 0 })
 
+// Point Blank's bullet lanes: the first bullet is already in the air, a few steps to your left, when the room opens;
+// then three lanes across the corridor, each firing on its own beat.
+const pointBlank: ReadonlyArray<Hazard> = [
+  { kind: "bolt", x1: 0.2, y1: 28, x2: 9.8, y2: 28, period: 40, offset: 3.4 / SHOTS.bullet.speed },
+  ...stream(0.2, 22, 9.8, 22, 1.6),
+  ...stream(9.8, 16, 0.2, 16, 1.3, 0.4),
+  ...stream(0.2, 10, 9.8, 10, 1.05, 0.7)
+]
+
 const gatehouse = gate(14, 12.6, 7, 3, { kind: "clear", chamber: 0 })
 const throne = gate(16, 3.6, 8, 3, { kind: "captain", chamber: 0 })
 const thief = gate(16, 3.6, 8, 3, { kind: "key", key: 0 })
@@ -150,7 +161,23 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 30
   },
   {
-    // The second lesson, the clock. A corridor: first a stretch of lanterns swinging and wheels turning on the world
+    // The second lesson, taught by what happens: the room opens on a bullet already flying at you, frozen while you
+    // are. Step up out of its line and it shoots past; walk left into it and it is the bullet that hits. Then three
+    // lanes of bullets across the corridor to the exit: they fly only while you walk, so stop when one is close.
+    name: "Point Blank",
+    w: 10,
+    h: 31,
+    start: { x: 7, y: 28 },
+    pillars: [],
+    doors: [],
+    hazards: pointBlank,
+    enemies: [],
+    goal: { kind: "exit", x: 3.5, y: 0.7, w: 3, h: 2.2 },
+    par: 8,
+    fullSpeed: true
+  },
+  {
+    // The third lesson, the clock. A corridor: first a stretch of lanterns swinging and wheels turning on the world
     // clock, still until you move, all moving together as you walk; then three doors whose portcullises rise as time
     // runs (only while you move), one after another, to the exit.
     name: "Time Door",
@@ -163,6 +190,7 @@ export const ROOMS: ReadonlyArray<Room> = [
     enemies: [],
     goal: { kind: "exit", x: 2.5, y: 0.7, w: 3, h: 2.2 },
     par: 20,
+    fullSpeed: true,
     decor: [
       { kind: "pendulum", x: 0.4, y: 36 }, { kind: "wheel", x: 7.6, y: 35 },
       { kind: "wheel", x: 0.4, y: 32 }, { kind: "pendulum", x: 7.6, y: 31 },
@@ -170,7 +198,7 @@ export const ROOMS: ReadonlyArray<Room> = [
     ]
   },
   {
-    // The third lesson: the cut, with gunners that never fire. One in the first chamber: walk up to it and it's cut;
+    // The fourth lesson: the cut, with gunners that never fire. One in the first chamber: walk up to it and it's cut;
     // the door behind it opens on the second chamber, with two more to cut.
     name: "First Cut",
     w: 12,
@@ -184,7 +212,8 @@ export const ROOMS: ReadonlyArray<Room> = [
       { kind: "gunner", x: 8.5, y: 5, delay: 0.8, quiet: true, chamber: 1 }
     ],
     goal: CLEAR,
-    par: 8
+    par: 8,
+    fullSpeed: true
   },
   {
     name: "Duel",

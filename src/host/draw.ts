@@ -657,6 +657,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     // Your cut's reach (not in First Step, where it is the one circle people mistook for the one to press).
     if (view.player !== null && view.room.goal.kind !== "lesson") {
       pixelArc(ctx, P(view.player.x, view.player.y), view.player.attackRange * erx, view.player.attackRange * ery, 0, Math.PI * 2, view.scale < 0.15 ? "#64b6b3" : "#647373", 1, true)
+      // The world's clock on that ring: a hand sweeping round once every two world seconds, so it stops dead when you do.
+      const hand = -Math.PI / 2 + view.world * Math.PI
+      const at = P(view.player.x, view.player.y), rx = view.player.attackRange * erx, ry = view.player.attackRange * ery
+      pixelArc(ctx, at, rx, ry, hand - 0.9, hand, "#edc66c", 1)
+      ctx.fillStyle = "#f4efda"
+      ctx.fillRect(Math.round(at.x + Math.cos(hand) * rx) - 1, Math.round(at.y + Math.sin(hand) * ry) - 1, 2, 2)
     }
     ctx.restore()
   }
