@@ -4,10 +4,15 @@ export const THREAT = "#ff6845"
 export const DANGER = "#ff4055"
 const INK = "#171c2e"
 
-/** Ink is continuous beneath the signal, so the threat survives every floor value. */
+/** A 1 px signal on a 3 px ink bed, so the threat survives every floor value without shouting. */
 export const threatLine = (ctx: CanvasRenderingContext2D, a: Point, b: Point, locked = false, dash = 0): void => {
-  pixelLine(ctx, a, b, INK, locked ? 5 : 4, dash)
-  pixelLine(ctx, a, b, locked ? DANGER : THREAT, locked ? 3 : 2, dash)
+  pixelLine(ctx, a, b, INK, 3, dash)
+  pixelLine(ctx, a, b, locked ? DANGER : THREAT, 1, dash)
+}
+
+/** Where a shot will pass: a fine dotted line, no ink, so many paths at once still read as lines and not as walls. */
+export const shotPath = (ctx: CanvasRenderingContext2D, a: Point, b: Point): void => {
+  pixelLine(ctx, a, b, THREAT, 1, 2)
 }
 
 export const threatArc = (ctx: CanvasRenderingContext2D, centre: Point, rx: number, ry: number, start: number, end: number, colour = THREAT, width = 2, segmented = false): void => {
@@ -31,8 +36,8 @@ export const reloadArc = (ctx: CanvasRenderingContext2D, centre: Point, rx: numb
   }
 }
 
-/** Repeated forward chevrons let a frozen path carry velocity direction. */
+/** A small 1 px chevron: a frozen path still says which way it goes. */
 export const pathArrow = (ctx: CanvasRenderingContext2D, at: Point, angle: number): void => {
-  const tip = { x: at.x + Math.cos(angle) * 3, y: at.y + Math.sin(angle) * 3 }
-  for (const side of [-1, 1]) threatLine(ctx, tip, { x: at.x - Math.cos(angle) * 3 + Math.sin(angle) * side * 3, y: at.y - Math.sin(angle) * 3 - Math.cos(angle) * side * 3 })
+  const tip = { x: at.x + Math.cos(angle) * 2, y: at.y + Math.sin(angle) * 2 }
+  for (const side of [-1, 1]) pixelLine(ctx, tip, { x: at.x - Math.cos(angle) * 2 + Math.sin(angle) * side * 2, y: at.y - Math.sin(angle) * 2 - Math.cos(angle) * side * 2 }, THREAT)
 }

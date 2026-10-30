@@ -62,6 +62,8 @@ export interface LightingFrame {
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((n) => (n + 0.5) / 16)
 /** Light steps per channel: few enough to read as painted bands. */
 const LEVELS = 5
+/** How much of a light a shadow removes. */
+const SHADOW = 0.65
 
 /** Scene pixels per light-map cell: light is computed in 2×2 cells, which also keeps the bands chunky. */
 const CELL = 2
@@ -161,14 +163,15 @@ export const applyLighting = (ctx: CanvasRenderingContext2D, frame: LightingFram
     paint()
     if (light.shadows !== false && frame.blockers.length > 0) {
       const at = frame.toFloor(light.x, light.y)
+      // Shadows take most of this light away, not all: a soft hint of where cover blocks it, never a black wall.
       yc.globalCompositeOperation = "destination-out"
-      yc.fillStyle = "#000"
+      yc.fillStyle = `rgba(0,0,0,${SHADOW})`
       for (const p of frame.blockers) {
         // A light inside a box (a torch on a pillar) lights its surroundings instead of being swallowed.
         if (at.x > p.x - 0.05 && at.x < p.x + p.w + 0.05 && at.y > p.y - 0.05 && at.y < p.y + p.h + 0.05) continue
         // Boxes beyond the light's reach throw nothing it could see.
         if (p.x > at.x + light.radius || p.x + p.w < at.x - light.radius || p.y > at.y + light.radius || p.y + p.h < at.y - light.radius) continue
-        const hull = shadowHull(at.x, at.y, p, light.radius * 2)
+        const hull = shadowHull(at.x, at.y, p, light.radius)
         yc.beginPath()
         hull.forEach((q, i) => { const s = P(q.x, q.y); if (i === 0) yc.moveTo(s.x, s.y); else yc.lineTo(s.x, s.y) })
         yc.closePath(); yc.fill()

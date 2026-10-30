@@ -12,7 +12,7 @@ import type { Presentation } from "./fx.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
 import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
-import { DANGER, THREAT, pathArrow, reloadArc, threatArc, threatLine } from "./threats.ts"
+import { DANGER, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
@@ -113,7 +113,7 @@ const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number
 const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void => sprite(ctx, "crown", x, y + 3)
 
 /** Ambient light: cool and dim while time is frozen, warmer as the world runs. */
-const AMBIENT_FROZEN: Rgb = [128, 140, 184], AMBIENT_RUNNING: Rgb = [172, 162, 148]
+const AMBIENT_FROZEN: Rgb = [166, 176, 208], AMBIENT_RUNNING: Rgb = [196, 188, 174]
 
 /** Transparent layers the size of the scene, reused per context: ground decals and shots, which also mark emissive pixels. */
 const glowLayers = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
@@ -194,7 +194,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     ctx.beginPath(); ctx.rect(Math.round(floorStart.x), Math.round(floorStart.y), Math.round(floorEnd.x - floorStart.x), Math.round(floorEnd.y - floorStart.y)); ctx.clip()
     for (const shot of view.shots) {
       const start = P(shot.x, shot.y), end = P(shot.x + shot.vx, shot.y + shot.vy)
-      threatLine(ctx, start, end, false, 6)
+      shotPath(ctx, start, end)
       const angle = Math.atan2(end.y - start.y, end.x - start.x)
       pathArrow(ctx, { x: start.x + (end.x - start.x) * 0.22, y: start.y + (end.y - start.y) * 0.22 }, angle)
     }
@@ -207,7 +207,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       const l = e.laser
       if (l === null) continue
       const from = P(e.x, e.y, 0.6), to = P(e.x + Math.cos(l.aim) * l.length, e.y + Math.sin(l.aim) * l.length, 0.6)
-      threatLine(ctx, from, to, l.locked, l.locked ? 0 : 5)
+      if (l.locked) threatLine(ctx, from, to, true)
+      else pixelLine(ctx, from, to, DANGER, 1, 3)
       pathArrow(ctx, { x: to.x - Math.cos(l.aim) * 10, y: to.y - Math.sin(l.aim) * 8 }, Math.atan2(to.y - from.y, to.x - from.x))
     }
     for (const e of view.enemies) {
@@ -262,9 +263,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   type Thing = { readonly x: number; readonly y: number; readonly paint: () => void }
   const actors: Array<Thing> = []
   for (const e of view.enemies) {
-    // Every enemy carries a little light of its own, so a threat never hides in a shadow.
-    const lamp = P(e.x, e.y)
-    emitLight(ctx, { x: lamp.x, y: lamp.y - 8, radius: 1.1, colour: [255, 226, 200], intensity: 0.45, shadows: false })
     actors.push({
       x: e.x, y: e.y, paint: () => {
         const ground = P(e.x, e.y)
@@ -288,38 +286,35 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     })
   }
   for (const shot of view.shots) {
-    const glowing = P(shot.x, shot.y)
-    emitLight(ctx, { x: glowing.x, y: glowing.y, radius: 0.9, colour: [255, 96, 72], intensity: 0.5, shadows: false })
     const paintShot = (ctx: CanvasRenderingContext2D): void => {
       /** A line held at height z from (x, y) toward angle a. */
       const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
         const start = P(x + Math.cos(a) * from, y + Math.sin(a) * from, z)
         const end = P(x + Math.cos(a) * to, y + Math.sin(a) * to, z)
-        pixelLine(ctx, start, end, "#171c2e", width + 2)
+        pixelLine(ctx, start, end, "#171c2e", width + 1)
         pixelLine(ctx, start, end, colour, width)
       }
       {
         const a = Math.atan2(shot.vy, shot.vx)
         const z = 0.6
         if (shot.kind === "bullet") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.24, z, THREAT, 2)
+          // A small round: 1 px trail, a 3 px red body on ink, one hot pixel.
+          held(shot.x, shot.y, a + Math.PI, 0, 0.2, z, THREAT, 1)
           const p = P(shot.x, shot.y, z)
-          pixelLine(ctx, p, p, INK, 11)
-          pixelLine(ctx, p, p, DANGER, 9)
-          pixelLine(ctx, p, p, THREAT, 7)
-          pixelLine(ctx, p, p, "#f4efda", 3)
+          pixelLine(ctx, p, p, INK, 5)
+          pixelLine(ctx, p, p, DANGER, 3)
+          pixelLine(ctx, p, p, "#f4efda", 1)
         } else if (shot.kind === "slug") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.42, z, DANGER, 4)
-          held(shot.x, shot.y, a, -0.12, 0.16, z, THREAT, 6)
-          held(shot.x, shot.y, a, 0, 0.12, z, "#f4efda", 2)
+          held(shot.x, shot.y, a + Math.PI, 0, 0.36, z, DANGER, 1)
+          held(shot.x, shot.y, a, -0.1, 0.12, z, THREAT, 3)
+          held(shot.x, shot.y, a, 0, 0.1, z, "#f4efda", 1)
         } else if (shot.kind === "arrow") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.38, z, THREAT, 3)
-          held(shot.x, shot.y, a, -0.05, 0.16, z, DANGER, 5)
-          for (const side of [-0.7, 0.7]) held(shot.x, shot.y, a + Math.PI + side, 0.25, 0.42, z, THREAT, 2)
+          held(shot.x, shot.y, a + Math.PI, 0, 0.36, z, THREAT, 1)
+          held(shot.x, shot.y, a, -0.05, 0.14, z, DANGER, 2)
+          for (const side of [-0.6, 0.6]) held(shot.x, shot.y, a + Math.PI + side, 0.26, 0.38, z, THREAT, 1)
         } else {
-          held(shot.x, shot.y, a, -0.18, 0.18, z, DANGER, 5)
-          held(shot.x, shot.y, a, 0, 0.18, z, THREAT, 3)
-          held(shot.x, shot.y, a, -0.25, -0.15, z, "#f4efda", 3)
+          held(shot.x, shot.y, a, -0.14, 0.14, z, DANGER, 2)
+          held(shot.x, shot.y, a, 0, 0.14, z, "#f4efda", 1)
         }
       }
     }
