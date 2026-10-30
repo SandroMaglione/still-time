@@ -13,7 +13,8 @@ const rect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
 /** Every role has its own silhouette, including the three batch-2 bodies. */
 const BODIES = {
   player: "player-body", gunner: "gunner-body", archer: "archer-body", thrower: "thrower-body", runner: "runner-body",
-  brute: "brute-body", sniper: "sniper-body", shield: "shield-body", grenadier: "grenadier-body"
+  brute: "brute-body", sniper: "sniper-body", shield: "shield-body", grenadier: "grenadier-body",
+  clockwork: "clockwork-body", stalker: "stalker-body"
 } as const satisfies Record<Death["kind"], Sprite>
 export const bodyName = (kind: Death["kind"]): Sprite => BODIES[kind]
 
@@ -37,7 +38,7 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
     pixelLine(ctx, a, b, INK, width + 2); pixelLine(ctx, a, b, colour, width)
   }
   const weapon = (): void => {
-    if (enemy.kind === "runner") return
+    if (enemy.kind === "runner" || enemy.kind === "stalker") return
     if (m !== null) {
       stroke(point(-2), point(2), "#947058", 2)
       stroke(point(1, -3), point(1, 3), GOLD)
@@ -163,7 +164,7 @@ export const dyingActor = (ctx: CanvasRenderingContext2D, death: Death, ground: 
     pixelArc(ctx, { x: ground.x + direction * 11, y: ground.y + 2 }, 5 + t * 7, 2 + t * 3, 0, Math.PI * 2, "#899692", 1, true)
   }
   if (age > 0.56) {
-    const tint = death.kind === "player" || death.kind === "shield" ? "#64b6b3" : death.kind === "runner" || death.kind === "grenadier" ? GOLD : death.kind === "thrower" || death.kind === "sniper" ? "#9a638e" : "#ce4655"
+    const tint = death.kind === "player" || death.kind === "shield" ? "#64b6b3" : death.kind === "runner" || death.kind === "grenadier" || death.kind === "clockwork" ? GOLD : death.kind === "stalker" ? "#9a638e" : death.kind === "thrower" || death.kind === "sniper" ? "#9a638e" : "#ce4655"
     for (let i = 0; i < 8; i++) {
       const hash = decorationHash(i, death.id, 1), t = clamp((age - 0.56 - (hash % 8) * 0.012) / 0.45)
       if (t <= 0 || t >= 1) continue

@@ -5,13 +5,13 @@ import { insidePillar, pushOut } from "../geometry.ts"
 import { Doors, Enemy, Flow, Game, Pace, PlayerHit, Run, Shot, Slashes, Time, Wear } from "../schema.ts"
 import { SHOTS, TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { blow, type BlowResult } from "./blows.ts"
-import { MeleeRead, PlayerRead, RunnerRead, ShooterRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
+import { MeleeRead, PlainRead, PlayerRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
 
 export const ShotsSystem = Game.System(
   "Slap/Shots",
   {
     when: [Game.Condition.inState(Flow, "Playing")],
-    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeRead, shots: ShotQuery },
+    queries: { players: PlayerRead, plain: PlainRead, melee: MeleeRead, shots: ShotQuery },
     resources: {
       time: Game.System.readResource(Time),
       pace: Game.System.readResource(Pace),
@@ -32,9 +32,9 @@ export const ShotsSystem = Game.System(
     let worn = false
     const time = resources.time.get()
     const dt = time.dt * resources.pace.get().scale
-    // Each target: where it stands, and what a shot from angle `from` does to it. Shooters and runners fall; a guarded front stops it.
+    // Each target: where it stands, and what a shot from angle `from` does to it. A plain enemy falls; a guarded front stops it.
     const targets = [
-      ...[...queries.shooters.each(), ...queries.runners.each()].map((m) => ({
+      ...queries.plain.each().map((m) => ({
         id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind),
         struck: (): BlowResult => { commands.despawn(m.entity); return "down" }
       })),

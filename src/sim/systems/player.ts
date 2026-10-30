@@ -5,10 +5,10 @@
 import { Ops } from "@typeonce/ritmo"
 
 import { settle } from "../geometry.ts"
-import { TUNING, isMelee, radiusOf } from "../tuning.ts"
+import { BELT, TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { Doors, Enemy, Flow, Game, Input, Pace, Run, Slashes, Time, Wear } from "../schema.ts"
 import { blow } from "./blows.ts"
-import { EnemyRead, MeleeRead, PlayerQuery, PlayerRead, RunnerRead, ShooterRead, roomOf, wallsOf } from "./queries.ts"
+import { EnemyRead, MeleeRead, PlainRead, PlayerQuery, PlayerRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
@@ -27,7 +27,11 @@ export const PaceSystem = Game.System(
   }
 )
 
-/** You move in real time; the world is what slows down. Walls and enemies are solid. */
+/**
+ * You move in real time; the world is what slows down. Walls and enemies are
+ * solid. A conveyor belt under you carries you along it in real time too,
+ * push or no push: ride it still, and the world stays frozen.
+ */
 export const MovePlayerSystem = Game.System(
   "Slap/MovePlayer",
   {
@@ -48,7 +52,9 @@ export const MovePlayerSystem = Game.System(
     const solid = queries.enemies.each().map((m) => ({ at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) }))
     for (const { data } of queries.players.each()) {
       const from = data.body.get()
-      let { x, y } = settle(from.x + vx * dt, from.y + vy * dt, r, room.w, room.h, walls)
+      const belt = (room.belts ?? []).find((b) => from.x >= b.x && from.x <= b.x + b.w && from.y >= b.y && from.y <= b.y + b.h)
+      const bx = belt === undefined ? 0 : belt.dx * BELT.speed, by = belt === undefined ? 0 : belt.dy * BELT.speed
+      let { x, y } = settle(from.x + (vx + bx) * dt, from.y + (vy + by) * dt, r, room.w, room.h, walls)
       // No walking through an enemy (to reach a brute's back mid-swing, say).
       for (const e of solid) {
         const dx = x - e.at.x, dy = y - e.at.y
@@ -65,14 +71,14 @@ export const MovePlayerSystem = Game.System(
 )
 
 /**
- * You cut every enemy within reach. Shooters and runners fall; a melee enemy
+ * You cut every enemy within reach. Shooters, runners and stalkers fall; a melee enemy
  * falls unless its guarded front stops the blow (see blows.ts).
  */
 export const CutSystem = Game.System(
   "Slap/Cut",
   {
     when: playing,
-    queries: { players: PlayerRead, shooters: ShooterRead, runners: RunnerRead, melee: MeleeRead },
+    queries: { players: PlayerRead, plain: PlainRead, melee: MeleeRead },
     resources: { time: Game.System.readResource(Time), slashes: Game.System.writeResource(Slashes) },
     commands: Game.System.commands(Game.System.despawns(Enemy))
   },
@@ -83,7 +89,7 @@ export const CutSystem = Game.System(
     const cuts: Array<{ x: number; y: number; angle: number; born: number; blocked: boolean }> = []
     const inReach = (at: { x: number; y: number }): boolean => Ops.hypot(at.x - me.x, at.y - me.y) <= TUNING.attackRange
     const cutAt = (at: { x: number; y: number }): void => { cuts.push({ x: at.x, y: at.y, angle: Ops.atan2(at.y - me.y, at.x - me.x), born, blocked: false }) }
-    for (const { entity, data } of [...queries.shooters.each(), ...queries.runners.each()]) {
+    for (const { entity, data } of queries.plain.each()) {
       const at = data.body.get()
       if (!inReach(at)) continue
       commands.despawn(entity)

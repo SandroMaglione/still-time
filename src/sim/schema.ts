@@ -39,6 +39,9 @@ export const Player = Descriptor.ConstructedComponent(codec(S.Struct({ vx: S.Num
 /** What an enemy is, which chamber of the room it guards, and whether it wears a crown: fixed for its life. */
 export const Enemy = Descriptor.ConstructedComponent(codec(S.Struct({ kind: S.Literals(ENEMY_KINDS), chamber: count, captain: S.Boolean })))("Slap/Enemy", { immutable: true })
 
+/** A stalker: it moves only while you are still. */
+export const Stalk = Descriptor.ConstructedComponent(codec(S.Struct({})))("Slap/Stalk", { immutable: true })
+
 /** A runner's key, which it drops wherever it falls. */
 export const Carry = Descriptor.ConstructedComponent(codec(S.Struct({ key: count })))("Slap/Carry", { immutable: true })
 
@@ -178,12 +181,12 @@ export type Intent =
 export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
 /** A room to (re)build this step; `fresh` when you come into it anew (not a retry), which resets its hit count. */
 export const EnterRoom = Descriptor.Event<{ readonly room: number; readonly fresh: boolean }>()("Slap/EnterRoom")
-/** Something touched you: a shot, a swing, a blast, or a hazard. */
-export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" | "blast" | "hazard" }>()("Slap/PlayerHit")
+/** Something touched you: a shot, a swing, a blast, a hazard, or a stalker. */
+export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" | "blast" | "hazard" | "touch" }>()("Slap/PlayerHit")
 
 export const Game = Schema.bind(
   Schema.fragment({
-    components: { Body, Player, Enemy, Carry, Reload, Post, Melee, Blade, Shot, Bomb },
+    components: { Body, Player, Enemy, Carry, Stalk, Reload, Post, Melee, Blade, Shot, Bomb },
     resources: { Time, Run, Pace, Slashes, Blasts, Doors, Wear, Plates, Keys, Input },
     events: { IntentEvent, EnterRoom, PlayerHit }
   }),

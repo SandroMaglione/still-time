@@ -7,7 +7,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { unlocked } from "../progress.ts"
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
-import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
+import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
 import { BOMB, COVER, CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, freshWear, roomOf } from "./queries.ts"
 
@@ -61,7 +61,7 @@ export const BuildRoomSystem = Game.System(
     },
     nextMachines: { flow: Game.System.nextState(Flow) },
     events: { enter: Game.System.readEvent(EnterRoom) },
-    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy, Carry, Reload, Post, Melee, Blade), Game.System.despawnsScope(RoomScope))
+    commands: Game.System.commands(Game.System.spawns(Body, Player, Enemy, Carry, Stalk, Reload, Post, Melee, Blade), Game.System.despawnsScope(RoomScope))
   },
   ({ resources, nextMachines, events, commands }) => {
     // Several requests in one step: the last one wins.
@@ -85,6 +85,8 @@ export const BuildRoomSystem = Game.System(
         const key = e.key ?? 0
         commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Carry, { key }]))
         keys.push({ key, state: "carried", x: e.x, y: e.y })
+      } else if (kind === "stalker") {
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Stalk, {}]))
       } else {
         const post = { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1 } as const
         // A scoped shooter starts uncharged: it must see you for a whole charge before its first shot.

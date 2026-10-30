@@ -14,8 +14,8 @@ import { Ops } from "@typeonce/ritmo"
 import { angleDiff, canSee, segmentDistance, settle, turnToward } from "../geometry.ts"
 import { Body, Bomb, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time, Wear } from "../schema.ts"
 import type { Pillar } from "../rooms.ts"
-import { COVER, CROWD, GIVE, MELEE, RUNNER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
-import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, roomOf, wallsOf } from "./queries.ts"
+import { COVER, CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
+import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, StalkerQuery, StalkerRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
@@ -47,7 +47,7 @@ export const ShootersSystem = Game.System(
   "Slap/Shooters",
   {
     when: playing,
-    queries: { players: PlayerRead, shooters: ShooterQuery, melee: MeleeRead, runners: RunnerRead },
+    queries: { players: PlayerRead, shooters: ShooterQuery, melee: MeleeRead, runners: RunnerRead, stalkers: StalkerRead },
     resources: fightResources,
     commands: Game.System.commands(Game.System.spawns(Body, Shot, Bomb))
   },
@@ -61,7 +61,8 @@ export const ShootersSystem = Game.System(
     const allies = [
       ...queries.shooters.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
       ...queries.melee.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
-      ...queries.runners.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: RUNNER.radius }))
+      ...queries.runners.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: RUNNER.radius })),
+      ...queries.stalkers.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: STALKER.radius }))
     ]
     for (const { entity, data } of queries.shooters.each()) {
       const kind = data.enemy.get().kind
@@ -132,7 +133,7 @@ export const MeleeSystem = Game.System(
   "Slap/Blades",
   {
     when: playing,
-    queries: { players: PlayerRead, shooters: ShooterRead, melee: MeleeQuery, runners: RunnerRead },
+    queries: { players: PlayerRead, shooters: ShooterRead, melee: MeleeQuery, runners: RunnerRead, stalkers: StalkerRead },
     resources: { ...fightResources, wear: Game.System.writeResource(Wear) },
     events: { hit: Game.System.writeEvent(PlayerHit) }
   },
@@ -146,12 +147,16 @@ export const MeleeSystem = Game.System(
     const allies = [
       ...queries.shooters.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
       ...queries.melee.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
-      ...queries.runners.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: RUNNER.radius }))
+      ...queries.runners.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: RUNNER.radius })),
+      ...queries.stalkers.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: STALKER.radius }))
     ]
+    const worldStep = dt
     for (const { entity, data } of queries.melee.each()) {
       const kind = data.enemy.get().kind
       if (!isMelee(kind)) continue
       const spec = MELEE[kind]
+      // A clockwork enemy keeps real time: standing still does not slow it.
+      const dt = spec.clock === "real" ? resources.time.get().dt : worldStep
       const at = data.body.get()
       const { facing, pace } = data.melee.get()
       const blade = data.blade.get()
@@ -269,12 +274,43 @@ export const RunnersSystem = Game.System(
   }
 )
 
+/**
+ * Stalkers: each creeps straight at you in real time, as fast as you are
+ * still (frozen you, full speed; a full push, none), sliding along walls.
+ * While you are still enough, it strikes when you are within its reach.
+ */
+export const StalkersSystem = Game.System(
+  "Slap/Stalkers",
+  {
+    when: playing,
+    queries: { players: PlayerRead, stalkers: StalkerQuery },
+    resources: fightResources,
+    events: { hit: Game.System.writeEvent(PlayerHit) }
+  },
+  ({ queries, resources, events }) => {
+    const me = queries.players.each()[0]?.data.body.get()
+    if (me === undefined) return
+    const room = roomOf(resources.run.get().room)
+    const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
+    const still = 1 - Math.max(0, Math.min(1, (resources.pace.get().scale - TUNING.slow) / (1 - TUNING.slow)))
+    const step = STALKER.speed * still * resources.time.get().dt
+    for (const { data } of queries.stalkers.each()) {
+      const at = data.body.get()
+      const d = Ops.hypot(me.x - at.x, me.y - at.y)
+      if (still >= STALKER.wakes && d <= STALKER.reach) { events.hit.emit({ by: "touch" }); continue }
+      if (step === 0 || d === 0) continue
+      const move = Math.min(step, d - TUNING.player.radius - STALKER.radius)
+      data.body.set(settle(at.x + ((me.x - at.x) / d) * move, at.y + ((me.y - at.y) / d) * move, STALKER.radius, room.w, room.h, walls))
+    }
+  }
+)
+
 /** Solid bodies: overlapping enemies are pushed apart (each kind gives way by its share), then out of walls. */
 export const CrowdSystem = Game.System(
   "Slap/Crowd",
   {
     when: playing,
-    queries: { shooters: ShooterQuery, melee: MeleeQuery, runners: RunnerQuery },
+    queries: { shooters: ShooterQuery, melee: MeleeQuery, runners: RunnerQuery, stalkers: StalkerQuery },
     resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors), wear: Game.System.readResource(Wear) }
   },
   ({ queries, resources }) => {
@@ -283,7 +319,8 @@ export const CrowdSystem = Game.System(
     const bodies = [
       ...queries.shooters.each().map((m) => ({ cell: m.data.body, radius: radiusOf(m.data.enemy.get().kind), give: GIVE[m.data.enemy.get().kind] })),
       ...queries.melee.each().map((m) => ({ cell: m.data.body, radius: radiusOf(m.data.enemy.get().kind), give: GIVE[m.data.enemy.get().kind] })),
-      ...queries.runners.each().map((m) => ({ cell: m.data.body, radius: RUNNER.radius, give: GIVE.runner }))
+      ...queries.runners.each().map((m) => ({ cell: m.data.body, radius: RUNNER.radius, give: GIVE.runner })),
+      ...queries.stalkers.each().map((m) => ({ cell: m.data.body, radius: STALKER.radius, give: GIVE.stalker }))
     ]
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < bodies.length; i++) {

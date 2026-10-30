@@ -3,10 +3,10 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { canSee, clearLine } from "./geometry.ts"
 import { hazardAt, type HazardShape } from "./hazards.ts"
-import { ROOMS, type Goal, type Lock, type Pillar } from "./rooms.ts"
-import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Time, Wear } from "./schema.ts"
+import { ROOMS, type Belt, type Goal, type Lock, type Pillar } from "./rooms.ts"
+import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
-import { BOMB, COVER, LOCKS, MELEE, RUNNER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
+import { BELT, BOMB, COVER, LOCKS, MELEE, RUNNER, STALKER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover"
 
@@ -128,6 +128,8 @@ export interface FightView {
   readonly plates: ReadonlyArray<PlateView>
   /** Hazards where they are now: a blade's bar, or a laser gate's beam with its state. */
   readonly hazards: ReadonlyArray<{ readonly kind: "blade" | "gate" } & HazardShape>
+  /** Conveyor belts: their strip, their direction, and how far their tread has run (metres, real time) for drawing. */
+  readonly belts: ReadonlyArray<Belt & { readonly run: number }>
   /** Blasts just gone off, with `age` from 0 to 1 (gone), and their reach. */
   readonly blasts: ReadonlyArray<{ readonly x: number; readonly y: number; readonly age: number; readonly radius: number }>
   readonly deaths: number
@@ -172,6 +174,7 @@ export const FightViewInspector = Game.Inspector(
       shooters: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), reload: Game.Query.read(Reload) } }),
       melee: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.read(Melee), blade: Game.Query.read(Blade) } }),
       runners: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), carry: Game.Query.read(Carry) } }),
+      stalkers: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), stalk: Game.Query.read(Stalk) } }),
       bombs: Game.Query({ selection: { body: Game.Query.read(Body), bomb: Game.Query.read(Bomb) } }),
       shots: Game.Query({ selection: { body: Game.Query.read(Body), shot: Game.Query.read(Shot) } })
     },
@@ -224,6 +227,17 @@ export const FightViewInspector = Game.Inspector(
         laser
       }]
     })
+    // A stalker's charge is how still you are: how fast it creeps now.
+    const still = 1 - Math.max(0, Math.min(1, (resources.pace.get().scale - TUNING.slow) / (1 - TUNING.slow)))
+    const stalkers = queries.stalkers.each().map(({ entity, data }): EnemyView => {
+      const at = data.body.get()
+      return {
+        id: entity.id, kind: "stalker", x: at.x, y: at.y, radius: STALKER.radius, charge: still,
+        aim: player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x),
+        sees: true, sealed: sealed(at),
+        captain: data.enemy.get().captain, key: null, melee: null, laser: null
+      }
+    })
     const runners = queries.runners.each().map(({ entity, data }): EnemyView => {
       const at = data.body.get()
       return {
@@ -262,7 +276,7 @@ export const FightViewInspector = Game.Inspector(
       }]
     })
     const flow = machines.flow.get()
-    const standing = [...queries.shooters.each(), ...queries.melee.each(), ...queries.runners.each()].map((m) => m.data.enemy.get())
+    const standing = [...queries.shooters.each(), ...queries.melee.each(), ...queries.runners.each(), ...queries.stalkers.each()].map((m) => m.data.enemy.get())
     const doors = room.doors.map((d, i): DoorView => {
       const lock = d.lock
       const waiting = lock.kind === "key" ? 0
@@ -299,6 +313,7 @@ export const FightViewInspector = Game.Inspector(
       bombs,
       plates: plateViews,
       hazards,
+      belts: (room.belts ?? []).map((b) => ({ ...b, run: (time.step / 60) * BELT.speed })),
       blasts: resources.blasts.get().map((b) => ({ x: b.x, y: b.y, radius: BOMB.radius, age: Math.min(1, (time.step - b.born) / BOMB.showSteps) })),
       room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null },
       doors,
@@ -315,7 +330,7 @@ export const FightViewInspector = Game.Inspector(
       scale: resources.pace.get().scale,
       slow: TUNING.slow,
       player,
-      enemies: [...shooters, ...melee, ...runners],
+      enemies: [...shooters, ...melee, ...runners, ...stalkers],
       shots: queries.shots.each().map(({ entity, data }) => {
         const at = data.body.get()
         const shot = data.shot.get()

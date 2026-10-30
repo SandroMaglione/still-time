@@ -30,6 +30,9 @@ export type Lock =
   | { readonly kind: "key"; readonly key: number }
   | { readonly kind: "plates"; readonly plates: ReadonlyArray<number>; readonly ordered: boolean }
 
+/** A conveyor belt: a strip of floor carrying you along (`dx`, `dy`, a unit direction) in real time. */
+export interface Belt extends Pillar { readonly dx: number; readonly dy: number }
+
 /** A pressure plate on the floor, pressed by stepping onto it. */
 export interface Plate { readonly x: number; readonly y: number }
 
@@ -70,6 +73,7 @@ export interface Room {
   readonly doors: ReadonlyArray<Door>
   readonly plates?: ReadonlyArray<Plate>
   readonly hazards?: ReadonlyArray<Hazard>
+  readonly belts?: ReadonlyArray<Belt>
   readonly enemies: ReadonlyArray<EnemySpawn>
   readonly goal: Goal
   /** World seconds for the third star. */
@@ -409,6 +413,46 @@ export const ROOMS: ReadonlyArray<Room> = [
     goal: { kind: "survive", seconds: 9 },
     par: 9,
     tip: "survive 9 s: time only passes while you move"
+  },
+  {
+    name: "Clockworks",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [crate(3.5, 13), crate(10.5, 13), crate(3.5, 7), crate(10.5, 7)],
+    doors: [],
+    enemies: [{ kind: "clockwork", x: 7, y: 4, delay: 0 }],
+    goal: CLEAR,
+    par: 5,
+    tip: "clockwork keeps its own time: standing still won't slow it"
+  },
+  {
+    name: "Stalker",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [crate(4, 12), crate(10, 12)],
+    doors: [],
+    enemies: [{ kind: "stalker", x: 7, y: 3, delay: 0 }],
+    goal: CLEAR,
+    par: 4,
+    tip: "it moves only while you stand still"
+  },
+  {
+    name: "Conveyor",
+    w: 12,
+    h: 30,
+    start: { x: 6, y: 28 },
+    pillars: [crate(2, 21), crate(10, 15), crate(2, 9)],
+    doors: [],
+    belts: [{ x: 5, y: 4, w: 2, h: 22, dx: 0, dy: -1 }],
+    enemies: [
+      { kind: "gunner", x: 1.5, y: 17, delay: 0.4 },
+      { kind: "gunner", x: 10.5, y: 10, delay: 0.8 }
+    ],
+    goal: { kind: "exit", x: 4.5, y: 0.6, w: 3, h: 2.4 },
+    par: 6,
+    tip: "a belt carries you while time stays frozen"
   },
   {
     name: "Fortress",

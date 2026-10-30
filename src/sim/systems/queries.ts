@@ -4,7 +4,7 @@
  * read the enemies' (or the reverse).
  */
 import { ROOMS, type Cover, type Pillar, type Room } from "../rooms.ts"
-import { Blade, Body, Bomb, Carry, Enemy, Game, Melee, Player, Post, Reload, Shot } from "../schema.ts"
+import { Blade, Body, Bomb, Carry, Enemy, Game, Melee, Player, Post, Reload, Shot, Stalk } from "../schema.ts"
 
 export const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
 export const PlayerRead = Game.Query({ selection: { body: Game.Query.read(Body), player: Game.Query.read(Player) } })
@@ -29,6 +29,15 @@ export const RunnerQuery = Game.Query({
   without: [Player, Shot, Reload, Melee]
 })
 export const RunnerRead = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), carry: Game.Query.read(Carry) }, without: [Player, Shot, Reload, Melee] })
+
+export const StalkerQuery = Game.Query({
+  selection: { body: Game.Query.write(Body), enemy: Game.Query.read(Enemy), stalk: Game.Query.read(Stalk) },
+  without: [Player, Shot, Reload, Melee, Carry]
+})
+export const StalkerRead = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), stalk: Game.Query.read(Stalk) }, without: [Player, Shot, Reload, Melee, Carry] })
+
+/** Every enemy without a guard to check (shooters, runners, stalkers): one cut or shot downs it. */
+export const PlainRead = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy) }, without: [Player, Shot, Melee] })
 
 /** Every enemy, whatever its kind: for systems that only read them. */
 export const EnemyRead = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy) }, without: [Player, Shot] })

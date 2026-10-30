@@ -13,7 +13,11 @@ const shots: ReadonlyArray<{ readonly name: string; readonly room: number; reado
   { name: "thief", room: 7, hold: "ArrowUp", ms: 1200 },
   { name: "shieldwall", room: 10, hold: "ArrowUp", ms: 900 },
   { name: "watchtower", room: 11, hold: "ArrowUp", ms: 1500 },
-  { name: "fortress", room: 12, ms: 600 }
+  { name: "powder-room", room: 14, hold: "ArrowUp", ms: 900 },
+  { name: "combination", room: 16, hold: "ArrowUp", ms: 900 },
+  { name: "mill", room: 17, hold: "ArrowUp", ms: 900 },
+  { name: "conveyor", room: 22, ms: 900 },
+  { name: "fortress", room: 23, ms: 600 }
 ]
 
 mkdirSync("output", { recursive: true })

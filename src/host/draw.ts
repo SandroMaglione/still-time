@@ -5,6 +5,7 @@
  * 2D; only this file knows about height.
  */
 import type { Lock, Pillar } from "../sim/rooms.ts"
+import { STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite } from "./art.ts"
 import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
@@ -193,6 +194,29 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelLine(ctx, a, { x: b.x, y: a.y }, lockColour(d.lock), 1, 3)
     pixelLine(ctx, { x: a.x, y: b.y }, b, "#647373", 1, 3)
   }
+  // Conveyor belts: a dark tread whose chevrons run in real time, the way it carries you.
+  for (const belt of view.belts) {
+    const a = P(belt.x, belt.y), b = P(belt.x + belt.w, belt.y + belt.h)
+    const x = Math.round(a.x), y = Math.round(a.y), w = Math.round(b.x) - x, h = Math.round(b.y) - y
+    ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, w + 2, h + 2)
+    ctx.fillStyle = "#2a3036"; ctx.fillRect(x, y, w, h)
+    ctx.fillStyle = "#465254"
+    if (belt.dx === 0) for (let i = 0; i < w; i += 3) ctx.fillRect(x + i, y, 1, h)
+    else for (let i = 0; i < h; i += 3) ctx.fillRect(x, y + i, w, 1)
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip()
+    const spacing = 0.9, along = belt.dx !== 0 ? belt.w : belt.h, shift = ((belt.run % spacing) + spacing) % spacing
+    for (let d = -spacing + shift; d < along + spacing; d += spacing) {
+      const cxw = belt.dx !== 0 ? (belt.dx > 0 ? belt.x + d : belt.x + belt.w - d) : belt.x + belt.w / 2
+      const cyw = belt.dy !== 0 ? (belt.dy > 0 ? belt.y + d : belt.y + belt.h - d) : belt.y + belt.h / 2
+      const c = P(cxw, cyw), angle = Math.atan2(belt.dy * SQUASH, belt.dx), size = Math.min(w, h) * 0.3
+      const tip = { x: c.x + Math.cos(angle) * size * 0.5, y: c.y + Math.sin(angle) * size * 0.5 }
+      for (const side of [-1, 1]) {
+        const end = { x: c.x - Math.cos(angle) * size * 0.5 + Math.sin(angle) * side * size, y: c.y - Math.sin(angle) * size * 0.5 - Math.cos(angle) * side * size }
+        pixelLine(ctx, tip, end, "#edc66c", 2)
+      }
+    }
+    ctx.restore()
+  }
   // Pressure plates: a raised slab with a teal rim, sunk and lit once pressed; an ordered lock's plates carry their number.
   for (const plate of view.plates) {
     const a = P(plate.x - plate.radius, plate.y - plate.radius), b = P(plate.x + plate.radius, plate.y + plate.radius)
@@ -271,6 +295,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         ring(0, Math.PI * 2, e.sees ? "#edc66c" : "#947058", 1, true)
         continue
       }
+      if (e.kind === "stalker") {
+        // Its strike reach on the floor: red and whole while you are still enough for it to strike; faint and broken while you move.
+        const awake = e.charge >= STALKER.wakes
+        threatArc(ctx, centre, STALKER.reach * erx, STALKER.reach * ery, 0, Math.PI * 2, awake ? DANGER : "#9a638e", awake ? 2 : 1, !awake)
+        continue
+      }
       if (m === null) {
         reloadArc(ctx, feet, footRadius, Math.max(4, Math.round(footRadius * 0.4)), e.charge, e.charge > 0.8 ? THREAT : DANGER)
         continue
@@ -312,6 +342,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     // A soft light at each enemy: in a dark room a threat is never lost between the torches.
     const lamp = P(e.x, e.y)
     emitLight(ctx, { x: lamp.x, y: lamp.y - 6, radius: 1.3, colour: [255, 214, 196], intensity: 0.75, shadows: false })
+    // A stalker's eyes burn as you stand still.
+    if (e.kind === "stalker") emitLight(ctx, { x: lamp.x, y: lamp.y - 14, radius: 1.1, colour: [100, 182, 179], intensity: 0.3 + 0.7 * e.charge, shadows: false })
     actors.push({
       x: e.x, y: e.y, paint: () => {
         const ground = P(e.x, e.y)
@@ -567,7 +599,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const k = Math.min((cw / 2 - pad) / Math.abs(dx || 1e-6), ((ch - TOP - BOTTOM) / 2 - pad) / Math.abs(dy || 1e-6))
     const a = Math.atan2(dy, dx), x = midX + dx * k, y = midY + dy * k
     const tip = { x: x + Math.cos(a) * 4, y: y + Math.sin(a) * 4 }
-    const colour = e.kind === "runner" ? "#edc66c" : e.sees ? DANGER : THREAT
+    const colour = e.kind === "runner" ? "#edc66c" : e.kind === "stalker" ? "#9a638e" : e.sees ? DANGER : THREAT
     for (const side of [-1, 1]) {
       const end = { x: x - Math.cos(a) * 3 + Math.sin(a) * side * 3, y: y - Math.sin(a) * 3 - Math.cos(a) * side * 3 }
       pixelLine(ctx, tip, end, INK, 4); pixelLine(ctx, tip, end, colour, 2)

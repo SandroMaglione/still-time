@@ -24,9 +24,9 @@ export const TUNING = {
 
 export const SHOOTER_KINDS = ["gunner", "archer", "thrower", "sniper", "grenadier"] as const
 export type ShooterKind = (typeof SHOOTER_KINDS)[number]
-export const MELEE_KINDS = ["brute", "shield"] as const
+export const MELEE_KINDS = ["brute", "shield", "clockwork"] as const
 export type MeleeKind = (typeof MELEE_KINDS)[number]
-export const ENEMY_KINDS = [...SHOOTER_KINDS, ...MELEE_KINDS, "runner"] as const
+export const ENEMY_KINDS = [...SHOOTER_KINDS, ...MELEE_KINDS, "runner", "stalker"] as const
 export type EnemyKind = (typeof ENEMY_KINDS)[number]
 
 export const isShooter = (kind: EnemyKind): kind is ShooterKind => (SHOOTER_KINDS as ReadonlyArray<EnemyKind>).includes(kind)
@@ -70,6 +70,8 @@ export const SHOOTERS = {
  * any shot; any other blow downs it.
  *
  * - brute: fast, guarded only while it attacks.
+ * - clockwork: a slow brass brute whose `clock` is real time: it walks,
+ *   winds up and swings at its own pace however still you stand.
  * - shield-bearer: slow and slow to turn (circling it within 3 m at full
  *   speed outpaces its turn), its shield always up: go round it.
  */
@@ -94,11 +96,17 @@ export const MELEE = {
     close: 1.6,
     step: 0.7,
     swing: 0.1,
-    recover: 0.8
+    recover: 0.8,
+    /** World time (slowed with the world) or real time (never slowed). */
+    clock: "world"
   },
   shield: {
     radius: 0.5, speed: 2.6, turn: 1.5, trigger: 2.0, reach: 1.7, arc: 0.8, guard: "always", guardArc: 1.25,
-    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9
+    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9, clock: "world"
+  },
+  clockwork: {
+    radius: 0.46, speed: 1.6, turn: 3, trigger: 2.2, reach: 1.8, arc: 0.9, guard: "attack", guardArc: 1.2,
+    windup: 0.8, lock: 0.45, close: 1.4, step: 0.5, swing: 0.12, recover: 1, clock: "real"
   }
 } as const satisfies Record<MeleeKind, {
   radius: number
@@ -115,6 +123,7 @@ export const MELEE = {
   step: number
   swing: number
   recover: number
+  clock: "world" | "real"
 }>
 
 /**
@@ -145,7 +154,7 @@ export const CROWD = {
 } as const
 
 /** How much each kind gives way when two enemies are pushed apart: shooters hold their ground, the melee family is shoved. */
-export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, grenadier: 0.25, brute: 1, shield: 0.5, runner: 0.6 } as const satisfies Record<EnemyKind, number>
+export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, grenadier: 0.25, brute: 1, shield: 0.5, clockwork: 0.4, runner: 0.6, stalker: 0.6 } as const satisfies Record<EnemyKind, number>
 
 /**
  * A bomb flies (in world time) to where you stood when it was thrown, lands,
@@ -201,7 +210,20 @@ export const LOCKS = {
   reach: 0.9
 } as const
 
-export const radiusOf = (kind: EnemyKind): number => (isMelee(kind) ? MELEE[kind].radius : kind === "runner" ? RUNNER.radius : SHOOTERS[kind].radius)
+/**
+ * The stalker: it creeps toward you in real time, but only as fast as you
+ * are still (full `speed` when you stand frozen, none at a full push). It
+ * strikes anyone within `reach` (just past your cut) while you are at least
+ * `wakes` still: hesitate near it and it takes you; rush it at a hard push
+ * and it stays frozen for your cut, which downs it like anyone.
+ */
+export const STALKER = { radius: 0.4, speed: 2.4, reach: 1.35, wakes: 0.5 } as const
+
+/** Conveyor belts carry you at `speed` (real m/s) along them, whether or not you push, so time stays frozen while you ride. */
+export const BELT = { speed: 2.6 } as const
+
+export const radiusOf = (kind: EnemyKind): number =>
+  isMelee(kind) ? MELEE[kind].radius : kind === "runner" ? RUNNER.radius : kind === "stalker" ? STALKER.radius : SHOOTERS[kind].radius
 
 export const SHOT_KINDS = ["bullet", "arrow", "knife", "slug"] as const
 export type ShotKind = (typeof SHOT_KINDS)[number]
