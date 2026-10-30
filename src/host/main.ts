@@ -283,7 +283,7 @@ FixedLoop.start({
     const drilling = drill.active(view)
     thumb.open = !drilling || drill.gate(drillInput)
     const drawn = draw(ctx, canvas.width, canvas.height, view, drilling ? null : pixelStick, camera, presentation, lit)
-    drill.draw(ctx, canvas.width, view, drillInput)
+    drill.draw(ctx, canvas.width, canvas.height, view, drillInput)
     // Done, the drill clears First Step (its goal is the lesson).
     if (drill.takeFinished() && view.room.goal.kind === "lesson") fight.send({ kind: "lessonDone" })
     // The Blade's step-by-step lesson, over everything.

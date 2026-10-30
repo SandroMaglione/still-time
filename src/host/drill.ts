@@ -9,7 +9,7 @@
  */
 import type { FightView } from "../sim/view.ts"
 import type { Stick } from "./draw.ts"
-import { hand, hintText, thumbPad } from "./draw.ts"
+import { hand, thumbPad } from "./draw.ts"
 import { pixelArc, pixelLine } from "./pixels.ts"
 
 export interface DrillInput {
@@ -23,6 +23,8 @@ export interface DrillInput {
 
 type Phase = "press" | "slow" | "fast" | "release" | "done"
 
+/** Sizes in canvas px: the press circle, the hold circles, and the gap from the near circle to the far one. */
+const PRESS_R = 16, TARGET_R = 14, NEAR_TO_FAR = 44
 const SLOW_HOLD = 1.4, FAST_HOLD = 1, KEY_HOLD = 1.5
 /** Real s "got it" shows before the room counts as cleared. */
 const CLEAR_AFTER = 1.2
@@ -49,17 +51,19 @@ export class Drill {
 
   /** On a press: only the circle takes it (the rest of the screen is off until the drill is done). */
   acceptsPress(x: number, y: number): boolean {
-    return this.phase === "press" && Math.hypot(x - this.spot.x, y - this.spot.y) <= Math.max(14, this.reach * 0.35)
+    return this.phase === "press" && Math.hypot(x - this.spot.x, y - this.spot.y) <= PRESS_R + 6
   }
 
   /** The circles, from where you pressed: near (a walk) and far (a run), straight up the screen. */
   private targets(): { readonly near: { x: number; y: number }; readonly far: { x: number; y: number } } {
     const o = this.from ?? this.spot
-    return { near: { x: o.x, y: o.y - Math.round(this.reach * 0.42) }, far: { x: o.x, y: o.y - Math.round(this.reach * 0.98) } }
+    // The far circle sits past the stick's full reach (the stick's base follows the finger there, at full push), so the two
+    // circles are big and well apart.
+    return { near: { x: o.x, y: o.y - Math.round(this.reach * 0.45) }, far: { x: o.x, y: o.y - Math.round(this.reach * 0.45) - NEAR_TO_FAR } }
   }
 
   private inside(stick: Stick | null, at: { x: number; y: number }): boolean {
-    return stick !== null && Math.hypot(stick.x - at.x, stick.y - at.y) <= Math.max(6, this.reach * 0.2)
+    return stick !== null && Math.hypot(stick.x - at.x, stick.y - at.y) <= TARGET_R + 4
   }
 
   /** Whether the thumb may move you now: only while doing exactly the step. */
@@ -121,29 +125,30 @@ export class Drill {
     return true
   }
 
-  draw(ctx: CanvasRenderingContext2D, cw: number, view: FightView, input: DrillInput): void {
+  draw(ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, input: DrillInput): void {
     if (view.room.index !== 0 || view.flow !== "playing") return
     const x = Math.round(cw / 2)
     const t = this.targets()
-    const labelY = t.far.y - 34
+    // The caption sits high on the screen, far from the thumb, so the finger never covers it.
+    const labelY = Math.round(ch * 0.2)
     if (this.phase === "done") {
-      if (this.now - this.doneAt < CLEAR_AFTER + 0.5) caption(ctx, x, labelY, "GOT IT!", "THAT'S HOW YOU MOVE", GREEN)
+      if (this.now - this.doneAt < CLEAR_AFTER + 0.5) caption(ctx, x, labelY, "GOT IT!", "NOW YOU CAN MOVE", GREEN)
       return
     }
     if (input.keys) {
-      caption(ctx, x, labelY, this.phase === "press" ? "HOLD THE UP ARROW" : "LET GO", this.phase === "press" ? "ONLY THE UP ARROW" : "AND YOU STOP", WHITE)
-      if (this.phase === "press") ring(ctx, { x, y: labelY + 34 }, 10, this.held / KEY_HOLD)
+      caption(ctx, x, labelY, this.phase === "press" ? "HOLD UP ARROW" : "LET GO", this.phase === "press" ? "ONLY THE UP ONE" : "YOU STOP", WHITE)
+      if (this.phase === "press") ring(ctx, { x, y: labelY + 60 }, TARGET_R, this.held / KEY_HOLD)
       return
     }
     const stick = input.stick
     const finger = stick === null ? null : { x: stick.x, y: stick.y }
     const o = this.from ?? this.spot
     if (this.phase === "press") {
-      caption(ctx, x, labelY, "PUT YOUR FINGER HERE", "AND KEEP IT DOWN", WHITE)
+      caption(ctx, x, labelY, "TOUCH THE CIRCLE", "KEEP IT DOWN", WHITE)
       // A pulsing circle, and a hand coming down onto it.
       const k = (this.now % 1.2) / 1.2
-      pixelArc(ctx, this.spot, 10 + k * 8, 10 + k * 8, 0, Math.PI * 2, ICE, 1)
-      target(ctx, this.spot, 10, 0)
+      pixelArc(ctx, this.spot, PRESS_R + k * 10, PRESS_R + k * 10, 0, Math.PI * 2, ICE, 1)
+      target(ctx, this.spot, PRESS_R, 0)
       const down = k > 0.45 && k < 0.9
       hand(ctx, this.spot.x, this.spot.y + 2 - (down ? 0 : 8), down)
       return
@@ -153,18 +158,18 @@ export class Drill {
     pixelLine(ctx, o, t.far, ICE, 1, 3)
     const onNear = this.inside(stick, t.near), onFar = this.inside(stick, t.far)
     const nearDone = this.phase !== "slow"
-    target(ctx, t.near, 9, nearDone ? 1 : this.phase === "slow" ? this.held / SLOW_HOLD : 0, nearDone ? GREEN : onNear ? GOLD : ICE)
-    target(ctx, t.far, 9, this.phase === "fast" ? this.held / FAST_HOLD : this.phase === "release" ? 1 : 0, this.phase === "release" ? GREEN : onFar ? GOLD : this.phase === "fast" ? ICE : "#465477")
+    target(ctx, t.near, TARGET_R, nearDone ? 1 : this.phase === "slow" ? this.held / SLOW_HOLD : 0, nearDone ? GREEN : onNear ? GOLD : ICE)
+    target(ctx, t.far, TARGET_R, this.phase === "fast" ? this.held / FAST_HOLD : this.phase === "release" ? 1 : 0, this.phase === "release" ? GREEN : onFar ? GOLD : this.phase === "fast" ? ICE : "#465477")
     if (this.phase === "slow") {
-      caption(ctx, x, labelY, onNear ? "HOLD IT THERE" : "SLIDE UP TO THE CIRCLE", onNear ? "YOU WALK" : "DON'T LIFT YOUR FINGER", onNear ? GOLD : WHITE)
+      caption(ctx, x, labelY, onNear ? "HOLD IT THERE" : "SLIDE UP", onNear ? "YOU WALK" : "INTO THE CIRCLE", onNear ? GOLD : WHITE)
       if (!onNear) ghostSlide(ctx, o, t.near, this.now)
     } else if (this.phase === "fast") {
-      caption(ctx, x, labelY, onFar ? "HOLD IT THERE" : "NOW SLIDE FURTHER UP", onFar ? "FURTHER = FASTER: YOU RUN" : "TO THE TOP CIRCLE", onFar ? GOLD : WHITE)
+      caption(ctx, x, labelY, onFar ? "HOLD IT THERE" : "SLIDE FURTHER", onFar ? "FASTER: YOU RUN" : "TO THE TOP ONE", onFar ? GOLD : WHITE)
       if (!onFar) ghostSlide(ctx, t.near, t.far, this.now)
     } else {
-      caption(ctx, x, labelY, "NOW LET GO", "AND YOU STOP", WHITE)
+      caption(ctx, x, labelY, "NOW LET GO", "YOU STOP", WHITE)
       const k = (this.now % 1) / 1
-      hand(ctx, t.far.x + 14, t.far.y + 2 - Math.round(k * 10), false)
+      hand(ctx, t.far.x + TARGET_R + 6, t.far.y + 2 - Math.round(k * 10), false)
     }
     // Your finger: the knob, on its stick from where you pressed (no outer ring: the circles are the stick here).
     if (finger !== null) thumbPad(ctx, o, finger, 3)
@@ -197,16 +202,31 @@ const ghostSlide = (ctx: CanvasRenderingContext2D, a: { readonly x: number; read
   ctx.restore()
 }
 
-/** What to do, and what it does, on a plate. */
-const caption = (ctx: CanvasRenderingContext2D, x: number, y: number, title: string, sub: string, colour: string): void => {
+/** Text at twice the hint size (16 px), outlined; halved when it would not fit the screen. */
+const bigText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, colour: string, maxWidth: number): number => {
   ctx.save()
-  ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
-  const w = Math.max(110, Math.ceil(ctx.measureText(title).width), Math.ceil(ctx.measureText(sub).width)) + 20
-  const left = Math.round(x - w / 2), top = y - 8, h = 30
+  ctx.textAlign = "center"; ctx.textBaseline = "top"
+  ctx.font = "700 16px Silkscreen, ui-monospace, monospace"
+  if (ctx.measureText(text).width > maxWidth) ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
+  const w = ctx.measureText(text).width
+  ctx.fillStyle = INK
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [-1, 1], [1, -1], [0, 2]] as const) ctx.fillText(text, Math.round(x) + dx, Math.round(y) + dy)
+  ctx.fillStyle = colour; ctx.fillText(text, Math.round(x), Math.round(y))
+  ctx.restore()
+  return w
+}
+
+/** What to do, and what it does, big, on a plate high on the screen. */
+const caption = (ctx: CanvasRenderingContext2D, x: number, y: number, title: string, sub: string, colour: string): void => {
+  const maxWidth = x * 2 - 24
+  ctx.save()
+  ctx.font = "700 16px Silkscreen, ui-monospace, monospace"
+  const w = Math.min(maxWidth, Math.max(120, Math.ceil(ctx.measureText(title).width), Math.ceil(ctx.measureText(sub).width))) + 20
+  const left = Math.round(x - w / 2), top = y - 10, h = 52
   ctx.fillStyle = INK; ctx.fillRect(left - 1, top - 1, w + 2, h + 2)
-  ctx.fillStyle = "rgba(41, 51, 75, 0.92)"; ctx.fillRect(left, top, w, h)
+  ctx.fillStyle = "rgba(41, 51, 75, 0.94)"; ctx.fillRect(left, top, w, h)
   ctx.fillStyle = "#465477"; ctx.fillRect(left, top, w, 1)
   ctx.restore()
-  hintText(ctx, title, x, y, colour)
-  hintText(ctx, sub, x, y + 12, ICE)
+  bigText(ctx, title, x, y, colour, maxWidth)
+  bigText(ctx, sub, x, y + 22, ICE, maxWidth)
 }
