@@ -1,17 +1,20 @@
 // Sprite text is canonical. Drafts, intermediate fixes and review exports stay in ignored output/.
-import { readdirSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
+import { existsSync, readdirSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import './batch2-art.mjs'
-import './art-hero.mjs'
+// art-hero.mjs drew the earlier hat hero; the approved player is hand-kept in source/player-body.sprite.txt.
 
 const out = 'output/art'
 for (const folder of ['previews', 'reports']) mkdirSync(`${out}/${folder}`, { recursive: true })
 mkdirSync('public/art', { recursive: true })
 for (const file of readdirSync('assets/art/source').filter(name => name.endsWith('.sprite.txt'))) {
   const name = file.replace('.sprite.txt', '')
+  // A sprite with its own palette (the player) renders and lints against it.
+  const config = `assets/art/${name}.pixel.config.json`
+  const own = existsSync(config) ? ['--config', config] : []
   for (const [label, args] of [
-    [name, ['render', `assets/art/source/${file}`, '--out', `public/art/${name}`, '--scale', '8']],
-    [`${name}-lint`, ['lint', `public/art/${name}.png`]]
+    [name, ['render', `assets/art/source/${file}`, '--out', `public/art/${name}`, '--scale', '8', ...own]],
+    [`${name}-lint`, ['lint', `public/art/${name}.png`, ...own]]
   ]) {
     const result = spawnSync('pnpm', ['exec', 'ritmo-tools', 'pixel', ...args], { encoding: 'utf8' })
     writeFileSync(`${out}/reports/${label}.json`, result.stdout)

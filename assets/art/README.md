@@ -13,11 +13,16 @@ the three-frame `batch2` atlas. Runtime weapon/body layering remains in
 `src/host/combat-art.ts`; each role has its own body. Every living body gets
 a one-source-pixel light rim inside the renderer, outside its dark outline.
 
-`scripts/art-hero.mjs` authors three original 24×24 player options: split scarf,
-swept hat and lantern visor. The selected swept ivory hat and teal scarf give
-the player a wide asymmetric silhouette. Rebuild updates `player-body.png`,
-`player.png` and the player frame in `characters.png` together. `hero-options.png`
-is the native three-option export; labelled 1×/4× reviews stay in `output/`.
+The live `player-body.png` is the approved 24×24 dark-teal-haired player with
+an ivory coat and watch clasp. Its canonical source is
+`source/player-body.sprite.txt`; `player-body.pixel.config.json` preserves the
+approved study's 16-colour palette. The runtime anchor remains `[12,23]`.
+Only this body is replaced; the legacy equipped player and packed atlas stay
+as they were.
+
+`pnpm art` renders and lints every source sprite; a sprite with its own
+`assets/art/<name>.pixel.config.json` (the player) is rendered against that
+palette. `scripts/art-hero.mjs` is no longer run: it drew the earlier hat hero.
 
 ## Rebuild
 
