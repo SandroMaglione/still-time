@@ -80,8 +80,8 @@ export const keyColour = (key: number): string => KEY_COLOURS[key % KEY_COLOURS.
 
 const PLATE = "#64b6b3"
 
-/** What a door looks like by its lock: steel for a chamber, gold for a captain, the key's colour for a key, teal for plates. */
-const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : lock.kind === "captain" ? "#ffd25a" : lock.kind === "plates" ? PLATE : keyColour(lock.key))
+/** What a door looks like by its lock: steel for a chamber, gold for a captain, the key's colour for a key, teal for plates, amber for time. */
+const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : lock.kind === "captain" ? "#ffd25a" : lock.kind === "plates" ? PLATE : lock.kind === "time" ? "#edc66c" : keyColour(lock.key))
 
 
 const EXIT = "#7dff9a"
@@ -240,9 +240,6 @@ const bitmap = (ctx: CanvasRenderingContext2D, rows: ReadonlyArray<string>, x: n
 }
 
 /** The exit as a beacon: a soft column of green light over the pad and an arrow bouncing above it. */
-/** Whether the room's exit takes you yet (an exit with `after` opens once the world clock has run that long). */
-export const exitOpen = (view: FightView): boolean => view.room.goal.kind !== "exit" || view.room.goal.after === undefined || view.world >= view.room.goal.after
-
 const exitBeacon = (ctx: CanvasRenderingContext2D, g: { readonly x: number; readonly y: number; readonly w: number; readonly h: number }, P: Project, erx: number, now: number): void => {
   const foot = P(g.x + g.w / 2, g.y + g.h / 2), top = P(g.x + g.w / 2, g.y + g.h / 2, 2.6)
   const half = Math.max(6, Math.round(g.w * erx * 0.32))
@@ -455,18 +452,14 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // A carved threshold with a fixed-size pixel rune.
   const goal = view.room.goal
   if (goal.kind === "exit") {
-    // An exit that opens later (The Blade) is a dark, dead threshold until then: no rune, no light, no beacon.
-    const open = exitOpen(view)
     const a = P(goal.x, goal.y), b = P(goal.x + goal.w, goal.y + goal.h)
-    ctx.fillStyle = open ? "#263234" : "#1b2023"; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
-    pixelLine(ctx, a, { x: b.x, y: a.y }, open ? EXIT : "#4b5d50")
-    pixelLine(ctx, { x: a.x, y: b.y }, b, open ? EXIT : "#4b5d50")
+    ctx.fillStyle = "#263234"; ctx.fillRect(Math.round(a.x), Math.round(a.y), Math.round(b.x - a.x), Math.round(b.y - a.y))
+    pixelLine(ctx, a, { x: b.x, y: a.y }, EXIT)
+    pixelLine(ctx, { x: a.x, y: b.y }, b, EXIT)
     pixelLine(ctx, a, { x: a.x, y: b.y }, "#4b5d50")
     pixelLine(ctx, { x: b.x, y: a.y }, b, "#4b5d50")
-    if (open) {
-      sprite(ctx, "exit-rune", (a.x + b.x) / 2, (a.y + b.y) / 2 + 12)
-      emitLight(ctx, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, radius: 2.6, colour: [125, 255, 154], intensity: 0.7, halo: { lift: 4, radius: 1.2, strength: 0.25 } })
-    }
+    sprite(ctx, "exit-rune", (a.x + b.x) / 2, (a.y + b.y) / 2 + 12)
+    emitLight(ctx, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, radius: 2.6, colour: [125, 255, 154], intensity: 0.7, halo: { lift: 4, radius: 1.2, strength: 0.25 } })
   }
   // Open doors: a threshold in the lock's colour.
   for (const d of view.doors) {
@@ -762,7 +755,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const emblem = (x: number, y: number): void => {
       if (d.lock.kind === "key") keyGlyph(ctx, x - u * 0.14, y, u * 0.26, colour)
       else if (d.lock.kind === "captain") crownGlyph(ctx, x, y + u * 0.14)
-      else if (d.lock.kind === "plates") {
+      else if (d.lock.kind === "time") {
+        // A bar filling with the world clock: it opens when full.
+        const w = Math.round(u * 1.6), left = Math.round(x - w / 2), py = Math.round(y)
+        ctx.fillStyle = INK; ctx.fillRect(left - 1, py - 2, w + 2, 5)
+        ctx.fillStyle = "#29334b"; ctx.fillRect(left, py - 1, w, 3)
+        ctx.fillStyle = "#edc66c"; ctx.fillRect(left, py - 1, Math.round(w * Math.min(1, view.world / d.lock.seconds)), 3)
+      } else if (d.lock.kind === "plates") {
         // One square per plate, lit as each goes down.
         const n = d.lock.plates.length, gap = u * 0.24, left = n - d.waiting
         for (let i = 0; i < n; i++) {
@@ -856,7 +855,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Dust in the air drifts on the world's clock: it hangs when you stop and streams when you run.
   motes(ctx, view, P)
   // The exit is a beacon: a column of light and a bouncing arrow over the pad.
-  if (view.room.goal.kind === "exit" && exitOpen(view) && view.flow === "playing") exitBeacon(ctx, view.room.goal, P, erx, presentation?.now ?? view.world)
+  if (view.room.goal.kind === "exit" && view.flow === "playing") exitBeacon(ctx, view.room.goal, P, erx, presentation?.now ?? view.world)
 
   // Frozen time closes in: a cold vignette, as strong as the world is still.
   if (view.flow === "playing") {
@@ -948,7 +947,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
 
   // The exit, when it is off screen: a green arrow at the edge pointing to it.
-  if (view.room.goal.kind === "exit" && exitOpen(view) && view.flow === "playing") {
+  if (view.room.goal.kind === "exit" && view.flow === "playing") {
     const g = view.room.goal, sp = P(g.x + g.w / 2, g.y + g.h / 2)
     if (sp.x < 0 || sp.x > cw || sp.y < TOP || sp.y > ch - BOTTOM) {
       const mx = cw / 2, my = TOP + (ch - TOP - BOTTOM) / 2, dx = sp.x - mx, dy = sp.y - my

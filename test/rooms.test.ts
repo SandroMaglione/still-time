@@ -62,6 +62,7 @@ for (const room of ROOMS) {
       if (lock.kind === "clear") assert.ok(room.enemies.some((e) => (e.chamber ?? 0) === lock.chamber), `nobody in chamber ${lock.chamber}`)
       else if (lock.kind === "captain") assert.ok(room.enemies.some((e) => (e.chamber ?? 0) === lock.chamber && e.captain === true), `no captain in chamber ${lock.chamber}`)
       else if (lock.kind === "key") assert.equal(room.enemies.filter((e) => e.kind === "runner" && e.key === lock.key).length, 1, `one runner carries key ${lock.key}`)
+      else if (lock.kind === "time") assert.ok(lock.seconds > 0, "a time lock waits for some time")
       else {
         assert.ok(lock.plates.length > 0)
         for (const p of lock.plates) assert.ok(room.plates?.[p] !== undefined, `no plate ${p}`)

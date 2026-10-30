@@ -279,7 +279,7 @@ export const FightViewInspector = Game.Inspector(
     const standing = [...queries.shooters.each(), ...queries.melee.each(), ...queries.runners.each(), ...queries.stalkers.each()].map((m) => m.data.enemy.get())
     const doors = room.doors.map((d, i): DoorView => {
       const lock = d.lock
-      const waiting = lock.kind === "key" ? 0
+      const waiting = lock.kind === "key" || lock.kind === "time" ? 0
         : lock.kind === "plates" ? lock.plates.filter((p) => plates.down[p] !== true).length
         : standing.filter((e) => e.chamber === lock.chamber && (lock.kind === "clear" || e.captain)).length
       return { x: d.x, y: d.y, w: d.w, h: d.h, lock, open: open[i] === true, waiting }

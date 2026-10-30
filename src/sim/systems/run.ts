@@ -191,6 +191,7 @@ export const LocksSystem = Game.System(
         case "captain": return !enemies.some((e) => e.chamber === lock.chamber && e.captain)
         case "key": return keys.some((k) => k.key === lock.key && k.state === "held") && distanceTo(me.x, me.y, door) <= TUNING.player.radius + LOCKS.reach
         case "plates": return lock.plates.every((p) => down[p] === true)
+        case "time": return resources.run.get().world >= lock.seconds
       }
     }
     const next = room.doors.map((door, i) => open[i] === true || met(door.lock, door))
@@ -238,7 +239,7 @@ export const OutcomeSystem = Game.System(
     const done = goal.kind === "clear" ? queries.enemies.each().length === 0
       : goal.kind === "survive" ? world >= goal.seconds
       : goal.kind === "lesson" ? events.lesson.all().some((l) => l.room === run.room)
-      : me !== undefined && (goal.after === undefined || world >= goal.after) && me.x >= goal.x && me.x <= goal.x + goal.w && me.y >= goal.y && me.y <= goal.y + goal.h
+      : me !== undefined && me.x >= goal.x && me.x <= goal.x + goal.w && me.y >= goal.y && me.y <= goal.y + goal.h
     if (!done) {
       resources.run.set({ ...run, world })
       return

@@ -24,13 +24,16 @@ export interface Cover extends Pillar { readonly breaks?: Breaks }
 /**
  * What opens a door. Chambers and keys are small numbers, set per spawn;
  * plates are indices into the room's plates (each plate belongs to one
- * lock), pressed in any order, or in the listed order when `ordered`.
+ * lock), pressed in any order, or in the listed order when `ordered`; a time
+ * lock waits on the world clock.
  */
 export type Lock =
   | { readonly kind: "clear"; readonly chamber: number }
   | { readonly kind: "captain"; readonly chamber: number }
   | { readonly kind: "key"; readonly key: number }
   | { readonly kind: "plates"; readonly plates: ReadonlyArray<number>; readonly ordered: boolean }
+  /** Opens once the room's world clock has run `seconds`: time passes only while you move, so you open it by moving. */
+  | { readonly kind: "time"; readonly seconds: number }
 
 /** A conveyor belt: a strip of floor carrying you along (`dx`, `dy`, a unit direction) in real time. */
 export interface Belt extends Pillar { readonly dx: number; readonly dy: number }
@@ -53,10 +56,7 @@ export type Hazard =
 export interface Door extends Pillar { readonly lock: Lock }
 
 /** Down every enemy, reach the exit, or last `seconds` of world time (which only pass while you move). */
-export type Goal = { readonly kind: "clear" }
-  /** Reach the exit; with `after`, it opens only once the room's world clock has run that many seconds. */
-  | ({ readonly kind: "exit"; readonly after?: number } & Pillar)
-  | { readonly kind: "survive"; readonly seconds: number }
+export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar) | { readonly kind: "survive"; readonly seconds: number }
   /** Cleared by the page when its lesson is done (First Step: learning the stick is the room). */
   | { readonly kind: "lesson" }
 
@@ -113,6 +113,8 @@ const gate = (w: number, y: number, at: number, gap: number, lock: Lock, thick =
 
 const CLEAR = { kind: "clear" } as const
 
+const bladeDoor = gate(10, 4.8, 5, 3, { kind: "time", seconds: Math.PI * 2 })
+
 const gatehouse = gate(14, 12.6, 7, 3, { kind: "clear", chamber: 0 })
 const throne = gate(16, 3.6, 8, 3, { kind: "captain", chamber: 0 })
 const thief = gate(16, 3.6, 8, 3, { kind: "key", key: 0 })
@@ -149,12 +151,13 @@ export const ROOMS: ReadonlyArray<Room> = [
     // You start below the blade: move, stop, and see it stop with you before you reach it.
     start: { x: 5, y: 18 },
     // A 4.2 m gap the bar fills: wide enough to cross without precision, and the bar still has to be read.
-    pillars: [{ x: 0, y: 7.2, w: 2.9, h: 1.6 }, { x: 7.1, y: 7.2, w: 2.9, h: 1.6 }],
-    doors: [],
+    // In front of the exit, a door that opens after one full turn of the blade (2π world seconds at 1 rad/s): the
+    // blade turns only while you move, so you open it by moving about; then you get past the blade.
+    pillars: [{ x: 0, y: 7.2, w: 2.9, h: 1.6 }, { x: 7.1, y: 7.2, w: 2.9, h: 1.6 }, ...bladeDoor.walls],
+    doors: [bladeDoor.door],
     hazards: [{ kind: "blade", x: 5, y: 8, length: 2.1, speed: 1.0, phase: 1.2 }],
     enemies: [],
-    // The exit opens after one full turn of the blade (2π world seconds at 1 rad/s): you turn it by moving.
-    goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2, after: Math.PI * 2 },
+    goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2 },
     par: 12,
   },
   {

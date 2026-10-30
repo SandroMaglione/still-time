@@ -3,8 +3,8 @@
  * covers neither you nor what it is about, each step waiting until you have done it, and the thumb let through only
  * as far as the step asks.
  *
- * The Blade (the clock): free hands; turn the blade a full turn by moving about (the exit opens then: a ring round
- * the blade fills as it turns), then get past it. First Cut (the cut):
+ * The Blade (the clock): free hands; turn the blade a full turn by moving about (the door to the exit opens then: a
+ * ring round the blade fills as it turns), then get past it. First Cut (the cut):
  * that's an enemy, walk into it to cut; while a shot is in the air, the red line is the shot: step out of it.
  */
 import { ROOMS } from "../sim/rooms.ts"
@@ -48,12 +48,15 @@ const bladeOf = (room: number): { readonly x: number; readonly y: number; readon
   return null
 }
 
-/** Seconds of world time The Blade's exit waits for (one full turn of the blade), or 0. */
-const opensAfter = (view: FightView): number => (view.room.goal.kind === "exit" ? view.room.goal.after ?? 0 : 0)
+/** Seconds of world time the room's time door waits for, or 0. */
+const opensAfter = (view: FightView): number => {
+  for (const d of view.doors) if (d.lock.kind === "time") return d.lock.seconds
+  return 0
+}
 const pastBlade = (s: Sense): boolean => { const b = bladeOf(1); return b !== null && s.view.player !== null && s.view.player.y < b.y - b.length - 0.4 }
 
-// Free hands, two captions: first turn the blade a full turn by moving about (the exit stays shut until then, and a
-// ring round the blade fills as it turns), then get past it. Moving is the clock, before it is the danger.
+// Free hands, two captions: first turn the blade a full turn by moving about (the door to the exit stays shut until
+// then, and a ring round the blade fills as it turns), then get past it. Moving is the clock, before it is the danger.
 const BLADE: ReadonlyArray<Step> = [
   {
     title: (s) => (s.speed > 0.15 ? "KEEP MOVING" : "TURN THE BLADE"), sub: () => "MOVE: TIME RUNS",

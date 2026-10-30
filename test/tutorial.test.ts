@@ -70,6 +70,20 @@ test("The Blade: standing still holds the blade; after its full turn, timed, the
   assert.ok(crossings.length < tries, "and some timing does not: the blade is the lesson")
 })
 
+test("The Blade: the door to the exit opens only after the blade's full turn, on the world clock", () => {
+  const { fight, thumb } = fightIn("The Blade")
+  const door = (): boolean => fight.view().doors[0]?.open === true
+  assert.equal(fight.view().doors[0]?.lock.kind, "time")
+  // Standing still, two real seconds: the world barely runs and the door stays shut.
+  runUntil(fight, 120, () => false)
+  assert.equal(door(), false, "still, the door waits")
+  // Moving about (side to side, at full push) runs the world clock; the door opens once it has run a full turn.
+  let flip = 1
+  runUntil(fight, 900, () => door(), () => { flip = -flip; thumb.push = { x: flip, y: 0 } })
+  assert.equal(door(), true, "moving opens it")
+  assert.ok(fight.view().world >= Math.PI * 2 - 1e-9, "after one full turn of the blade")
+})
+
 test("First Cut: one gunner, the only thing to cut", () => {
   const { fight } = fightIn("First Cut")
   assert.equal(fight.view().room.index, 2)
