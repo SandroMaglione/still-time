@@ -3,9 +3,10 @@ import { test } from "node:test"
 import { Presentation } from "../src/host/fx.ts"
 import type { FightView } from "../src/sim/view.ts"
 import { createFight, IDLE_THUMB } from "../src/sim/simulation.ts"
-import { fightIn, placePlayer, pushToward } from "./helpers.ts"
+import { fightIn, placePlayer, pushToward, roomIndex } from "./helpers.ts"
 
-const initial = (): FightView => createFight(0, { snapshot: () => IDLE_THUMB }).view()
+// The Duel: a room that starts with an enemy to kill.
+const initial = (): FightView => createFight(roomIndex("Duel"), { snapshot: () => IDLE_THUMB }).view()
 const next = (view: FightView, changes: Partial<FightView> = {}): FightView => ({ ...view, step: view.step + 1, world: view.world + 1 / 60, ...changes })
 
 test("presentation keeps both same-kind deaths and does not replay them on a render", () => {

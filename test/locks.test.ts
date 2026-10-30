@@ -12,7 +12,7 @@ import type { Fight } from "../src/sim/simulation.ts"
 import { starsFor } from "../src/sim/systems/run.ts"
 import { TUNING } from "../src/sim/tuning.ts"
 import type { EnemyView } from "../src/sim/view.ts"
-import { fightIn, placePlayer, pushToward, runUntil, type ScriptedThumb } from "./helpers.ts"
+import { fightIn, placePlayer, pushToward, roomIndex, runUntil, type ScriptedThumb } from "./helpers.ts"
 
 /** Puts you right next to the enemy `pick` finds, on an open side, and lets your cut take it. */
 const cutDown = (fight: Fight, pick: (e: EnemyView) => boolean): void => {
@@ -75,10 +75,11 @@ test("a clean dodge-and-cut beats the Duel's par for three stars; a hit first co
   const clean = fight.view().result
   assert.ok(clean !== null)
   assert.equal(clean.stars, 3, `world ${clean.world} s against par ${fight.view().room.par} s`)
-  assert.deepEqual(fight.view().best[0], clean)
+  const duel = roomIndex("Duel")
+  assert.deepEqual(fight.view().best[duel], clean)
 
   // Again from the start: rush the brute's front, get cut, retry, clear.
-  fight.send({ kind: "goToRoom", room: 0 })
+  fight.send({ kind: "restart" })
   fight.tick()
   runUntil(fight, 900, () => fight.view().flow !== "playing", () => {
     const b = fight.view().enemies[0]
@@ -92,7 +93,7 @@ test("a clean dodge-and-cut beats the Duel's par for three stars; a hit first co
   assert.equal(fight.view().hits, 1, "a retry keeps the room's hit")
   duelClear(fight, thumb)
   assert.equal(fight.view().result?.stars, 2)
-  assert.equal(fight.view().best[0]?.stars, 3, "the best of the run stays")
+  assert.equal(fight.view().best[duel]?.stars, 3, "the best of the run stays")
 })
 
 test("a door holds until its chamber is clear, then opens", () => {

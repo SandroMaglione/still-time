@@ -107,6 +107,34 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 
 export const ROOMS: ReadonlyArray<Room> = [
   {
+    // The first lesson, with nothing to fight: a blade bar as wide as the only gap turns only while you move.
+    // Stop, and it stops with you: read where it is, then cross.
+    name: "First Step",
+    w: 10,
+    h: 16,
+    start: { x: 5, y: 14 },
+    pillars: [{ x: 0, y: 7.2, w: 3.5, h: 1.6 }, { x: 6.5, y: 7.2, w: 3.5, h: 1.6 }],
+    doors: [],
+    hazards: [{ kind: "blade", x: 5, y: 8, length: 1.5, speed: 1.0, phase: 1.2 }],
+    enemies: [],
+    goal: { kind: "exit", x: 3.5, y: 0.7, w: 3, h: 2.2 },
+    par: 4,
+    tip: "the blade turns only while you move: stop, look, then cross"
+  },
+  {
+    // The second lesson: one gunner. Freeze to read its shot, step out of the line, close in and cut.
+    name: "First Cut",
+    w: 12,
+    h: 18,
+    start: { x: 6, y: 16 },
+    pillars: [crate(3.5, 10), crate(8.5, 10)],
+    doors: [],
+    enemies: [{ kind: "gunner", x: 6, y: 3.5, delay: 0.8 }],
+    goal: CLEAR,
+    par: 4,
+    tip: "freeze to read the shot, step aside, then cut"
+  },
+  {
     name: "Duel",
     w: 12,
     h: 18,
