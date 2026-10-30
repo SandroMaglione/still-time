@@ -179,6 +179,60 @@ export const thumbPad = (ctx: CanvasRenderingContext2D, base: { readonly x: numb
   disc(ctx, knob.x, knob.y, 5, "#e8f6ff")
   disc(ctx, knob.x - 1, knob.y - 1, 2, "#ffffff")
 }
+/** How far (0 to 1) a time door's portcullis has risen: over the last DOOR_RISE world seconds before it opens. */
+const DOOR_RISE = 3
+const riseOf = (seconds: number, world: number): number => Math.max(0, Math.min(1, (world - (seconds - Math.min(DOOR_RISE, seconds))) / Math.min(DOOR_RISE, seconds)))
+
+/** A time door: a beam on top and iron bars that rise into it by `lift` (0 shut, 1 all the way up). */
+const portcullis = (ctx: CanvasRenderingContext2D, b: Pillar, P: Project, height: number, lift: number): void => {
+  const far = P(b.x, b.y, height), near = P(b.x, b.y + b.h, height), ground = P(b.x, b.y + b.h), right = P(b.x + b.w, b.y + b.h)
+  const x = Math.round(far.x), y = Math.round(far.y), width = Math.max(1, Math.round(right.x) - x), depth = Math.max(1, Math.round(near.y) - y)
+  const face = Math.max(1, Math.round(ground.y) - Math.round(near.y))
+  const bottom = Math.round(ground.y - face * lift)
+  // The bars, from the beam down to where they have risen to; a crossbar near their foot.
+  for (let bx = x + 2; bx < x + width - 1; bx += 4) {
+    if (bottom > y + depth) {
+      ctx.fillStyle = INK; ctx.fillRect(bx - 1, y + depth, 3, bottom - (y + depth))
+      ctx.fillStyle = "#899692"; ctx.fillRect(bx, y + depth, 1, bottom - (y + depth))
+    }
+  }
+  if (bottom - 3 > y + depth) {
+    ctx.fillStyle = INK; ctx.fillRect(x, bottom - 4, width, 3)
+    ctx.fillStyle = "#647373"; ctx.fillRect(x + 1, bottom - 3, width - 2, 1)
+  }
+  // The beam it rises into.
+  ctx.fillStyle = INK; ctx.fillRect(x, y, width, depth + 2)
+  ctx.fillStyle = "#465477"; ctx.fillRect(x + 1, y + 1, width - 2, depth - 1)
+  ctx.fillStyle = "#edc66c"; ctx.fillRect(x + 1, y + depth, width - 2, 1)
+}
+
+/** A lantern hung on a wall, swinging on the world clock (still when you are). */
+const pendulum = (ctx: CanvasRenderingContext2D, P: Project, x: number, y: number, world: number): void => {
+  const pivot = P(x, y, 1.6), a = 0.7 * Math.sin(world * 2.6 + y), arm = 16
+  const bob = { x: pivot.x + Math.sin(a) * arm, y: pivot.y + Math.cos(a) * arm }
+  ctx.fillStyle = INK; ctx.fillRect(Math.round(pivot.x) - 2, Math.round(pivot.y) - 2, 5, 4)
+  pixelLine(ctx, pivot, bob, INK, 3)
+  pixelLine(ctx, pivot, bob, "#899692", 1)
+  ctx.fillStyle = INK; ctx.fillRect(Math.round(bob.x) - 3, Math.round(bob.y) - 1, 7, 7)
+  ctx.fillStyle = "#edc66c"; ctx.fillRect(Math.round(bob.x) - 2, Math.round(bob.y), 5, 5)
+  ctx.fillStyle = "#f4efda"; ctx.fillRect(Math.round(bob.x) - 1, Math.round(bob.y) + 1, 2, 2)
+  emitLight(ctx, { x: bob.x, y: bob.y + 2, radius: 1.2, colour: [255, 200, 120], intensity: 0.55, shadows: false })
+}
+
+/** A wheel on a wall, turning on the world clock (still when you are). */
+const wheel = (ctx: CanvasRenderingContext2D, P: Project, x: number, y: number, world: number): void => {
+  const c = P(x, y, 0.9), r = 8, turn = world * 2
+  pixelArc(ctx, c, r, r, 0, Math.PI * 2, INK, 3)
+  pixelArc(ctx, c, r, r, 0, Math.PI * 2, "#899692", 1)
+  for (let i = 0; i < 6; i++) {
+    const a = turn + (i * Math.PI) / 3
+    const tip = { x: c.x + Math.cos(a) * (r - 1), y: c.y + Math.sin(a) * (r - 1) }
+    pixelLine(ctx, c, tip, i === 0 ? "#edc66c" : "#647373", 1)
+  }
+  ctx.fillStyle = INK; ctx.fillRect(Math.round(c.x) - 2, Math.round(c.y) - 2, 5, 5)
+  ctx.fillStyle = "#edc66c"; ctx.fillRect(Math.round(c.x) - 1, Math.round(c.y) - 1, 3, 3)
+}
+
 /** A time door's timer: a pause or play sign and the seconds left, big, over a bar filling to the open. */
 const doorTimer = (ctx: CanvasRenderingContext2D, x: number, bottom: number, left: number, done: number, running: boolean, now: number, width: number): void => {
   const bl = Math.round(x - width / 2), by = Math.round(bottom) - 4
@@ -368,29 +422,35 @@ export const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number,
 }
 
 /**
- * First Cut's marks (its words are the guide's caption, see `guide.ts`): gold brackets round the gunner, breathing by a
- * pixel, teal chevrons toward it until it falls (they give way while a shot is in the air), and a gold ring on the
- * floor round it at touching range: inside it, it's cut.
+ * First Cut's marks (its words are the guide's caption, see `guide.ts`): on each gunner you can reach (not one still
+ * shut away behind a door), gold brackets breathing by a pixel and a gold ring on the floor at touching range (inside
+ * it, it's cut); teal chevrons toward the nearest (they give way while a shot is in the air).
  */
 const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number): void => {
   const p = view.player
-  const target = view.enemies[0]
-  if (p === null || target === undefined) return
-  const them = P(target.x, target.y)
+  if (p === null || view.enemies.length === 0) return
   const pulse = Math.floor(now * 4) % 2
-  const half = 12 + pulse, top = them.y - 27 - pulse, bottom = them.y + 3 + pulse
-  for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
-    const cx = Math.round(them.x + sx * half), cy = Math.round(sy)
-    const v = sy === top ? 4 : -4
-    pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
-    pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, "#edc66c"); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, "#edc66c")
-  }
-  if (view.shots.length === 0) chevronsToward(ctx, p, target, P, now, "#64b6b3")
-  // Where the cut lands: a gold ring on the floor at touching range, breathing; step inside it and the enemy is cut.
-  const r = TUNING.attackRange, rx = Math.round(P(target.x + r, target.y).x - them.x), ry = Math.round(rx * SQUASH)
   const breathe = Math.round(Math.sin(now * 5) * 2)
-  pixelArc(ctx, them, rx + breathe, ry + breathe, 0, Math.PI * 2, INK, 3, true)
-  pixelArc(ctx, them, rx + breathe, ry + breathe, 0, Math.PI * 2, "#edc66c", 1, true)
+  for (const target of view.enemies) {
+    const them = P(target.x, target.y)
+    // Shut away behind a door, it is not yours yet: no marks.
+    if (target.sealed) continue
+    const half = 12 + pulse, top = them.y - 27 - pulse, bottom = them.y + 3 + pulse
+    for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
+      const cx = Math.round(them.x + sx * half), cy = Math.round(sy)
+      const v = sy === top ? 4 : -4
+      pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
+      pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, "#edc66c"); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, "#edc66c")
+    }
+    // Where the cut lands: a gold ring on the floor at touching range, breathing; step inside it and the enemy is cut.
+    const r = TUNING.attackRange, rx = Math.round(P(target.x + r, target.y).x - them.x), ry = Math.round(rx * SQUASH)
+    pixelArc(ctx, them, rx + breathe, ry + breathe, 0, Math.PI * 2, INK, 3, true)
+    pixelArc(ctx, them, rx + breathe, ry + breathe, 0, Math.PI * 2, "#edc66c", 1, true)
+  }
+  // Chevrons to the nearest one you can reach.
+  const open = view.enemies.filter((e) => !e.sealed)
+  const near = open.reduce<(typeof open)[number] | undefined>((best, e) => (best === undefined || Math.hypot(e.x - p.x, e.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y) ? e : best), undefined)
+  if (near !== undefined && view.shots.length === 0) chevronsToward(ctx, p, near, P, now, "#64b6b3")
 }
 
 /** The speed effect's colours: afterimages, the aura's outline and its hot core. */
@@ -606,6 +666,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Everything standing, painted back to front; crates and walls by the box rule.
   type Thing = { readonly x: number; readonly y: number; readonly paint: () => void }
   const actors: Array<Thing> = []
+  // The room's clockwork decoration (Time Door): lanterns swinging and wheels turning on the world clock.
+  for (const d of ROOMS[view.room.index]?.decor ?? []) {
+    actors.push({ x: d.x, y: d.y, paint: () => (d.kind === "pendulum" ? pendulum(ctx, P, d.x, d.y, view.world) : wheel(ctx, P, d.x, d.y, view.world)) })
+  }
   for (const e of view.enemies) {
     // A soft light at each enemy: in a dark room a threat is never lost between the torches.
     const lamp = P(e.x, e.y)
@@ -773,7 +837,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  type Box = Pillar & { readonly material: Material; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null; readonly damage: number; readonly cracked: boolean }
+  type Box = Pillar & { readonly material: Material; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null; readonly damage: number; readonly cracked: boolean; readonly lift?: number | undefined }
   const doorBoxes = view.doors.flatMap((d): Array<Box> => {
     if (d.open) return []
     const colour = lockColour(d.lock)
@@ -800,7 +864,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         }
       }
     }
-    return [{ x: d.x, y: d.y, w: d.w, h: d.h, material: "gate", edge: colour, emblem, damage: 0, cracked: false }]
+    // A time door's portcullis rises over its last few seconds (on the world clock), and is gone when it opens.
+    const lift = d.lock.kind === "time" ? riseOf(d.lock.seconds, view.world) : undefined
+    return [{ x: d.x, y: d.y, w: d.w, h: d.h, material: "gate", edge: colour, emblem, damage: 0, cracked: false, lift }]
   })
   const boxes: Array<Box> = [
     // Wood is what breaks under fire; everything else is stone. A cracked wall shows its seams.
@@ -823,7 +889,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   paintAll(first)
   boxes.forEach((b, i) => {
-    raisedBlock(ctx, b, P, PILLAR_HEIGHT, b.material, b.edge, view.world)
+    if (b.lift !== undefined) portcullis(ctx, b, P, PILLAR_HEIGHT, b.lift)
+    else raisedBlock(ctx, b, P, PILLAR_HEIGHT, b.material, b.edge, view.world)
     if (b.cracked || b.damage > 0) cracks(ctx, b, P, b.cracked ? 1 : b.damage, b.cracked)
     if (b.emblem !== null) {
       const c = P(b.x + b.w / 2, b.y + b.h / 2, PILLAR_HEIGHT)
@@ -903,9 +970,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   // A time door's timer, over the lit scene: the seconds left, counting down only while you move (gold, with a play
   // sign) and waiting while you are still (ice, with a pause sign); under them a bar filling to the open.
-  for (const d of view.doors) {
-    if (d.open || d.lock.kind !== "time" || view.flow !== "playing") continue
-    const top = P(d.x + d.w / 2, d.y + d.h, PILLAR_HEIGHT)
+  // (Only the next shut one shows its timer: one count at a time.)
+  for (const d of view.doors.filter((door) => !door.open && door.lock.kind === "time").slice(0, 1)) {
+    if (d.lock.kind !== "time" || view.flow !== "playing") continue
+    const top = P(d.x + d.w / 2, d.y + d.h, PILLAR_HEIGHT * (1 - riseOf(d.lock.seconds, view.world)))
+    // (Up under the top bar, it would sit over the HUD: it shows once the door is on screen.)
+    if (top.y < TOP + 30) continue
     doorTimer(ctx, top.x, top.y - 4, Math.max(0, d.lock.seconds - view.world), view.world / d.lock.seconds, speedOf(view) > 0.15, presentation?.now ?? 0, Math.round(u * 1.6))
   }
   // The cut's room marks what to run into.

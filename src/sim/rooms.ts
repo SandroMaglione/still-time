@@ -91,6 +91,8 @@ export interface Room {
   readonly par: number
   /** One line shown under the room, for rooms that teach something. */
   readonly tip?: string
+  /** Decoration that runs on the world clock (the page draws it; the game ignores it): it moves only while you do. */
+  readonly decor?: ReadonlyArray<{ readonly kind: "pendulum" | "wheel"; readonly x: number; readonly y: number }>
 }
 
 const crate = (x: number, y: number, size = 1.2): Pillar => ({ x: x - size / 2, y: y - size / 2, w: size, h: size })
@@ -115,7 +117,10 @@ const gate = (w: number, y: number, at: number, gap: number, lock: Lock, thick =
 
 const CLEAR = { kind: "clear" } as const
 
-const timeDoor = gate(10, 4.8, 5, 3, { kind: "time", seconds: 5 })
+// Time Door's three doors across its corridor, each opening a few world seconds after the last.
+const timeDoors = [gate(8, 24, 4, 3, { kind: "time", seconds: 7 }), gate(8, 16, 4, 3, { kind: "time", seconds: 11 }), gate(8, 8, 4, 3, { kind: "time", seconds: 15 })]
+// First Cut's door between its two chambers: it opens when the first chamber's gunner is down.
+const cutDoor = gate(12, 12, 6, 3, { kind: "clear", chamber: 0 })
 
 const gatehouse = gate(14, 12.6, 7, 3, { kind: "clear", chamber: 0 })
 const throne = gate(16, 3.6, 8, 3, { kind: "captain", chamber: 0 })
@@ -145,30 +150,41 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 30
   },
   {
-    // The second lesson, the clock, with nothing else in the room: a door before the exit whose timer runs only
-    // while you move. Stand still and it waits; walk about and it counts down and opens.
+    // The second lesson, the clock. A corridor: first a stretch of lanterns swinging and wheels turning on the world
+    // clock, still until you move, all moving together as you walk; then three doors whose portcullises rise as time
+    // runs (only while you move), one after another, to the exit.
     name: "Time Door",
-    w: 10,
-    h: 14,
-    start: { x: 5, y: 12 },
-    pillars: [...timeDoor.walls],
-    doors: [timeDoor.door],
+    w: 8,
+    h: 42,
+    start: { x: 4, y: 39 },
+    pillars: timeDoors.flatMap((g) => g.walls),
+    doors: timeDoors.map((g) => g.door),
     hazards: [],
     enemies: [],
-    goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2 },
-    par: 8
+    goal: { kind: "exit", x: 2.5, y: 0.7, w: 3, h: 2.2 },
+    par: 20,
+    decor: [
+      { kind: "pendulum", x: 0.4, y: 36 }, { kind: "wheel", x: 7.6, y: 35 },
+      { kind: "wheel", x: 0.4, y: 32 }, { kind: "pendulum", x: 7.6, y: 31 },
+      { kind: "pendulum", x: 0.4, y: 28 }, { kind: "wheel", x: 7.6, y: 27 }
+    ]
   },
   {
-    // The third lesson: one gunner that never fires, behind two crates. Nothing to fear: walk up to it and it's cut.
+    // The third lesson: the cut, with gunners that never fire. One in the first chamber: walk up to it and it's cut;
+    // the door behind it opens on the second chamber, with two more to cut.
     name: "First Cut",
     w: 12,
-    h: 18,
-    start: { x: 6, y: 16 },
-    pillars: [crate(3.5, 10), crate(8.5, 10)],
-    doors: [],
-    enemies: [{ kind: "gunner", x: 6, y: 3.5, delay: 0.8, quiet: true }],
+    h: 28,
+    start: { x: 6, y: 26 },
+    pillars: [...cutDoor.walls],
+    doors: [cutDoor.door],
+    enemies: [
+      { kind: "gunner", x: 6, y: 17, delay: 0.8, quiet: true },
+      { kind: "gunner", x: 3.5, y: 5, delay: 0.8, quiet: true, chamber: 1 },
+      { kind: "gunner", x: 8.5, y: 5, delay: 0.8, quiet: true, chamber: 1 }
+    ],
     goal: CLEAR,
-    par: 4,
+    par: 8
   },
   {
     name: "Duel",

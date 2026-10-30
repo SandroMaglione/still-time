@@ -1,11 +1,12 @@
 /**
  * The guides of Time Door and First Cut, in the style of First Step's drill: one big caption at a time, placed where
- * it covers neither you nor what it is about, each step waiting until you have done it, and the thumb let through
- * only as far as the step asks.
+ * it covers neither you nor what it is about, each step waiting until you have done it.
  *
- * Time Door (the clock): move about and the door's clock runs; at half time your thumb is held (the clock stops)
- * until you let go and watch it stand still; then move again to open it. First Cut (the cut): get close, walk into
- * the ring (its gunner never fires); as it falls, "CUT!" over it, and the guide's "got it" stays through the clear.
+ * Time Door (the clock): along a stretch of lanterns and wheels, "nothing moves / until you do", then "everything
+ * moves / with you"; then three doors whose portcullises rise only as time runs ("doors open with time"; "it waits for
+ * you" while you stand at one). First Cut (the cut): "get close / walk into the ring" to the first gunner (none fire);
+ * its door opens on two more, "get close to hit"; each one cut pops "CUT!" over it, and the guide's "got it" stays
+ * through the clear.
  */
 import type { FightView } from "../sim/view.ts"
 import { TUNING } from "../sim/tuning.ts"
@@ -41,46 +42,46 @@ interface Step {
 }
 
 const INK = "#171c2e", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda"
-/** The room's time door: its seconds, and whether it is open. */
-const timeDoor = (view: FightView): { readonly seconds: number; readonly open: boolean } | null => {
-  for (const d of view.doors) if (d.lock.kind === "time") return { seconds: d.lock.seconds, open: d.open }
-  return null
-}
+const moving = (s: Sense): boolean => s.speed > 0.15
+/** Past the clockwork stretch of Time Door's corridor (before its first door). */
+const pastDecor = (s: Sense): boolean => s.view.player !== null && s.view.player.y < 25.5
+/** Every time door open. */
+const doorsOpen = (s: Sense): boolean => s.view.doors.every((d) => d.lock.kind !== "time" || d.open)
+/** At a shut door (within a couple of metres of its face). */
+const atShutDoor = (s: Sense): boolean => s.view.player !== null && s.view.doors.some((d) => !d.open && Math.abs(s.view.player!.y - (d.y + d.h)) < 2.2)
 
-// Time Door: move and the door's clock runs; at half time the thumb is held (time freezes) until you let go and watch
-// the clock stand still; then move again to finish it. (Left to itself, people ran into the door and it opened
-// without their noticing why.)
+// Time Door: first see that nothing moves until you do, and everything moves when you walk; then the doors, whose
+// portcullises rise only as time runs (only while you move).
 const DOOR: ReadonlyArray<Step> = [
   {
-    title: (s) => (s.speed > 0.15 ? "KEEP MOVING" : "MOVE AROUND"), sub: () => "THE DOOR'S CLOCK RUNS",
-    colour: (s) => (s.speed > 0.15 ? GOLD : WHITE),
-    gate: () => true,
-    ok: (s) => s.view.world >= (timeDoor(s.view)?.seconds ?? 0) / 2, need: 0
+    title: (s) => (moving(s) ? "EVERYTHING MOVES" : "NOTHING MOVES"), sub: (s) => (moving(s) ? "WITH YOU" : "UNTIL YOU DO"),
+    colour: (s) => (moving(s) ? GOLD : WHITE),
+    gate: () => true, ok: pastDecor, need: 0
   },
   {
-    title: () => "NOW LET GO", sub: (s) => (s.down ? "LIFT YOUR THUMB" : "WATCH THE CLOCK"),
-    gate: () => false,
-    ok: (s) => !s.down, need: 1.4
-  },
-  {
-    title: (s) => (s.speed > 0.15 ? "IT RUNS AGAIN" : "IT STOPPED WITH YOU"), sub: () => "MOVE TO OPEN IT",
-    colour: (s) => (s.speed > 0.15 ? GOLD : WHITE),
-    gate: () => true,
-    ok: (s) => timeDoor(s.view)?.open === true, need: 0
+    title: (s) => (atShutDoor(s) && !moving(s) ? "IT WAITS FOR YOU" : "DOORS OPEN WITH TIME"),
+    sub: (s) => (moving(s) ? "KEEP MOVING" : "MOVE: TIME RUNS"),
+    colour: (s) => (moving(s) ? GOLD : WHITE),
+    gate: () => true, ok: doorsOpen, need: 0
   }
 ]
 
-// The gunner never fires here: the one thing to learn is to get close. (The caption turns gold once you are moving in.)
+// The gunners never fire here: the one thing to learn is to get close. One in the first chamber; its door then opens
+// on two more.
 const CUT: ReadonlyArray<Step> = [
   {
     title: () => "GET CLOSE", sub: () => "WALK INTO THE RING",
-    colour: (s) => (s.speed > 0.15 ? GOLD : WHITE),
-    gate: () => true,
-    ok: (s) => s.view.enemies.length === 0, need: 0
+    colour: (s) => (moving(s) ? GOLD : WHITE),
+    gate: () => true, ok: (s) => s.view.doors.every((d) => d.open), need: 0
+  },
+  {
+    title: () => "GET CLOSE TO HIT", sub: (s) => (s.view.enemies.length > 1 ? `${s.view.enemies.length} MORE INSIDE` : "ONE MORE"),
+    colour: (s) => (moving(s) ? GOLD : WHITE),
+    gate: () => true, ok: (s) => s.view.enemies.length === 0, need: 0
   }
 ]
 const stepsFor = (room: number): ReadonlyArray<Step> => (room === 1 ? DOOR : room === 2 ? CUT : [])
-const DONE: Record<number, readonly [string, string]> = { 1: ["GOT IT!", "STILL = TIME STOPS"], 2: ["GOT IT!", "CLOSE = CUT"] }
+const DONE: Record<number, readonly [string, string]> = { 1: ["GOT IT!", "YOU MOVE, TIME MOVES"], 2: ["GOT IT!", "CLOSE = CUT"] }
 const DONE_LIFE = 2.2
 /** How long the "CUT!" over a fallen target lasts (real s). */
 const CUT_LIFE = 1.4
@@ -94,9 +95,9 @@ export class Guide {
   private doneAt = -1
   /** Where the caption sat last frame (canvas px). */
   private labelY: number | null = null
-  /** The last enemy's place while it stands, and where (and when) it fell to your cut. */
-  private target: { x: number; y: number } | null = null
-  private cut: { x: number; y: number; at: number } | null = null
+  /** Each enemy's place while it stands, and where (and when) each fell to your cut. */
+  private standing = new Map<number, { x: number; y: number }>()
+  private cuts: Array<{ x: number; y: number; at: number }> = []
 
   private sense(view: FightView, input: GuideInput): Sense {
     const p = view.player
@@ -115,13 +116,17 @@ export class Guide {
     const id = view.player?.id ?? -1
     if (view.room.index !== this.room || (id !== -1 && id !== this.player)) {
       this.room = view.room.index; this.player = id
-      this.step = 0; this.held = 0; this.doneAt = -1; this.labelY = null; this.target = null; this.cut = null
+      this.step = 0; this.held = 0; this.doneAt = -1; this.labelY = null; this.standing.clear(); this.cuts = []
     }
     const steps = stepsFor(this.room)
     const step = steps[this.step]
     const sense = this.sense(view, input)
-    const last = view.enemies[0]
-    if (last !== undefined) this.target = { x: last.x, y: last.y }
+    // First Cut: whoever has gone since last time fell to your cut.
+    if (this.room === 2) {
+      const now = new Set(view.enemies.map((e) => e.id))
+      for (const [id, at] of this.standing) if (!now.has(id)) this.cuts.push({ ...at, at: this.now })
+      this.standing = new Map(view.enemies.map((e) => [e.id, { x: e.x, y: e.y }]))
+    }
     // The last step can finish on the very step the room clears (the cut ends First Cut): read it then too.
     if (step === undefined || (view.flow !== "playing" && view.flow !== "cleared" && view.flow !== "won")) return
     if (!step.ok(sense)) return
@@ -129,17 +134,14 @@ export class Guide {
     if (this.held < step.need) return
     this.step++; this.held = 0
     buzz(this.step >= steps.length ? 60 : 40)
-    if (this.step >= steps.length) {
-      this.doneAt = this.now
-      if (this.room === 2 && this.target !== null) this.cut = { ...this.target, at: this.now }
-    }
+    if (this.step >= steps.length) this.doneAt = this.now
   }
 
   draw(ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, P: Project, input: GuideInput): void {
     const steps = stepsFor(this.room)
     if (steps.length === 0) return
     // Over a fallen target, a big "CUT!" for a moment: what just happened (it shows through the clear, too).
-    if (this.cut !== null && this.now - this.cut.at < CUT_LIFE) cutBurst(ctx, P(this.cut.x, this.cut.y), (this.now - this.cut.at) / CUT_LIFE)
+    for (const c of this.cuts) if (this.now - c.at < CUT_LIFE) cutBurst(ctx, P(c.x, c.y), (this.now - c.at) / CUT_LIFE)
     // The guide speaks while you play, and its "got it" stays through the room's clear.
     const ended = view.flow === "cleared" || view.flow === "won"
     if (view.flow !== "playing" && !(ended && this.doneAt >= 0)) return
@@ -157,7 +159,8 @@ export class Guide {
     for (const e of view.enemies) { const at = P(e.x, e.y); avoid.push({ top: at.y - 34, bottom: at.y + 30 }) }
     const fits = (y: number): boolean => avoid.every((a) => y + 44 < a.top || y - 12 > a.bottom)
     // It stays put while it still fits (no jumping as you walk), else takes the highest spot that does.
-    const spots = Array.from({ length: 34 }, (_, i) => Math.round(ch * (0.14 + i * 0.02)))
+    // (From under the room's goal banner down.)
+    const spots = Array.from({ length: 32 }, (_, i) => Math.round(ch * (0.19 + i * 0.02)))
     // (Once the room is cleared, its panel comes up from the bottom: the "got it" waits above it.)
     const labelY = ended ? Math.round(ch * 0.4) : this.labelY !== null && fits(this.labelY) ? this.labelY : spots.find(fits) ?? Math.round(ch * 0.2)
     this.labelY = labelY
