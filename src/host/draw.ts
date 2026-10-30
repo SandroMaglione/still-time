@@ -164,9 +164,9 @@ export const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, presse
 /** Touch or keys: the hint says what this device does. */
 const touchFirst = (): boolean => typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches
 /**
- * The first rooms' lesson, the move, looped every 2.8 real s: a hand presses on the floor a little ahead of you (a
- * ring) and keeps holding while a ghost of you walks to it; then the hand lets go and the ghost stops dead with a cold
- * ring. Hold where you want to go; let go to stop. The label sits under you, over everything.
+ * The first room's lesson, the move, looped every 2.8 real s: a hand presses beside you (a ring) and drags, and a ghost
+ * of you walks exactly as far as the hand goes; then the hand holds still and the ghost stops dead with a cold ring.
+ * Drag anywhere to move; stop and time stops. The label sits under you, over everything.
  */
 export const dragHint = (
   ctx: CanvasRenderingContext2D, player: { readonly x: number; readonly y: number }, P: Project, now: number,
@@ -174,34 +174,38 @@ export const dragHint = (
 ): void => {
   const t = now % 2.8
   const at = P(player.x, player.y)
-  const reach = 2.4
-  const goal = P(player.x + dir.x * reach, player.y + dir.y * reach)
-  const held = t > 0.2 && t < 1.9
+  const reach = 2
+  // The hand works off to the side, so it never covers you: a metre and a half beside your path.
+  const side = { x: -dir.y, y: dir.x }
+  const off = (player.x + side.x * 1.5 < 0.5 || player.x + side.x * 1.5 > 11.5) ? -1.5 : 1.5
+  const pressed = t > 0.2 && t < 2.1
   const fade = t > 2.4 ? 1 - (t - 2.4) / 0.4 : 1
-  // The ghost of you walks to the finger while it holds (0.4 to 1.9 s), stopping just short, then stands.
-  const walk = Math.max(0, Math.min(1, (t - 0.4) / 1.5))
-  const ghost = P(player.x + dir.x * walk * (reach - 0.4), player.y + dir.y * walk * (reach - 0.4))
+  // The drag (0.4 to 1.6 s): hand and ghost travel together, the same distance.
+  const walk = Math.max(0, Math.min(1, (t - 0.4) / 1.2)) * reach
+  const ghost = P(player.x + dir.x * walk, player.y + dir.y * walk)
+  const finger = P(player.x + side.x * off + dir.x * walk, player.y + side.y * off + dir.y * walk)
+  const start = P(player.x + side.x * off, player.y + side.y * off)
   ctx.save()
   ctx.globalAlpha = fade
-  if (t > 0.2) {
-    pixelLine(ctx, at, goal, "#7fd8ff", 1, 3)
+  if (t > 0.4) {
+    pixelLine(ctx, start, finger, "#7fd8ff", 1, 3)
     silhouette(ctx, bodyName("player"), ghost.x, ghost.y, dir.x < 0, GHOST, 0.55)
   }
-  if (t >= 1.9 && t < 2.3) {
-    const r = 6 + (t - 1.9) * 40
+  if (t >= 1.6 && t < 2.1) {
+    const r = 6 + (t - 1.6) * 30
     pixelArc(ctx, ghost, r, r * 0.7, 0, Math.PI * 2, "#7fd8ff", 1)
   }
   // The press: a ring where the finger lands.
   if (t < 0.4) {
     const k = t / 0.4
-    pixelArc(ctx, goal, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, INK, 3)
-    pixelArc(ctx, goal, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, "#7fd8ff", 1)
+    pixelArc(ctx, start, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, INK, 3)
+    pixelArc(ctx, start, 4 + k * 10, 3 + k * 7, 0, Math.PI * 2, "#7fd8ff", 1)
   }
-  // The hand: its fingertip on the spot, pressed while it holds, lifting away after.
-  const lifted = t >= 1.9 ? Math.round((t - 1.9) * 30) : 0
-  hand(ctx, goal.x, goal.y - lifted, held)
-  const label = held || t < 0.2 ? (touchFirst() ? "HOLD WHERE TO GO" : "HOLD AN ARROW") : "LET GO: STOP"
-  hintText(ctx, label, at.x, Math.round(at.y + 14), held || t < 0.2 ? "#f4efda" : "#7fd8ff")
+  const lifted = t >= 2.1 ? Math.round((t - 2.1) * 30) : 0
+  hand(ctx, finger.x, finger.y - lifted, pressed)
+  const moving = t < 1.6
+  const label = moving ? (touchFirst() ? "DRAG TO MOVE" : "HOLD AN ARROW") : "STOP: TIME STOPS"
+  hintText(ctx, label, at.x, Math.round(at.y + 14), moving ? "#f4efda" : "#7fd8ff")
   ctx.restore()
 }
 
@@ -1076,10 +1080,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
   }
 
-  // Where your finger is: a small target on the floor, and a dotted line from you to it (you walk there while you hold).
+  // Where your finger rests: a small ring (you walk as it moves, wherever on the screen it is).
   if (stick !== null && view.player !== null && view.flow === "playing") {
-    const me = P(view.player.x, view.player.y)
-    pixelLine(ctx, me, stick, "#7fd8ff", 1, 3)
     pixelArc(ctx, stick, 6, 4, 0, Math.PI * 2, INK, 3)
     pixelArc(ctx, stick, 6, 4, 0, Math.PI * 2, "#e8f6ff", 1)
     ctx.fillStyle = "#e8f6ff"; ctx.fillRect(Math.round(stick.x) - 1, Math.round(stick.y) - 1, 2, 2)

@@ -12,7 +12,7 @@ Speed is the choice the player makes: every move speeds the whole world up with 
 
 ## Rules (each has a headless test in `test/fight.test.ts`)
 
-- **Touch: follow the finger.** While a finger is down you walk toward the floor point under it: still within 0.25 m, top speed (5 m/s) from 2.5 m, on a 1.4 curve in between; lift and you stop. (It replaced a hidden floating stick: playtesters grabbed the character and dragged it where they wanted, or swiped it, and never found the pad.) Keys: arrows or WASD.
+- **Touch: trackpad drag.** Press anywhere and you walk exactly as far as your finger moves on the floor, up to top speed (5 m/s): a 0.35 m trail behind the finger is full speed, less is slower, and more than 1 m of a fast flick is dropped. A finger held still or lifted stops you, and a tap moves nothing. (It replaced follow-the-finger, which itself replaced a hidden floating stick: pressing far away ran at full speed for free, and players tapped again and again to step through rooms. The freeze ring and sound now need 0.4 s of running first.) Keys: arrows or WASD.
 - **World speed** follows your push: ×0.04 when still, real time at full push, eased quickly. You move in real time and the world is what slows down, so slow motion helps you *read* a threat, not outrun it.
 - **Your cut:** any enemy within 1.15 m dies, except a brute you face while it attacks.
 - **Shooters** (gunner: bullets; archer: fast arrows; thrower: a fan of three knives; sniper, below) fire only with line of sight within 13 m, 0.25 s after you step out of cover if already reloaded. They hold fire and sidestep when an ally is in any line of their shot, creep toward where they last saw you, and stay within 3.5 m of their post.

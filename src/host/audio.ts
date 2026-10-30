@@ -17,6 +17,7 @@
 import type { FightView } from "../sim/view.ts"
 import { SONGS, SOUNDS, type SongName, type SoundName } from "./audio-bank.ts"
 import { cuesBetween, isCut, type Cue } from "./audio-cues.ts"
+import { RUN_MIN } from "./fx.ts"
 
 // ---------------------------------------------------------------- settings
 
@@ -148,6 +149,7 @@ class GameAudio {
   private stride = 0
   private dashReady = true
   private stopReady = false
+  private runFor = 0
   /** When a button was last clicked (ms): a menu closed by a click already ticked. */
   private clickedAt = -Infinity
 
@@ -315,7 +317,8 @@ class GameAudio {
       if (this.stopReady) { this.stopReady = false; this.play({ name: "time.stop", bus: "real", at: null, delay: 0 }, 0.9) }
       this.stride = STRIDE * 0.7; this.dashReady = true; return
     }
-    if (push > 0.6) this.stopReady = true
+    this.runFor = push > 0.6 ? this.runFor + dt : 0
+    if (this.runFor >= RUN_MIN) this.stopReady = true
     if (this.dashReady && push > 0.7) {
       this.dashReady = false
       this.play({ name: "player.dash", bus: "real", at: null, delay: 0 }, 0.8)

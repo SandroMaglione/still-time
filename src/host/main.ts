@@ -1,5 +1,5 @@
 /**
- * The page: one canvas drawing the fight view, a follow-the-finger touch control
+ * The page: one canvas drawing the fight view, a trackpad-drag touch control
  * (and keys for desktop) feeding the thumb source, the menus, the device's
  * saved progress (through Effect), and the fixed-step loop.
  */
@@ -48,7 +48,7 @@ class ThumbSource {
     this.push = { x: (world.x / len) * strength, y: (world.y / len) * strength }
   }
 
-  /** A push already in world terms (the follow-the-finger control): a direction and a 0..1 strength. */
+  /** A push already in world terms (the trackpad drag): a direction and a 0..1 strength. */
   setWorldPush(dx: number, dy: number, strength: number): void {
     const len = Math.hypot(dx, dy)
     this.push = strength === 0 || len === 0 ? { x: 0, y: 0 } : { x: (dx / len) * strength, y: (dy / len) * strength }
@@ -105,13 +105,22 @@ el("pause").addEventListener("click", () => menu.show("pause", fight.view()))
 el("rooms-after").addEventListener("click", () => menu.show("rooms", fight.view()))
 el("title-after").addEventListener("click", () => menu.show("title", fight.view()))
 
-// Follow the finger: while a finger is down, you walk toward the floor point under it. Far away is full speed (and
-// so full-speed time), closer is slower, and within NEAR metres you stand still; lift and you stop. (Playtests: people
-// grab the character and drag it where they want it, so the control does what they already try.)
-const NEAR = 0.25, FULL = 2.5
+// Trackpad drag: press anywhere and the hero copies your finger's movement on the floor, up to its top speed. Time
+// runs as fast as your finger moves; a finger held still (or lifted) stops it, and a tap moves nothing. (Playtests:
+// pressing far away to run gave too much speed for free, and tapping again and again stepped through rooms.)
+/** How far (m) the hero may trail the finger before the rest of a fast flick is dropped. */
+const LAG = 1
+/** The trail (m) at which the hero walks at full speed; less is slower, so slow drags walk slowly. */
+const FULL = 0.35
 /** The finger, in CSS pixels, while it is down on the field. */
 let finger: { x: number; y: number } | null = null
 let consumed = false
+/** Floor distance the finger has moved that the hero has not walked yet. */
+let owed = { x: 0, y: 0 }
+let lastAt: { id: number; x: number; y: number } | null = null
+let stuck = 0
+/** Last frame's screen-to-floor mapping, to turn finger moves into floor moves. */
+let floorAt: ((sx: number, sy: number) => { readonly x: number; readonly y: number }) | null = null
 
 canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId)
@@ -121,23 +130,40 @@ canvas.addEventListener("pointerdown", (e) => {
     return
   }
   finger = { x: e.clientX, y: e.clientY }
+  owed = { x: 0, y: 0 }
 })
 canvas.addEventListener("pointermove", (e) => {
   if (finger === null || consumed) return
+  if (floorAt !== null) {
+    const a = floorAt(finger.x / cssPerPixel, finger.y / cssPerPixel), b = floorAt(e.clientX / cssPerPixel, e.clientY / cssPerPixel)
+    owed = { x: owed.x + b.x - a.x, y: owed.y + b.y - a.y }
+    const d = Math.hypot(owed.x, owed.y)
+    if (d > LAG) owed = { x: (owed.x / d) * LAG, y: (owed.y / d) * LAG }
+  }
   finger.x = e.clientX
   finger.y = e.clientY
 })
-/** Each frame, the finger becomes a push toward the floor point under it (the camera may have moved since it last did). */
-const followFinger = (toFloor: (sx: number, sy: number) => { readonly x: number; readonly y: number }): void => {
+/** Each frame: what the hero walked comes off the trail, and the rest is the push. */
+const followFinger = (dt: number): void => {
   const p = fight.view().player
-  if (finger === null || p === null) return
-  const at = toFloor(finger.x / cssPerPixel, finger.y / cssPerPixel)
-  const dx = at.x - p.x, dy = at.y - p.y, d = Math.hypot(dx, dy)
-  thumb.setWorldPush(dx, dy, Math.max(0, Math.min(1, (d - NEAR) / (FULL - NEAR))))
+  if (p === null || fight.view().flow !== "playing") { lastAt = null; owed = { x: 0, y: 0 }; return }
+  const walked = lastAt !== null && lastAt.id === p.id ? { x: p.x - lastAt.x, y: p.y - lastAt.y } : { x: 0, y: 0 }
+  lastAt = { id: p.id, x: p.x, y: p.y }
+  if (finger === null) return
+  const before = owed
+  owed = { x: owed.x - walked.x, y: owed.y - walked.y }
+  // Walked past it (or into another direction): nothing left to walk.
+  if (owed.x * before.x + owed.y * before.y <= 0) owed = { x: 0, y: 0 }
+  const d = Math.hypot(owed.x, owed.y)
+  // Pressed into a wall: the trail is dropped rather than running time against it.
+  stuck = d > 0.05 && Math.hypot(walked.x, walked.y) < 0.002 ? stuck + dt : 0
+  if (d < 0.03 || stuck > 0.15) { owed = { x: 0, y: 0 }; stuck = 0 }
+  thumb.setWorldPush(owed.x, owed.y, Math.min(1, Math.hypot(owed.x, owed.y) / FULL))
 }
 function lift(): void {
   finger = null
   consumed = false
+  owed = { x: 0, y: 0 }
   thumb.setScreenPush(0, 0, 0)
 }
 canvas.addEventListener("pointerup", lift)
@@ -252,7 +278,8 @@ FixedLoop.start({
     const k = 1 / cssPerPixel
     const mark = finger === null ? null : { ox: finger.x * k, oy: finger.y * k, x: finger.x * k, y: finger.y * k, reach: 0 }
     const drawn = draw(ctx, canvas.width, canvas.height, view, mark, camera, presentation, lit)
-    followFinger(drawn.floorAt)
+    floorAt = drawn.floorAt
+    followFinger(frame.elapsedSeconds)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

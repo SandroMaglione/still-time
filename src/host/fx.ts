@@ -31,6 +31,8 @@ export interface Stop { readonly x: number; readonly y: number; readonly born: n
 /** A short line over the room the first times something happens, to name it: the freeze, in the first rooms. */
 export interface Callout { readonly title: string; readonly line: string; readonly born: number }
 export const STOP_LIFE = 0.5
+/** Real s of running before stopping counts as a freeze (its ring, callout and sound). */
+export const RUN_MIN = 0.4
 /** The vanish on a clear, in real seconds: you gather until the pop, then you are gone; the effect ends at its life. */
 export const VANISH_POP = 0.35, VANISH_LIFE = 1.0
 /** When (real s after the clear) the clear panel shows, and when its i-th star pops in: the HUD and the chimes both keep this. */
@@ -57,6 +59,7 @@ export class Presentation {
   private lastGhost = -1
   /** Armed by a real run, fired by stopping: one freeze moment per stop. */
   private running = false
+  private runFrom = -1
   private taught = new Map<number, number>()
   /** Rooms you have moved in during this attempt: the first room's drag hint shows until you have, on every attempt. */
   private moved = new Set<number>()
@@ -87,7 +90,7 @@ export class Presentation {
     const old = this.previous
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
       this.deaths = []; this.impacts = []; this.ghosts = []; this.stops = []; this.fire.clear()
-      this.running = false
+      this.running = false; this.runFrom = -1
       // A new attempt (a room entered, a retry, a restart) teaches the move again.
       this.moved.clear()
       this.deadAt = null; this.clearedAt = null; this.vanish = null
@@ -106,9 +109,13 @@ export class Presentation {
     // Stopping dead after a run is the freeze: a moment of its own, and in the first rooms, named.
     if (p !== null && view.flow === "playing") {
       if (Math.hypot(p.vx, p.vy) > 0.5) this.moved.add(view.room.index)
-      if (k > 0.5) this.running = true
-      else if (this.running && k < 0.12) {
-        this.running = false
+      // A run counts once it has lasted RUN_MIN real s, so a flick does not fire the freeze moment.
+      if (k > 0.5) {
+        if (this.runFrom < 0) this.runFrom = this.now
+        if (this.now - this.runFrom >= RUN_MIN) this.running = true
+      } else if (k < 0.12) this.runFrom = -1
+      if (this.running && k < 0.12) {
+        this.running = false; this.runFrom = -1
         this.stops = [...this.stops, { x: p.x, y: p.y, born: this.now }].slice(-3)
         const times = this.taught.get(view.room.index) ?? 0
         if (view.room.index >= TEACH_FROM && view.room.index < TEACH_ROOMS && times < TEACH_TIMES) {
