@@ -19,15 +19,34 @@ export type Breaks = "crate" | "cracked"
 /** A piece of the room's cover: solid for good unless it `breaks`. */
 export interface Cover extends Pillar { readonly breaks?: Breaks }
 
-/** What opens a door. Chambers and keys are small numbers, set per spawn. */
+/**
+ * What opens a door. Chambers and keys are small numbers, set per spawn;
+ * plates are indices into the room's plates (each plate belongs to one
+ * lock), pressed in any order, or in the listed order when `ordered`.
+ */
 export type Lock =
   | { readonly kind: "clear"; readonly chamber: number }
   | { readonly kind: "captain"; readonly chamber: number }
   | { readonly kind: "key"; readonly key: number }
+  | { readonly kind: "plates"; readonly plates: ReadonlyArray<number>; readonly ordered: boolean }
+
+/** A pressure plate on the floor, pressed by stepping onto it. */
+export interface Plate { readonly x: number; readonly y: number }
+
+/**
+ * A hazard, running on the attempt's world clock (frozen with the world):
+ * a blade bar spinning round its centre, or a laser gate between two posts
+ * that is on for `on` of every `period` world seconds. Either takes anyone it
+ * touches.
+ */
+export type Hazard =
+  | { readonly kind: "blade"; readonly x: number; readonly y: number; readonly length: number; readonly speed: number; readonly phase: number }
+  | { readonly kind: "gate"; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly period: number; readonly on: number; readonly offset: number }
 
 export interface Door extends Pillar { readonly lock: Lock }
 
-export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar)
+/** Down every enemy, reach the exit, or last `seconds` of world time (which only pass while you move). */
+export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar) | { readonly kind: "survive"; readonly seconds: number }
 
 export interface EnemySpawn {
   readonly kind: EnemyKind
@@ -49,6 +68,8 @@ export interface Room {
   readonly start: { readonly x: number; readonly y: number }
   readonly pillars: ReadonlyArray<Cover>
   readonly doors: ReadonlyArray<Door>
+  readonly plates?: ReadonlyArray<Plate>
+  readonly hazards?: ReadonlyArray<Hazard>
   readonly enemies: ReadonlyArray<EnemySpawn>
   readonly goal: Goal
   /** World seconds for the third star. */
@@ -74,6 +95,8 @@ const throne = gate(16, 3.6, 8, 3, { kind: "captain", chamber: 0 })
 const thief = gate(16, 3.6, 8, 3, { kind: "key", key: 0 })
 const market = gate(18, 12, 9, 3, { kind: "clear", chamber: 0 }, 1)
 const warehouse = gate(20, 3.2, 10, 3, { kind: "key", key: 0 })
+const switchyard = gate(14, 6, 7, 3, { kind: "plates", plates: [0], ordered: false })
+const combination = gate(16, 6, 8, 3, { kind: "plates", plates: [0, 1, 2], ordered: true })
 const fortressYard = gate(22, 26, 11, 4, { kind: "clear", chamber: 0 }, 1)
 const fortressKeep = gate(22, 10, 11, 3, { kind: "key", key: 0 }, 1)
 const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
@@ -304,6 +327,88 @@ export const ROOMS: ReadonlyArray<Room> = [
     goal: CLEAR,
     par: 8,
     tip: "the ring is the blast: be out of it when the fuse runs out"
+  },
+  {
+    name: "Switchyard",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [...switchyard.walls, crate(7, 12), crate(4, 16)],
+    doors: [switchyard.door],
+    plates: [{ x: 11.5, y: 14 }],
+    enemies: [{ kind: "gunner", x: 3, y: 9.5, delay: 0.5 }],
+    goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
+    par: 7,
+    tip: "step on the plate to open the gate"
+  },
+  {
+    name: "Combination",
+    w: 16,
+    h: 24,
+    start: { x: 8, y: 22 },
+    pillars: [...combination.walls, crate(8, 15, 1.4), crate(4, 12), crate(12, 19)],
+    doors: [combination.door],
+    plates: [{ x: 13, y: 16 }, { x: 3, y: 18 }, { x: 4, y: 9 }],
+    enemies: [
+      { kind: "brute", x: 8, y: 11, delay: 0 },
+      { kind: "gunner", x: 13, y: 8.5, delay: 0.6 }
+    ],
+    goal: { kind: "exit", x: 6.5, y: 1, w: 3, h: 2.4 },
+    par: 10,
+    tip: "press the plates in order: a wrong one resets them"
+  },
+  {
+    name: "Mill",
+    w: 14,
+    h: 26,
+    start: { x: 7, y: 24 },
+    // A corridor the blades sweep from wall to wall: cross while a bar lies along it.
+    pillars: [{ x: 0, y: 5, w: 4, h: 16 }, { x: 10, y: 5, w: 4, h: 16 }],
+    doors: [],
+    hazards: [
+      { kind: "blade", x: 7, y: 16, length: 2.8, speed: 1.4, phase: 0 },
+      { kind: "blade", x: 7, y: 9, length: 2.8, speed: -1.7, phase: 1.2 }
+    ],
+    enemies: [],
+    goal: { kind: "exit", x: 5.5, y: 0.8, w: 3, h: 2.4 },
+    par: 7,
+    tip: "the blades turn only while you move: time your crossing"
+  },
+  {
+    name: "Gauntlet",
+    w: 16,
+    h: 26,
+    start: { x: 8, y: 24 },
+    pillars: [crate(4, 20), crate(12, 13), crate(5, 7)],
+    doors: [],
+    hazards: [
+      { kind: "gate", x1: 0.2, y1: 17, x2: 15.8, y2: 17, period: 2.4, on: 0.5, offset: 0 },
+      { kind: "gate", x1: 0.2, y1: 10.5, x2: 15.8, y2: 10.5, period: 2, on: 0.5, offset: 0.9 }
+    ],
+    enemies: [{ kind: "gunner", x: 12, y: 4, delay: 0.6 }],
+    goal: { kind: "exit", x: 6.5, y: 0.8, w: 3, h: 2.4 },
+    par: 8,
+    tip: "a laser gate warns before it lights"
+  },
+  {
+    name: "Hold Out",
+    w: 16,
+    h: 20,
+    start: { x: 8, y: 17 },
+    pillars: [crate(3.5, 5), crate(12.5, 5), crate(3.5, 15), crate(12.5, 15)],
+    doors: [],
+    hazards: [
+      { kind: "blade", x: 8, y: 10, length: 2.6, speed: 1.3, phase: 0.4 },
+      { kind: "gate", x1: 0.2, y1: 13, x2: 15.8, y2: 13, period: 3, on: 0.4, offset: 1.5 }
+    ],
+    enemies: [
+      { kind: "gunner", x: 2, y: 2, delay: 0.8 },
+      { kind: "gunner", x: 14, y: 2, delay: 1.2 },
+      { kind: "archer", x: 8, y: 1.5, delay: 1.6 }
+    ],
+    goal: { kind: "survive", seconds: 9 },
+    par: 9,
+    tip: "survive 9 s: time only passes while you move"
   },
   {
     name: "Fortress",

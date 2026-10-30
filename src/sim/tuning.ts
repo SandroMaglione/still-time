@@ -169,6 +169,12 @@ export const BOMB = {
 export const COVER = { crateHits: 3, swingBite: 0.4 } as const
 
 /**
+ * Hazards: a blade's bar is `width` thick; a laser gate warns for `warn`
+ * world seconds before it comes on.
+ */
+export const HAZARD = { width: 0.12, warn: 0.45 } as const
+
+/**
  * The runner (a thief): it never attacks, carries a key, and runs from you
  * while it can see you. Out of sight it stands still, so you can sneak up
  * behind cover. Wherever it falls (your cut or a stray shot), it drops its key.
@@ -183,8 +189,12 @@ export const RUNNER = {
   ways: 16
 } as const
 
-/** Keys and doors. */
+/** Keys, doors and plates. */
 export const LOCKS = {
+  /** You stand on a plate within this distance of its centre. */
+  plate: 0.55,
+  /** A wrong plate's red flash, in steps (real time): 0.5 s. */
+  missSteps: 30,
   /** You pick up a key within this distance of it. */
   pickup: 0.7,
   /** A key door opens when you come within this distance of it holding its key. */

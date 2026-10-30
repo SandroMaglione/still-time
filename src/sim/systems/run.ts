@@ -7,7 +7,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { unlocked } from "../progress.ts"
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
-import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult, Wear } from "../schema.ts"
+import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
 import { BOMB, COVER, CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, freshWear, roomOf } from "./queries.ts"
 
@@ -55,6 +55,7 @@ export const BuildRoomSystem = Game.System(
       slashes: Game.System.writeResource(Slashes),
       blasts: Game.System.writeResource(Blasts),
       doors: Game.System.writeResource(Doors),
+      plates: Game.System.writeResource(Plates),
       wear: Game.System.writeResource(Wear),
       keys: Game.System.writeResource(Keys)
     },
@@ -95,6 +96,7 @@ export const BuildRoomSystem = Game.System(
     const run = resources.run.get()
     resources.run.set({ room: asked.room, deaths: run.deaths, hits: asked.fresh ? 0 : run.hits, world: 0, best: run.best, open: run.open })
     resources.doors.set(room.doors.map(() => false))
+    resources.plates.set({ down: (room.plates ?? []).map(() => false), on: null, missed: null })
     resources.wear.set(freshWear(room, COVER.crateHits))
     resources.blasts.set([])
     resources.keys.set(keys)
@@ -123,16 +125,24 @@ const distanceTo = (x: number, y: number, p: Pillar): number =>
 
 /**
  * Keys follow their runner; a runner gone (cut or shot) leaves its key on
- * the floor where it last stood; you pick up a key you walk over. A door
- * opens once its lock is met: its chamber's enemies (or captains) all down,
- * or you standing at it with its key, which it keeps.
+ * the floor where it last stood; you pick up a key you walk over. A plate
+ * presses as you step onto it; an ordered lock's wrong plate pops all its
+ * plates back up. A door opens once its lock is met: its chamber's enemies
+ * (or captains) all down, you standing at it with its key (which it keeps),
+ * or its plates all down.
  */
 export const LocksSystem = Game.System(
   "Slap/Locks",
   {
     when: [Game.Condition.inState(Flow, "Playing")],
     queries: { players: PlayerRead, enemies: EnemyRead, runners: RunnerRead },
-    resources: { run: Game.System.readResource(Run), doors: Game.System.writeResource(Doors), keys: Game.System.writeResource(Keys) }
+    resources: {
+      run: Game.System.readResource(Run),
+      time: Game.System.readResource(Time),
+      doors: Game.System.writeResource(Doors),
+      keys: Game.System.writeResource(Keys),
+      plates: Game.System.writeResource(Plates)
+    }
   },
   ({ queries, resources }) => {
     const me = queries.players.each()[0]?.data.body.get()
@@ -152,6 +162,24 @@ export const LocksSystem = Game.System(
       }
       return k
     })
+    // Plates: the one you stand on, pressed as you step onto it.
+    const plates = resources.plates.get()
+    const on = (room.plates ?? []).findIndex((p) => Ops.hypot(p.x - me.x, p.y - me.y) <= LOCKS.plate)
+    const standing = on === -1 ? null : on
+    let down = plates.down
+    let missed = plates.missed
+    if (standing !== null && standing !== plates.on && down[standing] !== true) {
+      const lock = room.doors.map((d) => d.lock).find((l) => l.kind === "plates" && l.plates.includes(standing))
+      if (lock !== undefined && lock.kind === "plates") {
+        const next = lock.plates.find((p) => down[p] !== true)
+        if (!lock.ordered || next === standing) down = down.map((d, i) => d || i === standing)
+        else {
+          down = down.map((d, i) => d && !lock.plates.includes(i))
+          missed = resources.time.get().step
+        }
+      }
+    }
+    if (standing !== plates.on || down !== plates.down || missed !== plates.missed) resources.plates.set({ down, on: standing, missed })
     const enemies = queries.enemies.each().map((m) => m.data.enemy.get())
     const open = resources.doors.get()
     const met = (lock: Lock, door: Pillar): boolean => {
@@ -159,6 +187,7 @@ export const LocksSystem = Game.System(
         case "clear": return !enemies.some((e) => e.chamber === lock.chamber)
         case "captain": return !enemies.some((e) => e.chamber === lock.chamber && e.captain)
         case "key": return keys.some((k) => k.key === lock.key && k.state === "held") && distanceTo(me.x, me.y, door) <= TUNING.player.radius + LOCKS.reach
+        case "plates": return lock.plates.every((p) => down[p] === true)
       }
     }
     const next = room.doors.map((door, i) => open[i] === true || met(door.lock, door))
@@ -202,9 +231,10 @@ export const OutcomeSystem = Game.System(
       return
     }
     const me = queries.players.each()[0]?.data.body.get()
-    const done = room.goal.kind === "clear"
-      ? queries.enemies.each().length === 0
-      : me !== undefined && me.x >= room.goal.x && me.x <= room.goal.x + room.goal.w && me.y >= room.goal.y && me.y <= room.goal.y + room.goal.h
+    const goal = room.goal
+    const done = goal.kind === "clear" ? queries.enemies.each().length === 0
+      : goal.kind === "survive" ? world >= goal.seconds
+      : me !== undefined && me.x >= goal.x && me.x <= goal.x + goal.w && me.y >= goal.y && me.y <= goal.y + goal.h
     if (!done) {
       resources.run.set({ ...run, world })
       return

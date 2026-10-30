@@ -75,8 +75,20 @@ export class Camera {
 const KEY_COLOURS = ["#5fd4ff", "#c18cff", "#7dff9a"] as const
 export const keyColour = (key: number): string => KEY_COLOURS[key % KEY_COLOURS.length] ?? "#5fd4ff"
 
-/** What a door looks like by its lock: steel for a chamber, gold for a captain, the key's colour for a key. */
-const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : lock.kind === "captain" ? "#ffd25a" : keyColour(lock.key))
+const PLATE = "#64b6b3"
+
+/** What a door looks like by its lock: steel for a chamber, gold for a captain, the key's colour for a key, teal for plates. */
+const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : lock.kind === "captain" ? "#ffd25a" : lock.kind === "plates" ? PLATE : keyColour(lock.key))
+
+/** 3×5 pixel digits for plate numbers. */
+const DIGITS = ["111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001", "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"] as const
+const digit = (ctx: CanvasRenderingContext2D, n: number, x: number, y: number, colour: string): void => {
+  const bits = DIGITS[n % 10] ?? DIGITS[0]
+  const left = Math.round(x) - 1, top = Math.round(y) - 2
+  ctx.fillStyle = INK; ctx.fillRect(left - 1, top - 1, 5, 7)
+  ctx.fillStyle = colour
+  for (let i = 0; i < 15; i++) if (bits[i] === "1") ctx.fillRect(left + (i % 3), top + Math.floor(i / 3), 1, 1)
+}
 
 const EXIT = "#7dff9a"
 
@@ -181,6 +193,20 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelLine(ctx, a, { x: b.x, y: a.y }, lockColour(d.lock), 1, 3)
     pixelLine(ctx, { x: a.x, y: b.y }, b, "#647373", 1, 3)
   }
+  // Pressure plates: a raised slab with a teal rim, sunk and lit once pressed; an ordered lock's plates carry their number.
+  for (const plate of view.plates) {
+    const a = P(plate.x - plate.radius, plate.y - plate.radius), b = P(plate.x + plate.radius, plate.y + plate.radius)
+    const x = Math.round(a.x), y = Math.round(a.y), w = Math.round(b.x) - x, h = Math.round(b.y) - y
+    const rim = plate.missed ? DANGER : plate.down ? PLATE : "#8f9d97"
+    ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, w + 2, h + 3)
+    ctx.fillStyle = plate.down ? "#1f3a3b" : "#56605f"; ctx.fillRect(x, y + (plate.down ? 1 : 0), w, h)
+    ctx.fillStyle = rim
+    ctx.fillRect(x, y + (plate.down ? 1 : 0), w, 1); ctx.fillRect(x, y + h - 1 + (plate.down ? 1 : 0), w, 1)
+    ctx.fillRect(x, y + (plate.down ? 1 : 0), 1, h); ctx.fillRect(x + w - 1, y + (plate.down ? 1 : 0), 1, h)
+    if (!plate.down) { ctx.fillStyle = "#29334b"; ctx.fillRect(x, y + h, w, 2) }
+    if (plate.order !== null) digit(ctx, plate.order, x + w / 2, y + h / 2 + (plate.down ? 1 : 0), plate.down ? PLATE : "#f4efda")
+    if (plate.down) emitLight(ctx, { x: x + w / 2, y: y + h / 2, radius: 1.4, colour: [100, 182, 179], intensity: 0.6, shadows: false })
+  }
   // Keys on the floor: a ring that pulls the eye.
   for (const k of view.keys) {
     if (k.state !== "floor") continue
@@ -213,6 +239,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       if (l.locked) threatLine(ctx, from, to, true)
       else pixelLine(ctx, from, to, DANGER, 1, 3)
       pathArrow(ctx, { x: to.x - Math.cos(l.aim) * 10, y: to.y - Math.sin(l.aim) * 8 }, Math.atan2(to.y - from.y, to.x - from.x))
+    }
+    // Hazards: a blade's sweep on the floor; a laser gate's beam, faint when off, dashed when about to light, solid when on.
+    for (const hz of view.hazards) {
+      if (hz.kind === "blade") {
+        const centre = P((hz.ax + hz.bx) / 2, (hz.ay + hz.by) / 2), length = Math.hypot(hz.bx - hz.ax, hz.by - hz.ay) / 2
+        pixelArc(ctx, centre, length * erx, length * ery, 0, Math.PI * 2, THREAT, 1, true)
+        continue
+      }
+      const a = P(hz.ax, hz.ay, 0.5), b = P(hz.bx, hz.by, 0.5)
+      if (hz.state === "on") { pixelLine(ctx, a, b, INK, 5); pixelLine(ctx, a, b, DANGER, 3); pixelLine(ctx, a, b, "#ffd0d0", 1) }
+      else if (hz.state === "warn") threatLine(ctx, a, b, Math.floor(view.world * 12) % 2 === 0, 4)
+      else pixelLine(ctx, a, b, "#647373", 1, 4)
     }
     // A lit bomb: its blast's reach on the floor, and a red sweep that fills as the fuse burns down.
     for (const b of view.bombs) {
@@ -336,6 +374,32 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
+  for (const hz of view.hazards) {
+    if (hz.kind === "blade") {
+      const cxw = (hz.ax + hz.bx) / 2, cyw = (hz.ay + hz.by) / 2
+      // The bar is a threat: painted on the glow layer too, so the lighting never hides it.
+      const paintBlade = (ctx: CanvasRenderingContext2D): void => {
+        const a = P(hz.ax, hz.ay, 0.45), b = P(hz.bx, hz.by, 0.45), hub = P(cxw, cyw, 0.45), ground = P(cxw, cyw)
+        pixelLine(ctx, ground, hub, INK, 4); pixelLine(ctx, ground, hub, "#465254", 2)
+        pixelLine(ctx, a, b, INK, 5); pixelLine(ctx, a, b, THREAT, 3); pixelLine(ctx, a, b, "#f4efda", 1)
+        for (const end of [a, b]) { ctx.fillStyle = DANGER; ctx.fillRect(Math.round(end.x) - 1, Math.round(end.y) - 1, 3, 3) }
+        pixelArc(ctx, hub, 3, 3, 0, Math.PI * 2, INK, 3); ctx.fillStyle = "#8996b0"; ctx.fillRect(Math.round(hub.x) - 1, Math.round(hub.y) - 1, 3, 3)
+      }
+      actors.push({ x: cxw, y: cyw, paint: () => { paintBlade(ctx); paintBlade(glow) } })
+      continue
+    }
+    for (const [x, y] of [[hz.ax, hz.ay], [hz.bx, hz.by]] as const) {
+      actors.push({
+        x, y, paint: () => {
+          const ground = P(x, y), top = P(x, y, 0.75)
+          ctx.fillStyle = INK; ctx.fillRect(Math.round(top.x) - 3, Math.round(top.y) - 1, 7, Math.round(ground.y - top.y) + 3)
+          ctx.fillStyle = "#465254"; ctx.fillRect(Math.round(top.x) - 2, Math.round(top.y), 5, Math.round(ground.y - top.y) + 1)
+          ctx.fillStyle = hz.state === "on" ? DANGER : hz.state === "warn" ? THREAT : "#647373"; ctx.fillRect(Math.round(top.x) - 1, Math.round(top.y) + 3, 3, 3)
+          if (hz.state === "on") emitLight(ctx, { x: top.x, y: top.y + 6, radius: 1.6, colour: [255, 64, 85], intensity: 0.8, shadows: false })
+        }
+      })
+    }
+  }
   for (const b of view.bombs) {
     actors.push({
       x: b.x, y: b.y, paint: () => {
@@ -375,7 +439,15 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const emblem = (x: number, y: number): void => {
       if (d.lock.kind === "key") keyGlyph(ctx, x - u * 0.14, y, u * 0.26, colour)
       else if (d.lock.kind === "captain") crownGlyph(ctx, x, y + u * 0.14)
-      else {
+      else if (d.lock.kind === "plates") {
+        // One square per plate, lit as each goes down.
+        const n = d.lock.plates.length, gap = u * 0.24, left = n - d.waiting
+        for (let i = 0; i < n; i++) {
+          const px = Math.round(x + (i - (n - 1) / 2) * gap), py = Math.round(y)
+          ctx.fillStyle = INK; ctx.fillRect(px - 2, py - 2, 5, 5)
+          ctx.fillStyle = i < left ? PLATE : "#29334b"; ctx.fillRect(px - 1, py - 1, 3, 3)
+        }
+      } else {
         // One pip per enemy the door still waits on.
         const n = d.waiting, gap = u * 0.24
         for (let i = 0; i < n; i++) {

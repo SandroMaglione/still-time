@@ -168,7 +168,8 @@ export class Hud {
       span.textContent = text
       frag.append(span)
     }
-    line("tip-goal", view.room.goal.kind === "exit" ? "reach the exit" : "down every enemy")
+    const goal = view.room.goal
+    line("tip-goal", goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? `survive ${goal.seconds} s` : "down every enemy")
     if (view.room.tip !== null) line("tip-text", view.room.tip)
     if (view.room.index === 0) line("tip-hint", window.matchMedia("(pointer: fine)").matches ? "arrows to move · let go to freeze time" : "drag to move · lift to freeze time")
     return frag

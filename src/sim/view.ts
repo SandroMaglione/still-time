@@ -2,10 +2,11 @@
 import { Clock, Ops } from "@typeonce/ritmo"
 
 import { canSee, clearLine } from "./geometry.ts"
+import { hazardAt, type HazardShape } from "./hazards.ts"
 import { ROOMS, type Goal, type Lock, type Pillar } from "./rooms.ts"
-import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Player, Reload, Run, Shot, Slashes, Time, Wear } from "./schema.ts"
+import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Time, Wear } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
-import { BOMB, COVER, MELEE, RUNNER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
+import { BOMB, COVER, LOCKS, MELEE, RUNNER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover"
 
@@ -83,6 +84,18 @@ export interface CoverView extends Pillar {
   readonly maxHits: number
 }
 
+/** A pressure plate: down or up, its number when its lock is ordered, and whether it flashes red from a wrong press. */
+export interface PlateView {
+  readonly x: number
+  readonly y: number
+  readonly radius: number
+  readonly down: boolean
+  readonly order: number | null
+  /** The door it opens, by door index. */
+  readonly door: number
+  readonly missed: boolean
+}
+
 /** A grenadier's bomb: in flight (how far along, 0 to 1, for its arc), or lit with `fuse` of its burn left (1 to 0). */
 export interface BombView {
   readonly id: number
@@ -112,6 +125,9 @@ export interface FightView {
   readonly doors: ReadonlyArray<DoorView>
   readonly keys: ReadonlyArray<KeyView>
   readonly bombs: ReadonlyArray<BombView>
+  readonly plates: ReadonlyArray<PlateView>
+  /** Hazards where they are now: a blade's bar, or a laser gate's beam with its state. */
+  readonly hazards: ReadonlyArray<{ readonly kind: "blade" | "gate" } & HazardShape>
   /** Blasts just gone off, with `age` from 0 to 1 (gone), and their reach. */
   readonly blasts: ReadonlyArray<{ readonly x: number; readonly y: number; readonly age: number; readonly radius: number }>
   readonly deaths: number
@@ -167,7 +183,8 @@ export const FightViewInspector = Game.Inspector(
       doors: Game.System.readResource(Doors),
       wear: Game.System.readResource(Wear),
       blasts: Game.System.readResource(Blasts),
-      keys: Game.System.readResource(Keys)
+      keys: Game.System.readResource(Keys),
+      plates: Game.System.readResource(Plates)
     },
     machines: { flow: Game.System.machine(Flow) }
   },
@@ -180,6 +197,7 @@ export const FightViewInspector = Game.Inspector(
     const player = p === undefined ? null : { id: p.entity.id, ...p.data.body.get(), radius: TUNING.player.radius, vx: p.data.player.get().vx, vy: p.data.player.get().vy, attackRange: TUNING.attackRange }
     const open = resources.doors.get()
     const wear = resources.wear.get()
+    const plates = resources.plates.get()
     const walls = wallsOf(room, open, wear)
     const sees = (at: { x: number; y: number }): boolean => player !== null && canSee(at.x, at.y, player.x, player.y, TUNING.sight, walls)
     const shut = room.doors.filter((_, i) => open[i] !== true)
@@ -247,7 +265,9 @@ export const FightViewInspector = Game.Inspector(
     const standing = [...queries.shooters.each(), ...queries.melee.each(), ...queries.runners.each()].map((m) => m.data.enemy.get())
     const doors = room.doors.map((d, i): DoorView => {
       const lock = d.lock
-      const waiting = lock.kind === "key" ? 0 : standing.filter((e) => e.chamber === lock.chamber && (lock.kind === "clear" || e.captain)).length
+      const waiting = lock.kind === "key" ? 0
+        : lock.kind === "plates" ? lock.plates.filter((p) => plates.down[p] !== true).length
+        : standing.filter((e) => e.chamber === lock.chamber && (lock.kind === "clear" || e.captain)).length
       return { x: d.x, y: d.y, w: d.w, h: d.h, lock, open: open[i] === true, waiting }
     })
     const keys = resources.keys.get().flatMap((k): Array<KeyView> =>
@@ -260,6 +280,14 @@ export const FightViewInspector = Game.Inspector(
       const kind = c.breaks === "crate" ? "crate" : c.breaks === "cracked" ? "cracked" : "solid"
       return [{ x: c.x, y: c.y, w: c.w, h: c.h, kind, hits: hits ?? 1, maxHits: kind === "crate" ? COVER.crateHits : 1 }]
     })
+    const missed = plates.missed !== null && time.step - plates.missed < LOCKS.missSteps
+    const plateViews = (room.plates ?? []).map((p, i): PlateView => {
+      const door = room.doors.findIndex((d) => d.lock.kind === "plates" && d.lock.plates.includes(i))
+      const lock = room.doors[door]?.lock
+      const order = lock !== undefined && lock.kind === "plates" && lock.ordered ? lock.plates.indexOf(i) + 1 : null
+      return { x: p.x, y: p.y, radius: LOCKS.plate, down: plates.down[i] === true, order, door, missed: missed && lock !== undefined && lock.kind === "plates" && lock.ordered }
+    })
+    const hazards = (room.hazards ?? []).map((h) => ({ kind: h.kind, ...hazardAt(h, run.world) }))
     const bombs = queries.bombs.each().map(({ entity, data }): BombView => {
       const at = data.body.get()
       const bomb = data.bomb.get()
@@ -269,6 +297,8 @@ export const FightViewInspector = Game.Inspector(
       step: time.step,
       cover,
       bombs,
+      plates: plateViews,
+      hazards,
       blasts: resources.blasts.get().map((b) => ({ x: b.x, y: b.y, radius: BOMB.radius, age: Math.min(1, (time.step - b.born) / BOMB.showSteps) })),
       room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null },
       doors,

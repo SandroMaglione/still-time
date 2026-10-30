@@ -124,6 +124,13 @@ export const Run = Descriptor.ConstructedResource(codec(S.Struct({
  */
 export const Wear = Descriptor.ConstructedResource(codec(S.Array(S.NullOr(count))))("Slap/Wear")
 
+/**
+ * The room's pressure plates: which are down (by plate index), which one you
+ * stand on (a plate presses as you step onto it), and the step a wrong plate
+ * of an ordered lock was pressed on (it pops that lock's plates back up).
+ */
+export const Plates = Descriptor.ConstructedResource(codec(S.Struct({ down: S.Array(S.Boolean), on: S.NullOr(count), missed: S.NullOr(S.Int) })))("Slap/Plates")
+
 /** Which of the room's doors are open, by door index. Doors only open; a new attempt shuts them. */
 export const Doors = Descriptor.ConstructedResource(codec(S.Array(S.Boolean)))("Slap/Doors")
 
@@ -171,13 +178,13 @@ export type Intent =
 export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
 /** A room to (re)build this step; `fresh` when you come into it anew (not a retry), which resets its hit count. */
 export const EnterRoom = Descriptor.Event<{ readonly room: number; readonly fresh: boolean }>()("Slap/EnterRoom")
-/** Something touched you: a shot, a swing, or a blast. */
-export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" | "blast" }>()("Slap/PlayerHit")
+/** Something touched you: a shot, a swing, a blast, or a hazard. */
+export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" | "blast" | "hazard" }>()("Slap/PlayerHit")
 
 export const Game = Schema.bind(
   Schema.fragment({
     components: { Body, Player, Enemy, Carry, Reload, Post, Melee, Blade, Shot, Bomb },
-    resources: { Time, Run, Pace, Slashes, Blasts, Doors, Wear, Keys, Input },
+    resources: { Time, Run, Pace, Slashes, Blasts, Doors, Wear, Plates, Keys, Input },
     events: { IntentEvent, EnterRoom, PlayerHit }
   }),
   Root

@@ -61,7 +61,18 @@ for (const room of ROOMS) {
       const lock = door.lock
       if (lock.kind === "clear") assert.ok(room.enemies.some((e) => (e.chamber ?? 0) === lock.chamber), `nobody in chamber ${lock.chamber}`)
       else if (lock.kind === "captain") assert.ok(room.enemies.some((e) => (e.chamber ?? 0) === lock.chamber && e.captain === true), `no captain in chamber ${lock.chamber}`)
-      else assert.equal(room.enemies.filter((e) => e.kind === "runner" && e.key === lock.key).length, 1, `one runner carries key ${lock.key}`)
+      else if (lock.kind === "key") assert.equal(room.enemies.filter((e) => e.kind === "runner" && e.key === lock.key).length, 1, `one runner carries key ${lock.key}`)
+      else {
+        assert.ok(lock.plates.length > 0)
+        for (const p of lock.plates) assert.ok(room.plates?.[p] !== undefined, `no plate ${p}`)
+      }
+    }
+    // Every plate belongs to exactly one lock, and you can reach it before any door opens.
+    const plateLocks = room.doors.flatMap((d) => (d.lock.kind === "plates" ? d.lock.plates : []))
+    const shut = reachable(room, [...room.pillars, ...room.doors])
+    for (const [i, plate] of (room.plates ?? []).entries()) {
+      assert.equal(plateLocks.filter((p) => p === i).length, 1, `plate ${i} belongs to one lock`)
+      assert.ok(shut.has(plate.x, plate.y), `plate ${i} out of reach`)
     }
     for (const e of room.enemies) assert.equal(e.kind === "runner", e.key !== undefined, `a ${e.kind} with key ${e.key}: only runners carry keys`)
     if (room.pillars.some((p) => p.breaks === "cracked")) assert.ok(room.enemies.some((e) => e.kind === "brute" || e.kind === "grenadier"), "a cracked wall needs a brute or a grenadier to break it")

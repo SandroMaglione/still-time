@@ -11,6 +11,7 @@ import { ROOMS } from "./rooms.ts"
 import { MeleeSystem, CrowdSystem, RunnersSystem, ShootersSystem } from "./systems/enemies.ts"
 import { CutSystem, MovePlayerSystem, PaceSystem } from "./systems/player.ts"
 import { BombsSystem } from "./systems/bombs.ts"
+import { HazardsSystem } from "./systems/hazards.ts"
 import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, LocksSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
 import { ShotsSystem } from "./systems/shots.ts"
 import { FightViewInspector, type FightView } from "./view.ts"
@@ -39,6 +40,7 @@ export const updateSchedule = Game.Schedule(
   CrowdSystem,
   ShotsSystem,
   BombsSystem,
+  HazardsSystem,
   FadeSlashesSystem,
   Game.Schedule.applyDeferred(),
   LocksSystem,
@@ -72,6 +74,7 @@ export const makeRuntime = <const Debug extends DebugOption>(options: { readonly
       Blasts: [],
       Doors: [],
       Wear: [],
+      Plates: { down: [], on: null, missed: null },
       Keys: [],
       Input: IDLE_THUMB
     },
