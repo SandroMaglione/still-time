@@ -13,7 +13,7 @@ const rect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
 /** Every role has its own silhouette, including the three batch-2 bodies. */
 const BODIES = {
   player: "player-body", gunner: "gunner-body", archer: "archer-body", thrower: "thrower-body", runner: "runner-body",
-  brute: "brute-body", sniper: "sniper-body", shield: "shield-body"
+  brute: "brute-body", sniper: "sniper-body", shield: "shield-body", grenadier: "grenadier-body"
 } as const satisfies Record<Death["kind"], Sprite>
 export const bodyName = (kind: Death["kind"]): Sprite => BODIES[kind]
 
@@ -68,6 +68,15 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
         const casing = point(-1, -3)
         rect(ctx, casing.x - side * Math.round(fired * 12), casing.y - Math.round(Math.sin(fired / 0.22 * Math.PI) * 3), 2, 1, GOLD)
       }
+    } else if (enemy.kind === "grenadier") {
+      // A round charge in hand, gone for a moment after the throw; its fuse sparks as the next throw nears.
+      if (fired < 0 || fired > 0.3) {
+        const at = point(3)
+        pixelArc(ctx, at, 3, 3, 0, Math.PI * 2, INK, 3)
+        rect(ctx, at.x - 2, at.y - 2, 4, 4, "#29334b")
+        rect(ctx, at.x - 2, at.y - 2, 2, 1, "#8996b0")
+        if (enemy.charge > 0.6) rect(ctx, at.x + 1, at.y - 5, 2, 2, Math.floor(enemy.charge * 20) % 2 === 0 ? IVORY : GOLD)
+      }
     } else if (enemy.kind === "archer") {
       const bend = 0.8 + enemy.charge * 0.4
       let previous = point(4, -5)
@@ -85,7 +94,7 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
     // Hands cover the grip; the short sleeve connects visibly to the torso.
     const sleeve = { x: ground.x + side * 3 + lean, y: ground.y - 5 + sink }
     pixelLine(ctx, sleeve, hold, INK, 4)
-    pixelLine(ctx, sleeve, hold, m !== null ? "#8996b0" : enemy.kind === "archer" ? "#91a37b" : enemy.kind === "gunner" ? "#ce4655" : "#9a638e", 2)
+    pixelLine(ctx, sleeve, hold, m !== null ? "#8996b0" : enemy.kind === "archer" ? "#91a37b" : enemy.kind === "gunner" ? "#ce4655" : enemy.kind === "grenadier" ? "#e98a49" : "#9a638e", 2)
     rect(ctx, hold.x - 1, hold.y - 1, 3, 3, m !== null ? STEEL : "#e3af86")
     if (enemy.kind === "gunner" || enemy.kind === "sniper") { const fore = point(3); rect(ctx, fore.x - 1, fore.y - 1, 2, 2, "#e3af86") }
   }
@@ -154,7 +163,7 @@ export const dyingActor = (ctx: CanvasRenderingContext2D, death: Death, ground: 
     pixelArc(ctx, { x: ground.x + direction * 11, y: ground.y + 2 }, 5 + t * 7, 2 + t * 3, 0, Math.PI * 2, "#899692", 1, true)
   }
   if (age > 0.56) {
-    const tint = death.kind === "player" || death.kind === "shield" ? "#64b6b3" : death.kind === "runner" ? GOLD : death.kind === "thrower" || death.kind === "sniper" ? "#9a638e" : "#ce4655"
+    const tint = death.kind === "player" || death.kind === "shield" ? "#64b6b3" : death.kind === "runner" || death.kind === "grenadier" ? GOLD : death.kind === "thrower" || death.kind === "sniper" ? "#9a638e" : "#ce4655"
     for (let i = 0; i < 8; i++) {
       const hash = decorationHash(i, death.id, 1), t = clamp((age - 0.56 - (hash % 8) * 0.012) / 0.45)
       if (t <= 0 || t >= 1) continue

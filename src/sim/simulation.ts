@@ -10,6 +10,7 @@ import type { Best } from "./progress.ts"
 import { ROOMS } from "./rooms.ts"
 import { MeleeSystem, CrowdSystem, RunnersSystem, ShootersSystem } from "./systems/enemies.ts"
 import { CutSystem, MovePlayerSystem, PaceSystem } from "./systems/player.ts"
+import { BombsSystem } from "./systems/bombs.ts"
 import { ApplyIntentSystem, BuildRoomSystem, FadeSlashesSystem, LocksSystem, OpenRunSystem, OutcomeSystem } from "./systems/run.ts"
 import { ShotsSystem } from "./systems/shots.ts"
 import { FightViewInspector, type FightView } from "./view.ts"
@@ -37,6 +38,7 @@ export const updateSchedule = Game.Schedule(
   RunnersSystem,
   CrowdSystem,
   ShotsSystem,
+  BombsSystem,
   FadeSlashesSystem,
   Game.Schedule.applyDeferred(),
   LocksSystem,
@@ -67,7 +69,9 @@ export const makeRuntime = <const Debug extends DebugOption>(options: { readonly
       Run: { room: options.room, deaths: 0, hits: 0, world: 0, best: ROOMS.map((_, i) => options.best?.[i] ?? null), open: options.open ?? false },
       Pace: { scale: 1 },
       Slashes: [],
+      Blasts: [],
       Doors: [],
+      Wear: [],
       Keys: [],
       Input: IDLE_THUMB
     },

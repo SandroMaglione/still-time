@@ -2,6 +2,7 @@
 import { existsSync, readdirSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import './batch2-art.mjs'
+import './batch3-art.mjs'
 // art-hero.mjs drew the earlier hat hero; the approved player is hand-kept in source/player-body.sprite.txt.
 
 const out = 'output/art'

@@ -79,3 +79,18 @@ export const spawnShot = (fight: Fight, shot: { readonly kind: "bullet" | "arrow
   const restored = fight.runtime.restore(edited)
   if (!restored.ok) throw new Error(`restore failed ${JSON.stringify(restored.error)}`)
 }
+
+/** Drops a lit bomb into the room by editing a snapshot, with `left` world seconds of fuse. */
+export const spawnBomb = (fight: Fight, bomb: { readonly x: number; readonly y: number; readonly left: number }): void => {
+  const snapshot = fight.runtime.snapshot()
+  if (!snapshot.ok) throw new Error("snapshot failed")
+  const id = snapshot.value.nextEntity
+  const edited = {
+    ...snapshot.value,
+    nextEntity: id + 1,
+    entities: [...snapshot.value.entities, { id, components: { "Slap/Body": { x: bomb.x, y: bomb.y }, "Slap/Bomb": { _tag: "lit", left: bomb.left } } }],
+    scopes: { ...snapshot.value.scopes, "Slap/Room": [...(snapshot.value.scopes["Slap/Room"] ?? []), id] }
+  }
+  const restored = fight.runtime.restore(edited)
+  if (!restored.ok) throw new Error(`restore failed ${JSON.stringify(restored.error)}`)
+}

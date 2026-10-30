@@ -12,11 +12,25 @@
 import { Ops } from "@typeonce/ritmo"
 
 import { angleDiff, canSee, segmentDistance, settle, turnToward } from "../geometry.ts"
-import { Body, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time } from "../schema.ts"
-import { CROWD, GIVE, MELEE, RUNNER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
+import { Body, Bomb, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time, Wear } from "../schema.ts"
+import type { Pillar } from "../rooms.ts"
+import { COVER, CROWD, GIVE, MELEE, RUNNER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
 import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, roomOf, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
+
+/** Whether a swing's wedge (from `at`, facing `facing`, `reach` long, ±`arc`) reaches into a rectangle: sampled across the wedge. */
+const wedgeTouches = (p: Pillar, at: { readonly x: number; readonly y: number }, facing: number, reach: number, arc: number): boolean => {
+  for (let i = 0; i <= 8; i++) {
+    const a = facing - arc + (2 * arc * i) / 8
+    for (let j = 1; j <= 6; j++) {
+      const d = (reach * j) / 6
+      const x = at.x + Ops.cos(a) * d, y = at.y + Ops.sin(a) * d
+      if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) return true
+    }
+  }
+  return false
+}
 
 /** Seconds of world time this step: real seconds times the world speed. */
 const worldDt = (time: { readonly dt: number }, pace: { readonly scale: number }): number => time.dt * pace.scale
@@ -25,7 +39,8 @@ const fightResources = {
   time: Game.System.readResource(Time),
   pace: Game.System.readResource(Pace),
   run: Game.System.readResource(Run),
-  doors: Game.System.readResource(Doors)
+  doors: Game.System.readResource(Doors),
+  wear: Game.System.readResource(Wear)
 } as const
 
 export const ShootersSystem = Game.System(
@@ -34,13 +49,13 @@ export const ShootersSystem = Game.System(
     when: playing,
     queries: { players: PlayerRead, shooters: ShooterQuery, melee: MeleeRead, runners: RunnerRead },
     resources: fightResources,
-    commands: Game.System.commands(Game.System.spawns(Body, Shot))
+    commands: Game.System.commands(Game.System.spawns(Body, Shot, Bomb))
   },
   ({ queries, resources, commands }) => {
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
     const room = roomOf(resources.run.get().room)
-    const walls = wallsOf(room, resources.doors.get())
+    const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const dt = worldDt(resources.time.get(), resources.pace.get())
     // Everyone's place at the start of the step, to keep lines of fire clear of allies.
     const allies = [
@@ -52,7 +67,9 @@ export const ShootersSystem = Game.System(
       const kind = data.enemy.get().kind
       if (!isShooter(kind)) continue
       const spec = SHOOTERS[kind]
-      const shot = SHOTS[spec.shot]
+      // A bomb is lobbed over allies (whoever its blast takes); every other shot keeps its line clear of them.
+      const fires = spec.shot
+      const shot = fires === "bomb" ? null : SHOTS[fires]
       const at = data.body.get()
       const post = data.post.get()
       const sees = canSee(at.x, at.y, me.x, me.y, spec.sight, walls)
@@ -61,7 +78,7 @@ export const ShootersSystem = Game.System(
       const aim = spec.scoped && reload.left <= spec.lock ? reload.aim : Ops.atan2(me.y - at.y, me.x - at.x)
       // Would any of its shots (each knife of a fan) pass through an ally first?
       const reach = Ops.hypot(me.x - at.x, me.y - at.y)
-      const blocked = sees && spec.spread.some((offset) => {
+      const blocked = sees && shot !== null && spec.spread.some((offset) => {
         const ex = at.x + Ops.cos(aim + offset) * reach, ey = at.y + Ops.sin(aim + offset) * reach
         return allies.some((a) => a.id !== entity.id && segmentDistance(a.at.x, a.at.y, at.x, at.y, ex, ey) < a.radius + shot.radius + SHOOTER_MOVE.allyGap)
       })
@@ -95,11 +112,17 @@ export const ShootersSystem = Game.System(
         continue
       }
       data.reload.set({ left: left + spec.period, aim })
+      if (fires === "bomb" || shot === null) {
+        // At where you stand, as far as it can see.
+        const d = Math.min(reach, spec.sight)
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: to.x, y: to.y }], [Bomb, { _tag: "flying", tx: to.x + Ops.cos(aim) * d, ty: to.y + Ops.sin(aim) * d }]))
+        continue
+      }
       for (const offset of spec.spread) {
         const a = aim + offset
         const ux = Ops.cos(a), uy = Ops.sin(a)
         const start = spec.radius + shot.radius + 0.05
-        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: to.x + ux * start, y: to.y + uy * start }], [Shot, { kind: spec.shot, vx: ux * shot.speed, vy: uy * shot.speed }]))
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: to.x + ux * start, y: to.y + uy * start }], [Shot, { kind: fires, vx: ux * shot.speed, vy: uy * shot.speed }]))
       }
     }
   }
@@ -110,14 +133,14 @@ export const MeleeSystem = Game.System(
   {
     when: playing,
     queries: { players: PlayerRead, shooters: ShooterRead, melee: MeleeQuery, runners: RunnerRead },
-    resources: fightResources,
+    resources: { ...fightResources, wear: Game.System.writeResource(Wear) },
     events: { hit: Game.System.writeEvent(PlayerHit) }
   },
   ({ queries, resources, events }) => {
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
     const room = roomOf(resources.run.get().room)
-    const walls = wallsOf(room, resources.doors.get())
+    const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const dt = worldDt(resources.time.get(), resources.pace.get())
     const r = TUNING.player.radius
     const allies = [
@@ -190,6 +213,10 @@ export const MeleeSystem = Game.System(
         }
         case "swing": {
           if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
+          // The blade bites into any cracked wall inside its wedge.
+          const wear = resources.wear.get()
+          const broken = room.pillars.map((p, i) => wear[i] !== 0 && p.breaks === "cracked" && wedgeTouches(p, at, facing, spec.reach + COVER.swingBite, spec.arc))
+          if (broken.some((b) => b)) resources.wear.set(wear.map((w, i) => (broken[i] === true ? 0 : w)))
           // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "swing", data: () => ({ left }) })
@@ -224,7 +251,7 @@ export const RunnersSystem = Game.System(
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
     const room = roomOf(resources.run.get().room)
-    const walls = wallsOf(room, resources.doors.get())
+    const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const step = RUNNER.speed * worldDt(resources.time.get(), resources.pace.get())
     for (const { data } of queries.runners.each()) {
       const at = data.body.get()
@@ -248,11 +275,11 @@ export const CrowdSystem = Game.System(
   {
     when: playing,
     queries: { shooters: ShooterQuery, melee: MeleeQuery, runners: RunnerQuery },
-    resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors) }
+    resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors), wear: Game.System.readResource(Wear) }
   },
   ({ queries, resources }) => {
     const room = roomOf(resources.run.get().room)
-    const walls = wallsOf(room, resources.doors.get())
+    const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const bodies = [
       ...queries.shooters.each().map((m) => ({ cell: m.data.body, radius: radiusOf(m.data.enemy.get().kind), give: GIVE[m.data.enemy.get().kind] })),
       ...queries.melee.each().map((m) => ({ cell: m.data.body, radius: radiusOf(m.data.enemy.get().kind), give: GIVE[m.data.enemy.get().kind] })),

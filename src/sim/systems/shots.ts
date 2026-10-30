@@ -1,8 +1,8 @@
-/** Shots fly in world time; walls and pillars stop them; they hit you and any enemy alike (a guarded front stops them). */
+/** Shots fly in world time; walls and pillars stop them (a crate takes the hit); they hit you and any enemy alike (a guarded front stops them). */
 import { Ops } from "@typeonce/ritmo"
 
-import { insidePillar } from "../geometry.ts"
-import { Doors, Enemy, Flow, Game, Pace, PlayerHit, Run, Shot, Slashes, Time } from "../schema.ts"
+import { insidePillar, pushOut } from "../geometry.ts"
+import { Doors, Enemy, Flow, Game, Pace, PlayerHit, Run, Shot, Slashes, Time, Wear } from "../schema.ts"
 import { SHOTS, TUNING, isMelee, radiusOf } from "../tuning.ts"
 import { blow, type BlowResult } from "./blows.ts"
 import { MeleeRead, PlayerRead, RunnerRead, ShooterRead, ShotQuery, roomOf, wallsOf } from "./queries.ts"
@@ -17,6 +17,7 @@ export const ShotsSystem = Game.System(
       pace: Game.System.readResource(Pace),
       run: Game.System.readResource(Run),
       doors: Game.System.readResource(Doors),
+      wear: Game.System.writeResource(Wear),
       slashes: Game.System.writeResource(Slashes)
     },
     events: { hit: Game.System.writeEvent(PlayerHit) },
@@ -26,7 +27,9 @@ export const ShotsSystem = Game.System(
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
     const room = roomOf(resources.run.get().room)
-    const walls = wallsOf(room, resources.doors.get())
+    const wear = [...resources.wear.get()]
+    const walls = wallsOf(room, resources.doors.get(), wear)
+    let worn = false
     const time = resources.time.get()
     const dt = time.dt * resources.pace.get().scale
     // Each target: where it stands, and what a shot from angle `from` does to it. Shooters and runners fall; a guarded front stops it.
@@ -58,6 +61,10 @@ export const ShotsSystem = Game.System(
       const sr = SHOTS[s.kind].radius
       if (nx < 0 || ny < 0 || nx > room.w || ny > room.h || insidePillar(nx, ny, sr, walls)) {
         commands.despawn(entity)
+        // A crate it struck takes the hit (a cracked wall shrugs a shot off).
+        const crate = room.pillars.findIndex((p, i) => p.breaks === "crate" && (wear[i] ?? 0) > 0 && pushOut(nx, ny, sr, p) !== null)
+        const hits = wear[crate]
+        if (crate !== -1 && hits !== undefined && hits !== null) { wear[crate] = hits - 1; worn = true }
         continue
       }
       data.body.set({ x: nx, y: ny })
@@ -73,6 +80,7 @@ export const ShotsSystem = Game.System(
       else marks.push({ x: victim.at.x, y: victim.at.y, angle, born: time.step, blocked: false })
     }
     if (hit) events.hit.emit({ by: "shot" })
+    if (worn) resources.wear.set(wear)
     if (marks.length > 0) resources.slashes.set([...resources.slashes.get(), ...marks])
   }
 )

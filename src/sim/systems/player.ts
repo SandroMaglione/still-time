@@ -6,7 +6,7 @@ import { Ops } from "@typeonce/ritmo"
 
 import { settle } from "../geometry.ts"
 import { TUNING, isMelee, radiusOf } from "../tuning.ts"
-import { Doors, Enemy, Flow, Game, Input, Pace, Run, Slashes, Time } from "../schema.ts"
+import { Doors, Enemy, Flow, Game, Input, Pace, Run, Slashes, Time, Wear } from "../schema.ts"
 import { blow } from "./blows.ts"
 import { EnemyRead, MeleeRead, PlayerQuery, PlayerRead, RunnerRead, ShooterRead, roomOf, wallsOf } from "./queries.ts"
 
@@ -33,11 +33,11 @@ export const MovePlayerSystem = Game.System(
   {
     when: playing,
     queries: { players: PlayerQuery, enemies: EnemyRead },
-    resources: { time: Game.System.readResource(Time), input: Game.System.readResource(Input), run: Game.System.readResource(Run), doors: Game.System.readResource(Doors) }
+    resources: { time: Game.System.readResource(Time), input: Game.System.readResource(Input), run: Game.System.readResource(Run), doors: Game.System.readResource(Doors), wear: Game.System.readResource(Wear) }
   },
   ({ queries, resources }) => {
     const room = roomOf(resources.run.get().room)
-    const walls = wallsOf(room, resources.doors.get())
+    const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const { x: sx, y: sy } = resources.input.get()
     const dir = Ops.hypot(sx, sy)
     const speed = TUNING.player.speed * pushOf(sx, sy)

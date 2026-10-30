@@ -3,8 +3,8 @@
  * Disjoint by their filters, so one system may write the player's body and
  * read the enemies' (or the reverse).
  */
-import { ROOMS, type Pillar, type Room } from "../rooms.ts"
-import { Blade, Body, Carry, Enemy, Game, Melee, Player, Post, Reload, Shot } from "../schema.ts"
+import { ROOMS, type Cover, type Pillar, type Room } from "../rooms.ts"
+import { Blade, Body, Bomb, Carry, Enemy, Game, Melee, Player, Post, Reload, Shot } from "../schema.ts"
 
 export const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
 export const PlayerRead = Game.Query({ selection: { body: Game.Query.read(Body), player: Game.Query.read(Player) } })
@@ -34,6 +34,7 @@ export const RunnerRead = Game.Query({ selection: { body: Game.Query.read(Body),
 export const EnemyRead = Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy) }, without: [Player, Shot] })
 
 export const ShotQuery = Game.Query({ selection: { body: Game.Query.write(Body), shot: Game.Query.read(Shot) }, without: [Player, Enemy] })
+export const BombQuery = Game.Query({ selection: { body: Game.Query.write(Body), bomb: Game.Query.write(Bomb) }, without: [Player, Enemy, Shot] })
 
 /** The room of the run. The run's room is always one of ROOMS (BuildRoom only enters existing rooms). */
 export const roomOf = (index: number): Room => {
@@ -42,6 +43,14 @@ export const roomOf = (index: number): Room => {
   return room
 }
 
-/** What stands in the way this step: the room's walls and crates, and its doors still shut. */
-export const wallsOf = (room: Room, open: ReadonlyArray<boolean>): ReadonlyArray<Pillar> =>
-  room.doors.length === 0 ? room.pillars : [...room.pillars, ...room.doors.filter((_, i) => open[i] !== true)]
+/** The room's cover still standing (not broken). */
+export const standing = (room: Room, wear: ReadonlyArray<number | null>): ReadonlyArray<Cover> =>
+  wear.every((w) => w !== 0) ? room.pillars : room.pillars.filter((_, i) => wear[i] !== 0)
+
+/** What stands in the way this step: the room's walls and cover still standing, and its doors still shut. */
+export const wallsOf = (room: Room, open: ReadonlyArray<boolean>, wear: ReadonlyArray<number | null>): ReadonlyArray<Pillar> =>
+  room.doors.length === 0 ? standing(room, wear) : [...standing(room, wear), ...room.doors.filter((_, i) => open[i] !== true)]
+
+/** Wear a fresh room starts with, by pillar: a crate's hits, a cracked wall's one, null for cover that never breaks. */
+export const freshWear = (room: Room, crateHits: number): Array<number | null> =>
+  room.pillars.map((p) => (p.breaks === "crate" ? crateHits : p.breaks === "cracked" ? 1 : null))

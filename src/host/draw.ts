@@ -114,6 +114,23 @@ const glowLayer = (ctx: CanvasRenderingContext2D): CanvasRenderingContext2D => {
   return g
 }
 
+/** Fissures on a block's front: a cracked wall shows them all (with an orange glint: it will give); a crate shows more as it splinters (`amount` 0 to 1). */
+const cracks = (ctx: CanvasRenderingContext2D, b: Pillar, P: (x: number, y: number, z?: number) => { x: number; y: number }, amount: number, cracked: boolean): void => {
+  const near = P(b.x, b.y + b.h, PILLAR_HEIGHT), right = P(b.x + b.w, b.y + b.h), ground = P(b.x, b.y + b.h)
+  const x0 = Math.round(near.x), y0 = Math.round(near.y), w = Math.round(right.x) - x0, face = Math.round(ground.y) - y0
+  const count = cracked ? Math.max(2, Math.round(w / 18)) : Math.max(1, Math.round(amount * 3))
+  for (let i = 0; i < count; i++) {
+    const seed = decorationHash(Math.round(b.x * 10) + i, Math.round(b.y * 10), 7)
+    const sx = x0 + Math.round(((i + 0.5) / count) * w) + ((seed % 5) - 2)
+    // A jagged fissure from the top edge of the front down most of its height, with one short branch.
+    const points = [{ x: sx, y: y0 }, { x: sx + 2, y: y0 + Math.round(face * 0.3) }, { x: sx - 1, y: y0 + Math.round(face * 0.55) }, { x: sx + 1, y: y0 + Math.round(face * 0.85) }]
+    for (let k = 1; k < points.length; k++) pixelLine(ctx, points[k - 1]!, points[k]!, INK, 2)
+    pixelLine(ctx, points[1]!, { x: points[1]!.x + ((seed >>> 4) % 2 === 0 ? 4 : -4), y: points[1]!.y + 3 }, INK, 1)
+    if (cracked) { ctx.fillStyle = "#e98a49"; ctx.fillRect(sx, y0 + 1, 1, 2); ctx.fillRect(points[2]!.x + 1, points[2]!.y, 1, 1) }
+    else { ctx.fillStyle = "#c6a17a"; ctx.fillRect(sx + 1, y0 + 1, 1, 1) }
+  }
+}
+
 export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): void => {
   // Margins are in source pixels, so short desktop/landscape views need smaller ones.
   const TOP = Math.min(32, Math.round(ch * 0.08)), BOTTOM = Math.min(42, Math.round(ch * 0.12))
@@ -196,6 +213,14 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       if (l.locked) threatLine(ctx, from, to, true)
       else pixelLine(ctx, from, to, DANGER, 1, 3)
       pathArrow(ctx, { x: to.x - Math.cos(l.aim) * 10, y: to.y - Math.sin(l.aim) * 8 }, Math.atan2(to.y - from.y, to.x - from.x))
+    }
+    // A lit bomb: its blast's reach on the floor, and a red sweep that fills as the fuse burns down.
+    for (const b of view.bombs) {
+      if (b.flying) continue
+      const centre = P(b.x, b.y), rx = b.radius * erx, ry = b.radius * ery
+      threatArc(ctx, centre, rx, ry, 0, Math.PI * 2, THREAT, 1, true)
+      const burnt = 1 - b.fuse
+      if (burnt > 0) threatArc(ctx, centre, rx, ry, -Math.PI / 2, -Math.PI / 2 + burnt * Math.PI * 2, b.fuse < 0.3 ? DANGER : THREAT, 2)
     }
     for (const e of view.enemies) {
       const m = e.melee
@@ -311,6 +336,22 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
+  for (const b of view.bombs) {
+    actors.push({
+      x: b.x, y: b.y, paint: () => {
+        // In flight it rides high with its shadow on the floor; lit, it sits on the floor with a sparking fuse.
+        const ground = P(b.x, b.y), at = P(b.x, b.y, b.flying ? 0.7 : 0.15)
+        sprite(ctx, "shadow", ground.x + 1, ground.y + 3)
+        pixelArc(ctx, at, 4, 4, 0, Math.PI * 2, DANGER, 1)
+        pixelArc(ctx, at, 3, 3, 0, Math.PI * 2, INK, 3)
+        ctx.fillStyle = "#465477"; ctx.fillRect(Math.round(at.x) - 2, Math.round(at.y) - 2, 5, 5)
+        ctx.fillStyle = "#c6d4df"; ctx.fillRect(Math.round(at.x) - 2, Math.round(at.y) - 2, 2, 1)
+        const spark = Math.floor(view.world * (b.fuse < 0.3 ? 24 : 10)) % 2 === 0
+        ctx.fillStyle = spark ? "#f4efda" : "#edc66c"; ctx.fillRect(Math.round(at.x) + 1, Math.round(at.y) - 5, 2, 2)
+        if (!b.flying) emitLight(ctx, { x: at.x + 2, y: at.y - 4, radius: 1.2, colour: [255, 190, 110], intensity: 0.7, shadows: false })
+      }
+    })
+  }
   for (const death of presentation?.deaths ?? []) {
     actors.push({ x: death.x, y: death.y, paint: () => dyingActor(ctx, death, P(death.x, death.y), presentation!.now - death.born) })
   }
@@ -327,7 +368,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  type Box = Pillar & { readonly material: Material; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null }
+  type Box = Pillar & { readonly material: Material; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null; readonly damage: number; readonly cracked: boolean }
   const doorBoxes = view.doors.flatMap((d): Array<Box> => {
     if (d.open) return []
     const colour = lockColour(d.lock)
@@ -344,10 +385,14 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         }
       }
     }
-    return [{ x: d.x, y: d.y, w: d.w, h: d.h, material: "gate", edge: colour, emblem }]
+    return [{ x: d.x, y: d.y, w: d.w, h: d.h, material: "gate", edge: colour, emblem, damage: 0, cracked: false }]
   })
   const boxes: Array<Box> = [
-    ...view.room.pillars.map((p, i): Box => ({ ...p, material: p.w < 2 && p.h < 2 && decorationHash(i, 0, view.room.index) % 3 === 0 ? "wood" : "stone", edge: "#899692", emblem: null })),
+    // Wood is what breaks under fire; everything else is stone. A cracked wall shows its seams.
+    ...view.cover.map((c): Box => ({
+      x: c.x, y: c.y, w: c.w, h: c.h, material: c.kind === "crate" ? "wood" : "stone", edge: c.kind === "cracked" ? "#e98a49" : "#899692", emblem: null,
+      damage: c.kind === "crate" ? 1 - c.hits / c.maxHits : 0, cracked: c.kind === "cracked"
+    })),
     ...doorBoxes
   ].sort((a, b) => a.y + a.h - (b.y + b.h))
   // Each actor goes right after the last box it stands in front of.
@@ -364,6 +409,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   paintAll(first)
   boxes.forEach((b, i) => {
     raisedBlock(ctx, b, P, PILLAR_HEIGHT, b.material, b.edge, view.world)
+    if (b.cracked || b.damage > 0) cracks(ctx, b, P, b.cracked ? 1 : b.damage, b.cracked)
     if (b.emblem !== null) {
       const c = P(b.x + b.w / 2, b.y + b.h / 2, PILLAR_HEIGHT)
       b.emblem(c.x, c.y)
@@ -377,7 +423,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     applyLighting(ctx, {
       P, u, squash: SQUASH,
       toFloor: (sx, sy) => ({ x: (sx - cx) / u, y: (sy - cy) / (u * SQUASH) }),
-      blockers: [...view.room.pillars, ...view.doors.filter((d) => !d.open)],
+      blockers: [...view.cover, ...view.doors.filter((d) => !d.open)],
       blockerHeight: PILLAR_HEIGHT,
       backWall: BACK_WALL,
       room: view.room,
@@ -424,6 +470,18 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     pixelArc(ctx, centre, radius, radius * SQUASH, c.angle - 1.2 + t, c.angle + 1.2 + t, "#171c2e", t < 0.45 ? 4 : 2)
     pixelArc(ctx, centre, radius, radius * SQUASH, c.angle - 1.2 + t, c.angle + 1.2 + t, t < 0.3 ? "#f4efda" : t < 0.65 ? "#c6d4df" : "#8996b0", t < 0.45 ? 2 : 1)
     if (t < 0.25) sprite(ctx, "spark", centre.x, centre.y + 8)
+  }
+
+  // Blasts: a hot flash over its reach, then a ring of smoke pushing out.
+  for (const b of view.blasts) {
+    const centre = P(b.x, b.y, 0.2), t = b.age
+    const rx = b.radius * erx * (0.55 + 0.45 * t), ry = b.radius * ery * (0.55 + 0.45 * t)
+    if (t < 0.35) {
+      emitLight(ctx, { x: centre.x, y: centre.y, radius: 3.5, colour: [255, 200, 120], intensity: 1 - t / 0.35, shadows: false })
+      pixelArc(ctx, centre, rx * 0.6, ry * 0.6, 0, Math.PI * 2, t < 0.15 ? "#f4efda" : "#edc66c", 4)
+    }
+    pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, INK, 4, true)
+    pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, t < 0.4 ? "#e98a49" : "#899692", 2, true)
   }
 
   // Enemies off screen (and not shut away behind a door): a marker at the edge, bright when it can see you.

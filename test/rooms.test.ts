@@ -64,6 +64,7 @@ for (const room of ROOMS) {
       else assert.equal(room.enemies.filter((e) => e.kind === "runner" && e.key === lock.key).length, 1, `one runner carries key ${lock.key}`)
     }
     for (const e of room.enemies) assert.equal(e.kind === "runner", e.key !== undefined, `a ${e.kind} with key ${e.key}: only runners carry keys`)
+    if (room.pillars.some((p) => p.breaks === "cracked")) assert.ok(room.enemies.some((e) => e.kind === "brute" || e.kind === "grenadier"), "a cracked wall needs a brute or a grenadier to break it")
     if (room.goal.kind === "clear") assert.ok(room.enemies.length > 0)
   })
 
@@ -77,11 +78,11 @@ for (const room of ROOMS) {
     }
   })
 
-  test(`${room.name}: with its doors open you can reach every enemy and the exit; shut, they hold`, () => {
-    const open = reachable(room, room.pillars)
+  test(`${room.name}: with its doors open (and what breaks, broken) you can reach every enemy and the exit; shut, they hold`, () => {
+    const open = reachable(room, room.pillars.filter((p) => p.breaks === undefined))
     for (const e of room.enemies) assert.ok(open.has(e.x, e.y), `${e.kind} at ${e.x},${e.y} out of reach`)
     if (room.goal.kind === "exit") assert.ok(open.has(centreOf(room.goal).x, centreOf(room.goal).y), "exit out of reach")
-    if (room.doors.length === 0) return
+    if (room.doors.length === 0 && room.pillars.every((p) => p.breaks === undefined)) return
     const shut = reachable(room, [...room.pillars, ...room.doors])
     if (room.goal.kind === "exit") assert.ok(!shut.has(centreOf(room.goal).x, centreOf(room.goal).y), "the exit can be reached past the doors")
     for (const e of room.enemies) if ((e.chamber ?? 0) > 0) assert.ok(!shut.has(e.x, e.y), `${e.kind} in chamber ${e.chamber} reachable past its door`)

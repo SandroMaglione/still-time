@@ -7,9 +7,9 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { unlocked } from "../progress.ts"
 import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
-import { Blade, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult } from "../schema.ts"
-import { CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
-import { EnemyRead, PlayerRead, RunnerRead, roomOf } from "./queries.ts"
+import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Slashes, STEP, Time, type Key, type RoomResult, Wear } from "../schema.ts"
+import { BOMB, COVER, CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
+import { EnemyRead, PlayerRead, RunnerRead, freshWear, roomOf } from "./queries.ts"
 
 /** The first room of the run: built once by the setup schedule. */
 export const OpenRunSystem = Game.System(
@@ -53,7 +53,9 @@ export const BuildRoomSystem = Game.System(
       run: Game.System.writeResource(Run),
       pace: Game.System.writeResource(Pace),
       slashes: Game.System.writeResource(Slashes),
+      blasts: Game.System.writeResource(Blasts),
       doors: Game.System.writeResource(Doors),
+      wear: Game.System.writeResource(Wear),
       keys: Game.System.writeResource(Keys)
     },
     nextMachines: { flow: Game.System.nextState(Flow) },
@@ -93,6 +95,8 @@ export const BuildRoomSystem = Game.System(
     const run = resources.run.get()
     resources.run.set({ room: asked.room, deaths: run.deaths, hits: asked.fresh ? 0 : run.hits, world: 0, best: run.best, open: run.open })
     resources.doors.set(room.doors.map(() => false))
+    resources.wear.set(freshWear(room, COVER.crateHits))
+    resources.blasts.set([])
     resources.keys.set(keys)
     resources.pace.set({ scale: TUNING.slow })
     resources.slashes.set([])
@@ -100,14 +104,16 @@ export const BuildRoomSystem = Game.System(
   }
 )
 
-/** Cut marks fade out after their time. */
+/** Cut and blast marks fade out after their time. */
 export const FadeSlashesSystem = Game.System(
   "Slap/FadeSlashes",
-  { resources: { time: Game.System.readResource(Time), slashes: Game.System.writeResource(Slashes) } },
+  { resources: { time: Game.System.readResource(Time), slashes: Game.System.writeResource(Slashes), blasts: Game.System.writeResource(Blasts) } },
   ({ resources }) => {
     const now = resources.time.get().step
     const slashes = resources.slashes.get()
     if (slashes.some((s) => now - s.born >= TUNING.slashSteps)) resources.slashes.set(slashes.filter((s) => now - s.born < TUNING.slashSteps))
+    const blasts = resources.blasts.get()
+    if (blasts.some((b) => now - b.born >= BOMB.showSteps)) resources.blasts.set(blasts.filter((b) => now - b.born < BOMB.showSteps))
   }
 )
 

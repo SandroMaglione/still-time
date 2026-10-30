@@ -13,6 +13,12 @@ import type { EnemyKind } from "./tuning.ts"
 
 export interface Pillar { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 
+/** A wall or crate that can break: a crate splinters under shots, a cracked wall gives to a brute's swing or a blast. */
+export type Breaks = "crate" | "cracked"
+
+/** A piece of the room's cover: solid for good unless it `breaks`. */
+export interface Cover extends Pillar { readonly breaks?: Breaks }
+
 /** What opens a door. Chambers and keys are small numbers, set per spawn. */
 export type Lock =
   | { readonly kind: "clear"; readonly chamber: number }
@@ -41,7 +47,7 @@ export interface Room {
   readonly w: number
   readonly h: number
   readonly start: { readonly x: number; readonly y: number }
-  readonly pillars: ReadonlyArray<Pillar>
+  readonly pillars: ReadonlyArray<Cover>
   readonly doors: ReadonlyArray<Door>
   readonly enemies: ReadonlyArray<EnemySpawn>
   readonly goal: Goal
@@ -52,6 +58,8 @@ export interface Room {
 }
 
 const crate = (x: number, y: number, size = 1.2): Pillar => ({ x: x - size / 2, y: y - size / 2, w: size, h: size })
+/** A wooden crate that splinters under fire. */
+const box = (x: number, y: number, size = 1.2): Cover => ({ ...crate(x, y, size), breaks: "crate" })
 
 /** A wall across the room at `y`, `thick` deep, with a door of width `gap` centred on `at`. */
 const gate = (w: number, y: number, at: number, gap: number, lock: Lock, thick = 0.8): { readonly walls: ReadonlyArray<Pillar>; readonly door: Door } => ({
@@ -250,6 +258,52 @@ export const ROOMS: ReadonlyArray<Room> = [
     goal: CLEAR,
     par: 8,
     tip: "the laser locks before it fires: step off the line"
+  },
+  {
+    name: "Splinters",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [box(4, 13), box(10, 13), box(7, 9.5), box(4, 6), box(10, 6), crate(7, 16.5)],
+    doors: [],
+    enemies: [
+      { kind: "gunner", x: 3.5, y: 2.5, delay: 0.3 },
+      { kind: "gunner", x: 10.5, y: 2.5, delay: 0.7 }
+    ],
+    goal: CLEAR,
+    par: 7,
+    tip: "wooden crates splinter under fire"
+  },
+  {
+    name: "Breach",
+    w: 14,
+    h: 24,
+    start: { x: 7, y: 22 },
+    pillars: [
+      // The only way out is through the cracked middle of the wall: let the brute's swing break it.
+      { x: 0, y: 6.6, w: 5.5, h: 0.8 }, { x: 8.5, y: 6.6, w: 5.5, h: 0.8 }, { x: 5.5, y: 6.6, w: 3, h: 0.8, breaks: "cracked" },
+      crate(3, 16), crate(11, 16)
+    ],
+    doors: [],
+    enemies: [{ kind: "brute", x: 7, y: 12.5, delay: 0 }],
+    goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
+    par: 6,
+    tip: "lure the brute's swing into the cracked wall"
+  },
+  {
+    name: "Powder Room",
+    w: 16,
+    h: 24,
+    start: { x: 8, y: 22 },
+    pillars: [box(4, 15), box(12, 15), crate(8, 11.5, 1.4), box(4, 7), box(12, 7)],
+    doors: [],
+    enemies: [
+      { kind: "grenadier", x: 8, y: 3, delay: 0.6 },
+      { kind: "gunner", x: 3, y: 4, delay: 0.9 }
+    ],
+    goal: CLEAR,
+    par: 8,
+    tip: "the ring is the blast: be out of it when the fuse runs out"
   },
   {
     name: "Fortress",

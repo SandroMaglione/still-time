@@ -3,9 +3,9 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { canSee, clearLine } from "./geometry.ts"
 import { ROOMS, type Goal, type Lock, type Pillar } from "./rooms.ts"
-import { Blade, Body, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Player, Reload, Run, Shot, Slashes, Time } from "./schema.ts"
+import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Player, Reload, Run, Shot, Slashes, Time, Wear } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
-import { MELEE, RUNNER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
+import { BOMB, COVER, MELEE, RUNNER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover"
 
@@ -76,6 +76,23 @@ export interface ResultView {
   readonly world: number
 }
 
+/** A piece of the room's cover still standing: solid, a cracked wall, or a crate with `hits` of `maxHits` left. */
+export interface CoverView extends Pillar {
+  readonly kind: "solid" | "cracked" | "crate"
+  readonly hits: number
+  readonly maxHits: number
+}
+
+/** A grenadier's bomb: in flight (how far along, 0 to 1, for its arc), or lit with `fuse` of its burn left (1 to 0). */
+export interface BombView {
+  readonly id: number
+  readonly x: number
+  readonly y: number
+  readonly flying: boolean
+  readonly fuse: number
+  readonly radius: number
+}
+
 export interface FightView {
   /** Stable simulation step; presentation observes every tick, including despawns. */
   readonly step: number
@@ -90,8 +107,13 @@ export interface FightView {
     readonly par: number
     readonly tip: string | null
   }
+  /** The cover still standing this attempt (broken walls and crates gone), in room order. */
+  readonly cover: ReadonlyArray<CoverView>
   readonly doors: ReadonlyArray<DoorView>
   readonly keys: ReadonlyArray<KeyView>
+  readonly bombs: ReadonlyArray<BombView>
+  /** Blasts just gone off, with `age` from 0 to 1 (gone), and their reach. */
+  readonly blasts: ReadonlyArray<{ readonly x: number; readonly y: number; readonly age: number; readonly radius: number }>
   readonly deaths: number
   /** Hits in this room since you came into it, and world seconds of this attempt. */
   readonly hits: number
@@ -134,6 +156,7 @@ export const FightViewInspector = Game.Inspector(
       shooters: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), reload: Game.Query.read(Reload) } }),
       melee: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.read(Melee), blade: Game.Query.read(Blade) } }),
       runners: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), carry: Game.Query.read(Carry) } }),
+      bombs: Game.Query({ selection: { body: Game.Query.read(Body), bomb: Game.Query.read(Bomb) } }),
       shots: Game.Query({ selection: { body: Game.Query.read(Body), shot: Game.Query.read(Shot) } })
     },
     resources: {
@@ -142,6 +165,8 @@ export const FightViewInspector = Game.Inspector(
       slashes: Game.System.readResource(Slashes),
       time: Game.System.readResource(Time),
       doors: Game.System.readResource(Doors),
+      wear: Game.System.readResource(Wear),
+      blasts: Game.System.readResource(Blasts),
       keys: Game.System.readResource(Keys)
     },
     machines: { flow: Game.System.machine(Flow) }
@@ -154,7 +179,8 @@ export const FightViewInspector = Game.Inspector(
     const p = queries.players.each()[0]
     const player = p === undefined ? null : { id: p.entity.id, ...p.data.body.get(), radius: TUNING.player.radius, vx: p.data.player.get().vx, vy: p.data.player.get().vy, attackRange: TUNING.attackRange }
     const open = resources.doors.get()
-    const walls = wallsOf(room, open)
+    const wear = resources.wear.get()
+    const walls = wallsOf(room, open, wear)
     const sees = (at: { x: number; y: number }): boolean => player !== null && canSee(at.x, at.y, player.x, player.y, TUNING.sight, walls)
     const shut = room.doors.filter((_, i) => open[i] !== true)
     const sealed = (at: { x: number; y: number }): boolean => player !== null && shut.length > 0 && !clearLine(at.x, at.y, player.x, player.y, shut)
@@ -228,8 +254,22 @@ export const FightViewInspector = Game.Inspector(
       k.state === "carried" || k.state === "floor" ? [{ key: k.key, state: k.state, x: k.x, y: k.y }]
       : k.state === "held" && player !== null ? [{ key: k.key, state: "held", x: player.x, y: player.y }]
       : [])
+    const cover = room.pillars.flatMap((c, i): Array<CoverView> => {
+      const hits = wear[i] ?? null
+      if (hits === 0) return []
+      const kind = c.breaks === "crate" ? "crate" : c.breaks === "cracked" ? "cracked" : "solid"
+      return [{ x: c.x, y: c.y, w: c.w, h: c.h, kind, hits: hits ?? 1, maxHits: kind === "crate" ? COVER.crateHits : 1 }]
+    })
+    const bombs = queries.bombs.each().map(({ entity, data }): BombView => {
+      const at = data.body.get()
+      const bomb = data.bomb.get()
+      return { id: entity.id, x: at.x, y: at.y, flying: bomb._tag === "flying", fuse: bomb._tag === "lit" ? Math.max(0, Math.min(1, bomb.left / BOMB.fuse)) : 1, radius: BOMB.radius }
+    })
     return {
       step: time.step,
+      cover,
+      bombs,
+      blasts: resources.blasts.get().map((b) => ({ x: b.x, y: b.y, radius: BOMB.radius, age: Math.min(1, (time.step - b.born) / BOMB.showSteps) })),
       room: { index: run.room, count: ROOMS.length, name: room.name, w: room.w, h: room.h, pillars: room.pillars, goal: room.goal, par: room.par, tip: room.tip ?? null },
       doors,
       keys,

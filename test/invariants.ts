@@ -7,7 +7,7 @@ import { Ops } from "@typeonce/ritmo"
 
 import { pushOut } from "../src/sim/geometry.ts"
 import { ROOMS } from "../src/sim/rooms.ts"
-import { Body, Doors, Enemy, Game, Pace, Player, Run } from "../src/sim/schema.ts"
+import { Body, Doors, Enemy, Game, Pace, Player, Run, Wear } from "../src/sim/schema.ts"
 import { wallsOf } from "../src/sim/systems/queries.ts"
 import { TUNING, radiusOf } from "../src/sim/tuning.ts"
 
@@ -34,14 +34,14 @@ export const EnemiesDoNotOverlap = Invariant.fromInspector(Game.Inspector("Slap/
 
 export const PlayerStaysOnTheFloor = Invariant.fromInspector(Game.Inspector("Slap/PlayerStaysOnTheFloor", {
   queries: bodies,
-  resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors) }
+  resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors), wear: Game.System.readResource(Wear) }
 }, ({ queries, resources }) => {
   const room = ROOMS[resources.run.get().room]
   const me = queries.players.each()[0]?.data.body.get()
   if (room === undefined || me === undefined) return undefined
   const r = TUNING.player.radius
   if (me.x < r - SLACK || me.y < r - SLACK || me.x > room.w - r + SLACK || me.y > room.h - r + SLACK) return `player outside the room at ${me.x.toFixed(2)},${me.y.toFixed(2)}`
-  if (wallsOf(room, resources.doors.get()).some((p) => pushOut(me.x, me.y, r - SLACK, p) !== null)) return `player inside a wall or shut door at ${me.x.toFixed(2)},${me.y.toFixed(2)}`
+  if (wallsOf(room, resources.doors.get(), resources.wear.get()).some((p) => pushOut(me.x, me.y, r - SLACK, p) !== null)) return `player inside a wall or shut door at ${me.x.toFixed(2)},${me.y.toFixed(2)}`
   for (const { data } of queries.enemies.each()) {
     const at = data.body.get()
     const overlap = r + radiusOf(data.enemy.get().kind) - Ops.hypot(me.x - at.x, me.y - at.y)
@@ -53,11 +53,11 @@ export const PlayerStaysOnTheFloor = Invariant.fromInspector(Game.Inspector("Sla
 /** Enemies stay inside the room and out of its walls and shut doors: a chamber holds its enemies. */
 export const EnemiesStayOnTheFloor = Invariant.fromInspector(Game.Inspector("Slap/EnemiesStayOnTheFloor", {
   queries: bodies,
-  resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors) }
+  resources: { run: Game.System.readResource(Run), doors: Game.System.readResource(Doors), wear: Game.System.readResource(Wear) }
 }, ({ queries, resources }) => {
   const room = ROOMS[resources.run.get().room]
   if (room === undefined) return undefined
-  const walls = wallsOf(room, resources.doors.get())
+  const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
   for (const { data } of queries.enemies.each()) {
     const at = data.body.get()
     const { kind } = data.enemy.get()

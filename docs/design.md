@@ -20,6 +20,8 @@ Speed is the choice the player makes: every move speeds the whole world up with 
 - **The melee family** shares the brute's cycle (chase, wind-up tracking then committed, swing, recover) with its own numbers in `MELEE`. A guarded front stops your cut **and shots**.
 - **Shield-bearer:** slow (2.6 m/s) and slow to turn (1.5 rad/s), its shield always up (±72°): a steel plate in front. Circling it within 3 m at full speed outpaces its turn; its back is open. Shots on the shield throw a spark.
 - **Sniper:** sees 24 m (others 13), holds its post. While it sees you a dashed laser tracks you and charges (1.5 world s); hiding starts it over. For the last 0.4 s the laser **locks** (solid, blinking) and stops tracking: step off the line. Then one fast slug (30 m/s) down the locked line. It starts uncharged.
+- **Breakable cover:** wood is what breaks. A **crate** splinters after 3 shots (cracks show as it wears). A **cracked wall** (dark fissures with an orange glint) shrugs shots off but gives to a **brute's swing** (its blade bites 0.4 m past its reach) or a **blast**. A retry mends everything.
+- **Grenadier:** lobs a bomb at where you stand, over its allies (it does not care who the blast takes). The bomb flies in world time, lands lit, and its fuse (1.3 world s) burns as a red sweep round a ring on the floor: the blast's reach (1.9 m). The blast takes everyone in that ring with nothing solid in between (you, any enemy, the grenadier), and breaks any cracked wall or crate it reaches.
 - **Friendly fire:** any shot kills any enemy it touches (a guarded front blocks it: a shield always, a brute while it attacks).
 - **Score:** each attempt has a clock in **world** seconds, so it only runs while you move. A clear earns up to three stars: one for the clear, one for no hit in the room since you came into it (retries count), one for beating the room's par. The run keeps each room's best; the last screen totals them.
 - **Goals:** `clear` (down every enemy) or `exit` (stand on the glowing pad; enemies left standing don't matter).
@@ -44,7 +46,7 @@ Progress is saved on the device, in the browser's local storage (itch.io has no 
 
 Each room adds one thing, with few enemies, and the rooms grow from there:
 
-1. Duel: one brute. 2. Two Blades: two brutes. 3. Courtyard: the first shooters (two gunners), sight and cover. 4. Friendly Fire: a thrower at the back of a line of two gunners. 5. Gatehouse: the first door (clear this side to open it), gunners and a brute. 6. Throne: the captain, and the first exit. 7. Thief: the runner and its key. 8. Market: two chambers, and the first archers. 9. Warehouse: a thief among shelves. 10. Shieldwall: a shield-bearer guarding a gunner. 11. Watchtower: one sniper down a long room of cover. 12. Fortress: yard gate, keep key, and a crowned brute at the captain's door.
+1. Duel: one brute. 2. Two Blades: two brutes. 3. Courtyard: the first shooters (two gunners), sight and cover. 4. Friendly Fire: a thrower at the back of a line of two gunners. 5. Gatehouse: the first door (clear this side to open it), gunners and a brute. 6. Throne: the captain, and the first exit. 7. Thief: the runner and its key. 8. Market: two chambers, and the first archers. 9. Warehouse: a thief among shelves. 10. Shieldwall: a shield-bearer guarding a gunner. 11. Watchtower: one sniper down a long room of cover. 12. Splinters: two gunners, and crates that splinter. 13. Breach: the way out is a cracked wall; lure the brute's swing into it. 14. Powder Room: a grenadier (and a gunner its blast can take). 15. Fortress: yard gate, keep key, and a crowned brute at the captain's door.
 
 Pars are first guesses (a scripted dodge clears the Duel in 2.0 world s against a par of 4); tune them from play.
 
@@ -65,7 +67,7 @@ Ordered so each batch builds on the last, extensions before exceptions:
 
 1. **Doors (done):** score and stars, doors and chambers, the captain, the runner and its key.
 2. **Tougher enemies (done):** the shield-bearer (a front that also blocks shots), the sniper (a laser that charges in sight, locks, then fires). The knight (three hits with a daze) was built and cut: one cut kills, always.
-3. **Things that break:** cracked walls a brute's swing breaks, the grenadier (a fuse ring; the blast kills allies and breaks walls), crates that shots wear down, the splitter.
+3. **Things that break (done):** cracked walls a brute's swing breaks, the grenadier (a fuse ring; the blast kills allies and breaks walls), crates that shots wear down. The splitter was dropped: one cut kills, always.
 4. **Puzzles and pressure:** switches (one, then numbered sequences), survive-N-world-seconds rooms, timed hazards, alarms and chain bonuses.
 5. **Rule-breakers:** the clockwork enemy (real time), the stalker (moves only while you are still), conveyors.
 

@@ -22,7 +22,7 @@ export const TUNING = {
   slashSteps: 21
 } as const
 
-export const SHOOTER_KINDS = ["gunner", "archer", "thrower", "sniper"] as const
+export const SHOOTER_KINDS = ["gunner", "archer", "thrower", "sniper", "grenadier"] as const
 export type ShooterKind = (typeof SHOOTER_KINDS)[number]
 export const MELEE_KINDS = ["brute", "shield"] as const
 export type MeleeKind = (typeof MELEE_KINDS)[number]
@@ -47,11 +47,13 @@ export const SHOOTERS = {
   /** A fan of three knives. */
   thrower: { radius: 0.38, period: 1.1, shot: "knife", spread: [-0.3, 0, 0.3], sight: 13, creeps: true, scoped: false, lock: 0 },
   /** Sees across the room and holds still; a laser charges on you, locks, then one very fast slug. */
-  sniper: { radius: 0.36, period: 1.5, shot: "slug", spread: [0], sight: 24, creeps: false, scoped: true, lock: 0.4 }
+  sniper: { radius: 0.36, period: 1.5, shot: "slug", spread: [0], sight: 24, creeps: false, scoped: true, lock: 0.4 },
+  /** Lobs a bomb at where you stand (over allies: it does not care who the blast takes). */
+  grenadier: { radius: 0.4, period: 2.6, shot: "bomb", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 }
 } as const satisfies Record<ShooterKind, {
   radius: number
   period: number
-  shot: ShotKind
+  shot: ShotKind | "bomb"
   spread: ReadonlyArray<number>
   sight: number
   creeps: boolean
@@ -143,7 +145,28 @@ export const CROWD = {
 } as const
 
 /** How much each kind gives way when two enemies are pushed apart: shooters hold their ground, the melee family is shoved. */
-export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, brute: 1, shield: 0.5, runner: 0.6 } as const satisfies Record<EnemyKind, number>
+export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, grenadier: 0.25, brute: 1, shield: 0.5, runner: 0.6 } as const satisfies Record<EnemyKind, number>
+
+/**
+ * A bomb flies (in world time) to where you stood when it was thrown, lands,
+ * and burns its fuse; then its blast takes everyone within `radius` with
+ * nothing solid in between (you, allies, the grenadier itself) and breaks
+ * any cracked wall or crate it reaches.
+ */
+export const BOMB = {
+  speed: 7,
+  fuse: 1.3,
+  radius: 1.9,
+  /** A blast mark stays on screen this many steps (real time): 0.4 s. */
+  showSteps: 24
+} as const
+
+/**
+ * Cover that breaks. A crate splinters after `crateHits` shots; a cracked
+ * wall only gives to a brute's swing (whose blade reaches `swingBite`
+ * metres past its swing into the wall) or a blast.
+ */
+export const COVER = { crateHits: 3, swingBite: 0.4 } as const
 
 /**
  * The runner (a thief): it never attacks, carries a key, and runs from you

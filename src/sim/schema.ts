@@ -81,6 +81,18 @@ export const Blade = Descriptor.EntityState("Slap/Blade", {
   transitions: { idle: ["chase", "windup"], chase: ["windup"], windup: ["swing"], swing: ["recover"], recover: ["chase"] }
 })
 
+/**
+ * A grenadier's bomb: flying (in world time) toward where you stood, then
+ * lying lit, its fuse burning down (`left` world seconds).
+ */
+export const Bomb = Descriptor.EntityState("Slap/Bomb", {
+  flying: codec(S.Struct({ tx: S.Number, ty: S.Number })),
+  lit: codec(left)
+}, { transitions: { flying: ["lit"], lit: [] } })
+
+/** Blast marks for the page to draw, with the step each went off on. */
+export const Blasts = Descriptor.ConstructedResource(codec(S.Array(S.Struct({ x: S.Number, y: S.Number, born: S.Int }))))("Slap/Blasts")
+
 /** Something flying: its kind and velocity in metres per world second. */
 export const Shot = Descriptor.ConstructedComponent(codec(S.Struct({ kind: S.Literals(SHOT_KINDS), vx: S.Number, vy: S.Number })))("Slap/Shot", {
   meta: { vx: { unit: "m/s" }, vy: { unit: "m/s" } }
@@ -104,6 +116,13 @@ export const Run = Descriptor.ConstructedResource(codec(S.Struct({
   best: S.Array(S.NullOr(RoomResult)),
   open: S.Boolean
 })))("Slap/Run", { meta: { world: { unit: "s", hint: "World seconds (slowed with the world) of this attempt." } } })
+
+/**
+ * The room's cover that can break, by pillar index: hits a crate can still
+ * take, 1 for a cracked wall, 0 once broken; null for cover that never
+ * breaks. A new attempt mends it all.
+ */
+export const Wear = Descriptor.ConstructedResource(codec(S.Array(S.NullOr(count))))("Slap/Wear")
 
 /** Which of the room's doors are open, by door index. Doors only open; a new attempt shuts them. */
 export const Doors = Descriptor.ConstructedResource(codec(S.Array(S.Boolean)))("Slap/Doors")
@@ -152,13 +171,13 @@ export type Intent =
 export const IntentEvent = Descriptor.Event<Intent>()("Slap/Intent")
 /** A room to (re)build this step; `fresh` when you come into it anew (not a retry), which resets its hit count. */
 export const EnterRoom = Descriptor.Event<{ readonly room: number; readonly fresh: boolean }>()("Slap/EnterRoom")
-/** Something touched you: a shot or a swing. */
-export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" }>()("Slap/PlayerHit")
+/** Something touched you: a shot, a swing, or a blast. */
+export const PlayerHit = Descriptor.Event<{ readonly by: "shot" | "swing" | "blast" }>()("Slap/PlayerHit")
 
 export const Game = Schema.bind(
   Schema.fragment({
-    components: { Body, Player, Enemy, Carry, Reload, Post, Melee, Blade, Shot },
-    resources: { Time, Run, Pace, Slashes, Doors, Keys, Input },
+    components: { Body, Player, Enemy, Carry, Reload, Post, Melee, Blade, Shot, Bomb },
+    resources: { Time, Run, Pace, Slashes, Blasts, Doors, Wear, Keys, Input },
     events: { IntentEvent, EnterRoom, PlayerHit }
   }),
   Root
