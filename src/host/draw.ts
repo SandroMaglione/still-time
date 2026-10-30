@@ -11,7 +11,7 @@ import { SHOTS, STALKER } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
-import { CALLOUT_LIFE, GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
+import { GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
@@ -161,8 +161,6 @@ export const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, presse
     }
   })
 }
-/** Touch or keys: the hint says what this device does. */
-const touchFirst = (): boolean => typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches
 /** A filled pixel disc. */
 const disc = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, colour: string): void => {
   ctx.fillStyle = colour
@@ -354,17 +352,15 @@ export const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number,
 }
 
 /**
- * First Cut's lesson, shown rather than said. Until you first move, a ghost of you dashes into the gunner on a loop
- * (2.4 real s): it comes within touching range, a cut flashes, the gunner blinks white. Gold brackets mark the
- * gunner and teal chevrons point at it until it falls; with a shot coming and the world frozen, "step out of the red line".
+ * First Cut's marks (its words are the guide's caption, see `guide.ts`): gold brackets round the gunner, breathing by a
+ * pixel, and teal chevrons toward it until it falls (they give way while a shot is in the air).
  */
-const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number, fresh: boolean): void => {
+const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number): void => {
   const p = view.player
   const target = view.enemies[0]
   if (p === null || target === undefined) return
-  const me = P(p.x, p.y), them = P(target.x, target.y)
+  const them = P(target.x, target.y)
   const pulse = Math.floor(now * 4) % 2
-  // Target brackets round the enemy, breathing by a pixel.
   const half = 12 + pulse, top = them.y - 27 - pulse, bottom = them.y + 3 + pulse
   for (const [sx, sy] of [[-1, top], [1, top], [-1, bottom], [1, bottom]] as const) {
     const cx = Math.round(them.x + sx * half), cy = Math.round(sy)
@@ -372,33 +368,7 @@ const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, "#edc66c"); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, "#edc66c")
   }
-  // Chevrons toward it; a shot in the air comes first: they give way.
   if (view.shots.length === 0) chevronsToward(ctx, p, target, P, now, "#64b6b3")
-  // The demo: a ghost of you runs into it and cuts, until you move.
-  if (fresh) {
-    const t = now % 2.4
-    const run = Math.max(0, Math.min(1, (t - 0.2) / 0.8))
-    const eased = run * run * (3 - 2 * run)
-    // It stops a step short of the gunner: touching range, not on top of it.
-    const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy) || 1
-    const reach = Math.max(0, d - 0.9) * eased
-    const g = P(p.x + (dx / d) * reach, p.y + (dy / d) * reach)
-    const fade = t > 2 ? 1 - (t - 2) / 0.4 : 1
-    ctx.save()
-    ctx.globalAlpha = fade
-    silhouette(ctx, bodyName("player"), g.x, g.y, dx < 0, GHOST, 0.6)
-    // The cut: a bright crescent across the gunner, which blinks white for a moment.
-    if (t > 1.0 && t < 1.5) {
-      const k = (t - 1.0) / 0.5
-      const c = { x: them.x, y: them.y - 10 }
-      pixelArc(ctx, c, 12 + k * 6, 8 + k * 4, -2.4 + k, -0.6 + k, INK, 4)
-      pixelArc(ctx, c, 12 + k * 6, 8 + k * 4, -2.4 + k, -0.6 + k, "#f4efda", 2)
-      if (k < 0.6) silhouette(ctx, bodyName(target.kind), them.x, them.y, false, "#f4efda", 0.85)
-    }
-    ctx.restore()
-  }
-  // A shot on its way while you stand still: say what the freeze is for.
-  if (view.shots.length > 0 && view.scale < 0.2) hintText(ctx, "STEP OUT OF THE RED LINE", me.x, me.y - 54, "#ff6845")
 }
 
 /** The speed effect's colours: afterimages, the aura's outline and its hot core. */
@@ -916,32 +886,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       clockSign(ctx, hub.x, hub.y - 30, running, presentation?.now ?? 0)
     }
   }
-  // The cut's room shows the cut: what to run into, how far your blade reaches, and when to step aside.
+  // The cut's room marks what to run into.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
-    cutHint(ctx, view, P, presentation.now, !presentation.hasMoved(view.room.index))
+    cutHint(ctx, view, P, presentation.now)
   }
-  // In the first rooms, the freeze is named the first times it happens.
-  const callout = presentation?.callout ?? null
-  if (callout !== null && view.flow === "playing") {
-    const age = presentation!.now - callout.born
-    const alpha = Math.min(1, age / 0.12, (CALLOUT_LIFE - age) / 0.45)
-    if (alpha > 0) {
-      const y = Math.round(TOP + 30 - Math.min(1, age / 0.2) * 4)
-      ctx.save()
-      ctx.globalAlpha = alpha
-      ctx.textAlign = "center"; ctx.textBaseline = "top"
-      const text = (t: string, size: number, at: number, colour: string): void => {
-        ctx.font = `700 ${size}px Silkscreen, ui-monospace, monospace`
-        ctx.fillStyle = INK
-        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]] as const) ctx.fillText(t, Math.round(cw / 2) + dx, at + dy)
-        ctx.fillStyle = colour; ctx.fillText(t, Math.round(cw / 2), at)
-      }
-      text(callout.title, 16, y, "#e8f6ff")
-      if (callout.line !== "") text(callout.line, 8, y + 19, "#7fd8ff")
-      ctx.restore()
-    }
-  }
-
   // An occluded player keeps an ivory marker above cover.
   if (view.player !== null && view.flow !== "dead") {
     const p = view.player

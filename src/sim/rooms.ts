@@ -152,7 +152,6 @@ export const ROOMS: ReadonlyArray<Room> = [
     enemies: [],
     goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2 },
     par: 4,
-    tip: "the blade turns only while you move: stop, look, then cross"
   },
   {
     // The second lesson: one gunner. Freeze to read its shot, step out of the line, close in and cut.
@@ -165,7 +164,6 @@ export const ROOMS: ReadonlyArray<Room> = [
     enemies: [{ kind: "gunner", x: 6, y: 3.5, delay: 0.8 }],
     goal: CLEAR,
     par: 4,
-    tip: "no attack button: reach an enemy and it's cut"
   },
   {
     name: "Duel",

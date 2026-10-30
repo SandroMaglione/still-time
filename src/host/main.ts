@@ -17,7 +17,7 @@ import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
 import { Hud } from "./hud.ts"
 import { Drill } from "./drill.ts"
-import { Lesson, type LessonInput } from "./lesson.ts"
+import { Guide } from "./guide.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
@@ -108,9 +108,7 @@ el("title-after").addEventListener("click", () => menu.show("title", fight.view(
 const DEAD_ZONE = 8
 const REACH = 72
 let stick: Stick | null = null
-/** The stick's push, 0..1, while a finger is down (for the lesson). */
-let stickPush = 0
-/** Which control you last used: the first rooms' lesson teaches that one. */
+/** Which control you last used: the first rooms' drill and guides teach that one. */
 let usingKeys = window.matchMedia("(pointer: fine)").matches
 let consumed = false
 
@@ -128,7 +126,6 @@ canvas.addEventListener("pointerdown", (e) => {
     return
   }
   stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, reach: REACH }
-  stickPush = 0
 })
 canvas.addEventListener("pointermove", (e) => {
   if (stick === null || consumed) return
@@ -145,12 +142,10 @@ canvas.addEventListener("pointermove", (e) => {
   }
   stick.x = e.clientX
   stick.y = e.clientY
-  stickPush = Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE)))
-  thumb.setScreenPush(dx, dy, stickPush)
+  thumb.setScreenPush(dx, dy, Math.max(0, Math.min(1, (len - DEAD_ZONE) / (REACH - DEAD_ZONE))))
 })
 function lift(): void {
   stick = null
-  stickPush = 0
   consumed = false
   thumb.setScreenPush(0, 0, 0)
 }
@@ -234,16 +229,8 @@ const audio = createAudio()
 audio.unlockOn(window)
 audio.observe(fight.view())
 const hud = new Hud(canvas)
-const lesson = new Lesson()
 const drill = new Drill()
-/** The thumb as the lesson reads it: a finger (or an arrow) down, and how hard it pushes. */
-const lessonInput = (): LessonInput => {
-  if (usingKeys) {
-    const down = [...held].some((k) => DIRS[k] !== undefined)
-    return { down, push: down ? 1 : 0, keys: true }
-  }
-  return { down: stick !== null && !consumed, push: stickPush, keys: false }
-}
+const guide = new Guide()
 await loadArt()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
@@ -281,15 +268,15 @@ FixedLoop.start({
     const drillInput = { stick: pixelStick, keys: usingKeys, upOnly: dirs.length > 0 && dirs.every((key) => key === "ArrowUp" || key === "w"), anyKey: dirs.length > 0 }
     drill.update(menu.isOpen ? 0 : frame.elapsedSeconds, canvas.width, canvas.height, view, drillInput)
     const drilling = drill.active(view)
-    thumb.open = !drilling || drill.gate(drillInput)
+    const guideInput = { stick: pixelStick, keys: usingKeys, upOnly: drillInput.upOnly, down: usingKeys ? dirs.length > 0 : stick !== null && !consumed }
+    guide.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, guideInput)
+    thumb.open = (!drilling || drill.gate(drillInput)) && guide.gate(view, guideInput)
     const drawn = draw(ctx, canvas.width, canvas.height, view, drilling ? null : pixelStick, camera, presentation, lit)
     drill.draw(ctx, canvas.width, canvas.height, view, drillInput)
     // Done, the drill clears First Step (its goal is the lesson).
     if (drill.takeFinished() && view.room.goal.kind === "lesson") fight.send({ kind: "lessonDone" })
-    // The Blade's step-by-step lesson, over everything.
-    const input = lessonInput()
-    lesson.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, input)
-    lesson.draw(ctx, canvas.width, canvas.height, view, drawn.P, input)
+    // The Blade's and First Cut's guides, over everything.
+    guide.draw(ctx, canvas.width, canvas.height, view, drawn.P, guideInput)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })

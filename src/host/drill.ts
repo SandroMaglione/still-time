@@ -34,14 +34,14 @@ const SLOW_HOLD = 1.4, FAST_HOLD = 1, KEY_HOLD = 1.5
 const CLEAR_AFTER = 1.2
 const INK = "#171c2e", ICE = "#7fd8ff", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda", DIM = "#465477"
 
-type Zone = "none" | "walk" | "run"
+export type Zone = "none" | "walk" | "run"
 
 /**
  * Which band the finger is in: a walk (slid up a little: push 0.12 to 0.62) or a run (slid up all the way: push 0.85 and
  * more), only when the slide points up (within 45°). The finger hides the spot it is on, so the bands are wide, and you
  * see where you are in the mirror up by the caption.
  */
-const zoneOf = (stick: Stick | null): Zone => {
+export const zoneOf = (stick: Stick | null): Zone => {
   if (stick === null) return "none"
   const dx = stick.x - stick.ox, dy = stick.y - stick.oy, len = Math.hypot(dx, dy)
   if (len === 0 || -dy / len < 0.7) return "none"
@@ -51,7 +51,7 @@ const zoneOf = (stick: Stick | null): Zone => {
 }
 
 /** A short buzz where the phone can (Android browsers; iOS ignores it). */
-const buzz = (ms: number): void => {
+export const buzz = (ms: number): void => {
   if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(ms)
 }
 
@@ -259,8 +259,8 @@ const bigText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
   return w
 }
 
-/** What to do, and what it does, big, on a plate high on the screen. */
-const caption = (ctx: CanvasRenderingContext2D, x: number, y: number, title: string, sub: string, colour: string): void => {
+/** What to do, and what it does, big, on a plate (from `y - 10` to `y + 42`). */
+export const caption = (ctx: CanvasRenderingContext2D, x: number, y: number, title: string, sub: string, colour: string): void => {
   const maxWidth = x * 2 - 24
   ctx.save()
   ctx.font = "700 16px Silkscreen, ui-monospace, monospace"
