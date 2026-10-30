@@ -1,7 +1,8 @@
 /**
  * First Cut's guide, in the style of First Step's drill: one big caption at a time, placed where it covers neither
  * you nor the enemy, each step waiting until you have done it, and the thumb let through only as far as the step
- * asks: get close, touch it to cut (its gunner never fires: getting close is the whole lesson).
+ * asks: get close, walk into the ring (its gunner never fires: getting close is the whole lesson). ("Touch it" had
+ * people touch the enemy on the screen.)
  * (Time Door has no words: the timer on its door, running only while you move, is the lesson.)
  */
 import type { FightView } from "../sim/view.ts"
@@ -41,7 +42,7 @@ const INK = "#171c2e", GOLD = "#edc66c", GREEN = "#7dff9a", WHITE = "#f4efda"
 // The gunner never fires here: the one thing to learn is to get close. (The caption turns gold once you are moving in.)
 const CUT: ReadonlyArray<Step> = [
   {
-    title: () => "GET CLOSE", sub: () => "TOUCH IT TO CUT",
+    title: () => "GET CLOSE", sub: () => "WALK INTO THE RING",
     colour: (s) => (s.speed > 0.15 ? GOLD : WHITE),
     gate: () => true,
     ok: (s) => s.view.enemies.length === 0, need: 0
