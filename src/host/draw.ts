@@ -207,8 +207,9 @@ const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 /**
- * First Cut's lesson, drawn in the room until the gunner falls: target brackets on it ("run into it to cut"),
- * your blade's reach pulsing gold at your feet until you first move ("your blade: touch = cut"), teal chevrons
+ * First Cut's lesson, drawn in the room until the gunner falls: there is no attack button, your ring cuts. Target
+ * brackets on it ("get it inside your ring"), your ring pulsing gold at your feet until you first move ("enemies in
+ * your ring get cut"), teal chevrons
  * from you toward it, and, while a shot is coming and you have frozen, "step out of the red line" over you.
  */
 const cutHint = (
@@ -228,7 +229,7 @@ const cutHint = (
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, "#edc66c"); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, "#edc66c")
   }
-  hintText(ctx, "RUN INTO IT TO CUT", them.x, top - 12, "#edc66c")
+  hintText(ctx, "GET IT INSIDE YOUR RING", them.x, top - 12, "#edc66c")
   // Chevrons from you toward it, marching in real time: go this way. A shot in the air comes first: they give way.
   const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy)
   if (d > 2 && view.shots.length === 0) {
@@ -248,7 +249,7 @@ const cutHint = (
     const r = p.attackRange + (pulse ? 0.06 : 0)
     pixelArc(ctx, me, r * erx, r * ery, 0, Math.PI * 2, INK, 3)
     pixelArc(ctx, me, r * erx, r * ery, 0, Math.PI * 2, "#edc66c", 1)
-    hintText(ctx, "YOUR BLADE: TOUCH = CUT", me.x, me.y + Math.round(p.attackRange * ery) + 4, "#edc66c")
+    hintText(ctx, "ENEMIES IN YOUR RING GET CUT", me.x, me.y + Math.round(p.attackRange * ery) + 4, "#edc66c")
   }
   // A shot on its way while you stand still: say what the freeze is for.
   if (view.shots.length > 0 && view.scale < 0.2) hintText(ctx, "STEP OUT OF THE RED LINE", me.x, me.y - 40, "#ff6845")

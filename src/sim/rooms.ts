@@ -145,7 +145,7 @@ export const ROOMS: ReadonlyArray<Room> = [
     enemies: [{ kind: "gunner", x: 6, y: 3.5, delay: 0.8 }],
     goal: CLEAR,
     par: 4,
-    tip: "freeze to read the shot, step aside, then cut"
+    tip: "no attack button: reach an enemy and it's cut"
   },
   {
     name: "Duel",
