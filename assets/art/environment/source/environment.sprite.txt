@@ -2,12 +2,12 @@ palette
 . transparent
 A #171c2e
 B #262b31
-C #303638
-D #353b3d
-E #40454b
-F #485166
-G #737d94
-H #9ba7bc
+C #363e35
+D #41483e
+E #454c42
+F #62695b
+G #7b826f
+H #a6ad94
 I #c6d4df
 J #646d5b
 K #444d41
@@ -42,7 +42,7 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 ................................................................................................................................................
 ................................................................................................................................................
 ................................................................................................................................................
-IIIIIIIIIIIIFIIF........EEEEEEEEEEEEEEEE........MMMMMMMMMMMMMMMB........BBBBBBBBBBBBBBBB........FFFFFFFFFFFFFFFF................................
+HHHHHHHHHHHHFHHF........EEEEEEEEEEEEEEEE........MMMMMMMMMMMMMMMB........BBBBBBBBBBBBBBBB........FFFFFFFFFFFFFFFF................................
 HHHHHHHHHHHFHHHF........EGGGGGGGGGGGGGGE........MMMMMLMMMMLMMMMB........BMMMMMMMMMMMMMMB........HHHHHHHHHHHHHHHH................OO..............
 HGGGGGGGGGGFGGGF........EGFFFFFFFFFFFFFE........MMMMMLMMMMLMMMMB........BMIMMMMMMMMMMMMB........AHEAAHEAAHEAAHEA..............OOOO..............
 HGGGGGGGGGFGGGGF........EGFFFFFFFFFFFFFE........MMMMMLMMMMLMMMMB........BLLLBLLLLBLLLLBB........AHEAAHEAAHEAAHEA..............OOOO..............

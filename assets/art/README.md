@@ -41,7 +41,8 @@ use world time. Retry, room changes and rewinds clear presentation records.
 
 Danger paths and committed attacks are red/orange with ink outlines;
 projectiles have larger bright heads. Idle/chase reach is a dim orange 1px
-dash without ink. Reload is a 2px ink-edged arc at the feet. Guard arcs use
+dash without ink. Idle/chasing knights have no extra ring under their boots.
+Reload is a 2px red raster band with 1px ink edges at the feet. Guard arcs use
 steel and gold in a compact foot ellipse, leaving the tower shield to carry
 the silhouette. The player's reach uses teal. Tracking lasers are dashed and
 locked lasers solid; the distinction does not depend on seeing a blink.
@@ -60,6 +61,9 @@ Add `--round-2` to capture those four rooms plus room 1, the wind-up, and
 matched floor/cover and reload/chase comparisons against the retained
 `output/review-1/after` fixtures. Results go to `output/review-2/`, preserving
 the previous review's captures.
+
+Use `--round-3` for the same six captures and matched fixtures in
+`output/review-3/`, compared with `output/review-2/after`.
 
 `pnpm shots:art <url>` checks phone/desktop/landscape integer pixel scaling;
 `pnpm record:fx <url>` records isolated motion studies and a live death/retry.

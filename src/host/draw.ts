@@ -11,7 +11,7 @@ import { attackWave, bodyName, combatActor, dyingActor, impactBurst } from "./co
 import type { Presentation } from "./fx.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { raisedBlock, roomFloor, roomWalls, type Material } from "./room-art.ts"
-import { DANGER, THREAT, pathArrow, threatArc, threatLine } from "./threats.ts"
+import { DANGER, THREAT, pathArrow, reloadArc, threatArc, threatLine } from "./threats.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
@@ -199,7 +199,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         continue
       }
       if (m === null) {
-        ring(-Math.PI / 2, -Math.PI / 2 + e.charge * Math.PI * 2, e.charge > 0.8 ? THREAT : DANGER, 2)
+        reloadArc(ctx, feet, footRadius, Math.max(4, Math.round(footRadius * 0.4)), e.charge, e.charge > 0.8 ? THREAT : DANGER)
         continue
       }
       const rx = m.reach * erx, ry = m.reach * ery
@@ -217,13 +217,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         pixelArc(ctx, centre, rx, ry, e.aim - m.arc, e.aim + m.arc, "#ad7950", 1, true)
       }
       // Guard up: a steel front and a gold open back. Dazed: a turning white ring, open all round and no blow lands.
-      // Otherwise a gold ring: open all round.
+      // Recovering: open all round. Idle/chasing melee bodies need no foot dashes.
       if (m.phase === "stagger") {
         ring(m.progress * 6, m.progress * 6 + Math.PI * 2, "#f4efda", 1, true)
       } else if (m.guarding) {
         ring(e.aim - m.guardArc, e.aim + m.guardArc, "#c6d4df")
         ring(e.aim + m.guardArc, e.aim + Math.PI * 2 - m.guardArc, "#edc66c")
-      } else {
+      } else if (m.phase !== "idle" && m.phase !== "chase") {
         ring(0, Math.PI * 2, m.phase === "recover" ? "#edc66c" : "#947058", 1, m.phase !== "recover")
       }
     }

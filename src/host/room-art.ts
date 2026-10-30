@@ -6,15 +6,6 @@ import { torchFire } from "./combat-art.ts"
 
 export type Projection = (x: number, y: number, z?: number) => Point
 
-/** Loose links lie flat beside a wall or block, below every combat indicator. */
-const floorChain = (ctx: CanvasRenderingContext2D, at: Point): void => {
-  const x = Math.round(at.x), y = Math.round(at.y)
-  for (let i = 0; i < 4; i++) {
-    const xx = x + i * 3, yy = y + (i > 1 ? 2 : 0)
-    ctx.fillStyle = "#263234"; ctx.fillRect(xx, yy, 5, 3)
-    ctx.fillStyle = "#73786c"; ctx.fillRect(xx + 1, yy, 3, 1); ctx.fillRect(xx + 1, yy + 2, 3, 1)
-  }
-}
 /** Large staggered flagstones. Wear is sparse and concentrated at collision boundaries. */
 export const roomFloor = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, P: Projection): void => {
   const a = P(0, 0), b = P(view.room.w, view.room.h)
@@ -83,12 +74,12 @@ export const roomWalls = (ctx: CanvasRenderingContext2D, view: FightView, P: Pro
   const floor = P(0, 0), back = P(0, 0, height), end = P(w, h)
   texture(ctx, "masonry", back.x - 6, back.y, end.x - floor.x + 12, floor.y - back.y)
   texture(ctx, "cap", back.x - 6, back.y - 5, end.x - floor.x + 12, 5)
-  pixelLine(ctx, { x: back.x - 6, y: back.y - 5 }, { x: end.x + 6, y: back.y - 5 }, "#b3c0b2")
+  pixelLine(ctx, { x: back.x - 6, y: back.y - 5 }, { x: end.x + 6, y: back.y - 5 }, "#a6ad94")
   // Side caps are outside the collision boundary, so actors remain visible at the edges.
   texture(ctx, "masonry", floor.x - 7, floor.y, 7, end.y - floor.y + 8)
   texture(ctx, "masonry", end.x, floor.y, 7, end.y - floor.y + 8)
-  pixelLine(ctx, { x: floor.x - 7, y: back.y }, { x: floor.x - 7, y: end.y + 8 }, "#899692")
-  pixelLine(ctx, { x: end.x, y: back.y }, { x: end.x, y: end.y }, "#899692")
+  pixelLine(ctx, { x: floor.x - 7, y: back.y }, { x: floor.x - 7, y: end.y + 8 }, "#7b826f")
+  pixelLine(ctx, { x: end.x, y: back.y }, { x: end.x, y: end.y }, "#7b826f")
   texture(ctx, "masonry", floor.x - 7, end.y, end.x - floor.x + 14, 9)
   texture(ctx, "cap", floor.x - 7, end.y - 3, end.x - floor.x + 14, 4)
   const count = 2 + decorationHash(0, 21, index) % 3
@@ -101,12 +92,10 @@ export const roomWalls = (ctx: CanvasRenderingContext2D, view: FightView, P: Pro
     if (section === 0 || (section > 1 && hash % 2 === 0)) torchFire(ctx, p.x, p.y - 1, view.world, Math.round(x * 10))
     else sprite(ctx, index % 3 === 0 ? "banner-red" : "banner-moss", p.x, p.y - 1)
   }
-  const chain = P(w * 0.72, 0.28)
-  floorChain(ctx, chain)
   for (let y = 2; y < h - 1; y += 4.1) {
     const hash = decorationHash(0, Math.floor(y), index)
     const at = P(hash % 2 === 0 ? 0.35 : w - 0.35, y)
-    sprite(ctx, hash % 3 === 0 ? "pots" : "rubble", at.x, at.y)
+    if (hash % 3 === 0) sprite(ctx, "pots", at.x, at.y)
   }
 }
 
@@ -137,20 +126,30 @@ export const raisedBlock = (ctx: CanvasRenderingContext2D, b: Pillar, P: Project
     texture(ctx, material === "gate" ? "iron" : "masonry", x, y + depth, width, faceHeight)
     if (material === "gate") texture(ctx, "cap", x, y, width, depth)
     else {
-      // One warm limestone slab, bevelled toward the upper-left light.
-      fill(x, y, width, depth, "#686957")
-      fill(x + 1, y + 1, width - 3, depth - 3, "#9c9d84")
-      fill(x + 2, y + 2, width - 5, Math.max(1, Math.floor(depth * 0.28)), "#a7a88e")
-      pixelLine(ctx, { x: x + 1, y: y + 1 }, { x: x + width - 3, y: y + 1 }, "#c6c5a7")
-      pixelLine(ctx, { x: x + 1, y: y + 1 }, { x: x + 1, y: y + depth - 3 }, "#c6c5a7")
-      fill(x + 1, y + depth - 2, width - 2, 2, "#646552")
-      const chip = 4 + decorationHash(Math.round(b.x * 10), Math.round(b.y * 10), 4) % Math.max(1, width - 9)
-      fill(x + chip, y, 3, 2, "#686957"); fill(x + chip + 1, y + 2, 2, 1, "#c6c5a7")
-      fill(x + width - 2, y + Math.floor(depth * 0.65), 2, 3, "#686957")
+      // The same warm grey as the front, lighter on the cap. All three bevels are 1px.
+      fill(x, y, width, depth, "#929983")
+      fill(x + 1, y + 1, width - 2, Math.max(1, Math.floor(depth * 0.28)), "#9da48f")
+      pixelLine(ctx, { x, y }, { x: x + width - 1, y }, "#c6ccb4")
+      pixelLine(ctx, { x, y: y + 1 }, { x, y: y + depth - 2 }, "#c6ccb4")
+      fill(x, y + depth - 1, width, 1, "#62695b")
+      const hash = decorationHash(Math.round(b.x * 10), Math.round(b.y * 10), Math.round(b.w * 31 + b.h * 17))
+      const chip = x + 3 + hash % Math.max(1, width - 7), topChip = (hash >>> 8) % 2 === 0
+      const chipY = topChip ? y : y + depth - 2
+      fill(chip, chipY, 3, 2, "#62695b")
+      fill(chip + 1, chipY + (topChip ? 2 : -1), 2, 1, "#c6ccb4")
+      // A short branching split varies in position, direction and length per footprint.
+      if (width > 12 && depth > 9) {
+        const cx = x + 4 + (hash >>> 12) % Math.max(1, width - 12)
+        const cy = y + 3 + (hash >>> 18) % Math.max(1, depth - 9)
+        const sign = (hash >>> 24) % 2 === 0 ? 1 : -1, length = 3 + (hash >>> 26) % 3
+        pixelLine(ctx, { x: cx, y: cy }, { x: cx + 2, y: cy + 2 }, "#62695b")
+        pixelLine(ctx, { x: cx + 2, y: cy + 2 }, { x: cx + 2 + sign * length, y: cy + 4 }, "#62695b")
+        pixelLine(ctx, { x: cx + 1, y: cy + 2 }, { x: cx + 1 + sign * length, y: cy + 4 }, "#a6ad94")
+      }
     }
   }
   if (material !== "stone") pixelLine(ctx, { x, y }, { x: x + width - 1, y }, material === "wood" ? "#947058" : "#b3c0b2")
-  pixelLine(ctx, { x, y: y + 1 }, { x, y: y + depth - 1 }, material === "stone" ? "#aaa98e" : "#899692")
+  if (material !== "stone") pixelLine(ctx, { x, y: y + 1 }, { x, y: y + depth - 1 }, "#899692")
   pixelLine(ctx, { x: x + width - 1, y }, { x: x + width - 1, y: Math.round(ground.y) }, "#263234")
   pixelLine(ctx, { x, y: Math.round(ground.y) }, { x: x + width, y: Math.round(ground.y) }, "#171c2e", 2)
   if (material === "gate") {
@@ -165,7 +164,5 @@ export const raisedBlock = (ctx: CanvasRenderingContext2D, b: Pillar, P: Project
     // Floor dressing stays beside the base, never on the cap.
     const hash = decorationHash(Math.round(b.x * 10), Math.round(b.y * 10), 0)
     if (hash % 3 === 0) sprite(ctx, "pots", x + width + 5, Math.round(ground.y) + 4)
-    else if (hash % 3 === 1) sprite(ctx, "rubble", x - 3, Math.round(ground.y) + 3)
-    else floorChain(ctx, { x: x + width + 2, y: ground.y + 2 })
   }
 }

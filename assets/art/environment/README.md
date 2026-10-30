@@ -7,12 +7,13 @@ and corners interrupt the seams. Most stones are plain;
 rare cracks and moss favor walls and cover. Camera movement and retries do
 not reroll the pattern or consume simulation randomness.
 
-Cover uses a warm limestone slab over cool blue-grey dressed stone, distinct
-from the green floor. Its cap has an upper-left bevel, a dark lower edge and
-two small chips above a darker brick face. Timber crates
+Walls and cover share one warm grey stone family with an olive tint. Fronts
+are mid-value, caps are lighter, and the floor is darker and greener. Slab
+caps have 1px top/left highlights, a 1px lower shadow, and a hash-varied chip
+and short branching crack. Timber crates
 have a thick frame, an X brace and metal fasteners across one whole box.
 Short offset shadows ground both materials. Clay pots sit beside cover on
-the floor; rubble and loose chain links dress other bases. Every back wall
+the floor. Loose chain and rubble floor marks are omitted. Every back wall
 has 2–4 unevenly spaced torches and banners, with stretches left undecorated.
 
 Source textures and decorations use the coordinated 16-color palette in
