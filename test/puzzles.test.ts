@@ -136,6 +136,9 @@ test("a survive room clears once enough world time has passed, and only time you
   assert.equal(fight.view().flow, "playing", "standing still, the clock barely moves")
   runUntil(fight, 120, () => fight.view().flow !== "playing", jiggle(thumb))
   assert.equal(fight.view().flow, "cleared")
+  // Surviving exactly the stretch is the score: the last tick's overshoot never costs the par star.
+  assert.equal(fight.view().result?.world, goal.seconds)
+  assert.equal(fight.view().result?.stars, 3, "a no-hit survive meets its par")
 })
 
 test("the Mill can be crossed by timing: wait in the lane, dash to the pocket between the blades, dash out", () => {

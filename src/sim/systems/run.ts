@@ -241,7 +241,9 @@ export const OutcomeSystem = Game.System(
       resources.run.set({ ...run, world })
       return
     }
-    const result: RoomResult = { stars: starsFor(run.hits, world, room.par), world }
+    // A survive room's score is the stretch it asked for: the last tick's overshoot is not time you took.
+    const scored = goal.kind === "survive" ? Math.min(world, goal.seconds) : world
+    const result: RoomResult = { stars: starsFor(run.hits, scored, room.par), world: scored }
     const was = run.best[run.room] ?? null
     const best = was === null ? result : { stars: Math.max(was.stars, result.stars), world: Math.min(was.world, result.world) }
     resources.run.set({ ...run, world, best: run.best.map((b, i) => (i === run.room ? best : b)) })
