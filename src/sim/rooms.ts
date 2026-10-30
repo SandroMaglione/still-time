@@ -126,11 +126,12 @@ export const ROOMS: ReadonlyArray<Room> = [
     w: 10,
     h: 16,
     start: { x: 5, y: 14 },
-    pillars: [{ x: 0, y: 7.2, w: 3.5, h: 1.6 }, { x: 6.5, y: 7.2, w: 3.5, h: 1.6 }],
+    // A 4.2 m gap the bar fills: wide enough to cross without precision, and the bar still has to be read.
+    pillars: [{ x: 0, y: 7.2, w: 2.9, h: 1.6 }, { x: 7.1, y: 7.2, w: 2.9, h: 1.6 }],
     doors: [],
-    hazards: [{ kind: "blade", x: 5, y: 8, length: 1.5, speed: 1.0, phase: 1.2 }],
+    hazards: [{ kind: "blade", x: 5, y: 8, length: 2.1, speed: 1.0, phase: 1.2 }],
     enemies: [],
-    goal: { kind: "exit", x: 3.5, y: 0.7, w: 3, h: 2.2 },
+    goal: { kind: "exit", x: 2.6, y: 0.7, w: 4.8, h: 2.2 },
     par: 4,
     tip: "the blade turns only while you move: stop, look, then cross"
   },

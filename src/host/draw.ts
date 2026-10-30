@@ -163,37 +163,49 @@ const hand = (ctx: CanvasRenderingContext2D, x: number, y: number, pressed: bool
 /** Touch or keys: the hint says what this device does. */
 const touchFirst = (): boolean => typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches
 /**
- * The first room's lesson, the move alone, looped every 2 real s beside the player: press (a ring), then drag
- * up (the hand rises, a dotted trail behind it), then fade. The freeze is the next room's lesson.
+ * The first room's lesson, the move alone, looped every 2.8 real s: the hand presses beside you (a ring), drags up
+ * and keeps holding while a ghost of you walks ahead with it; then the hand lets go and the ghost stops dead with a
+ * cold ring. Hold to keep moving; let go to stop. The label sits over everything.
  */
-const dragHint = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, now: number): void => {
-  const t = (now % 2) / 2
-  const start = { x: Math.round(at.x + 24), y: Math.round(at.y + 4) }, travel = 34
-  const rise = t < 0.15 ? 0 : t < 0.7 ? (t - 0.15) / 0.55 : 1
-  const eased = 1 - (1 - rise) * (1 - rise)
-  const tip = { x: start.x, y: start.y - Math.round(travel * eased) }
-  const fade = t > 0.82 ? 1 - (t - 0.82) / 0.18 : 1
+const dragHint = (ctx: CanvasRenderingContext2D, player: { readonly x: number; readonly y: number }, P: Project, now: number): void => {
+  const t = now % 2.8
+  const at = P(player.x, player.y)
+  const start = { x: Math.round(at.x + 26), y: Math.round(at.y + 4) }
+  const drag = t < 0.2 ? 0 : t < 0.5 ? (t - 0.2) / 0.3 : 1
+  const held = t < 1.9
+  const fade = t > 2.4 ? 1 - (t - 2.4) / 0.4 : 1
+  // The ghost of you walks while the hand holds (0.4 to 1.9 s), then stands where it stopped.
+  const walk = Math.max(0, Math.min(1, (t - 0.4) / 1.5))
+  const ghost = P(player.x, player.y - walk * 2.2)
   ctx.save()
   ctx.globalAlpha = fade
+  silhouette(ctx, bodyName("player"), ghost.x, ghost.y, false, GHOST, 0.55)
+  if (!held && t < 2.3) {
+    const r = 6 + (t - 1.9) * 40
+    pixelArc(ctx, ghost, r, r * 0.7, 0, Math.PI * 2, "#7fd8ff", 1)
+  }
   if (t < 0.2) {
     pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, INK, 3)
     pixelArc(ctx, start, 4 + t * 40, 3 + t * 28, 0, Math.PI * 2, "#7fd8ff", 1)
   }
-  if (rise > 0) {
+  const tip = { x: start.x, y: start.y - Math.round(18 * drag) - (held ? 0 : Math.round((t - 1.9) * 30)) }
+  if (drag > 0 && held) {
     pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, INK, 3, 2)
     pixelLine(ctx, start, { x: tip.x, y: tip.y + 2 }, "#7fd8ff", 1, 2)
   }
-  hand(ctx, tip.x, tip.y, true)
-  ctx.textAlign = "center"; ctx.textBaseline = "top"
-  ctx.font = "700 8px Silkscreen, ui-monospace, monospace"
-  const label = touchFirst() ? "DRAG TO MOVE" : "ARROWS TO MOVE"
-  // Above you, in the open floor you are about to cross.
-  const ly = Math.round(at.y - 44)
-  ctx.fillStyle = INK
-  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) ctx.fillText(label, at.x + dx, ly + dy)
-  ctx.fillStyle = "#f4efda"
-  ctx.fillText(label, at.x, ly)
+  hand(ctx, tip.x, tip.y, held)
+  const label = held ? (touchFirst() ? "HOLD AND DRAG" : "HOLD AN ARROW") : "LET GO: STOP"
+  // Under the hand's lowest point, so nothing ever covers it.
+  hintText(ctx, label, at.x, Math.round(at.y + 32), held ? "#f4efda" : "#7fd8ff")
   ctx.restore()
+}
+
+/** A pause sign (still: the world waits) or a play sign (moving: the world runs), 9 wide, drawn twice the size. */
+const PAUSE_SIGN = ["ooo.ooo..", "obo.obo..", "obo.obo..", "obo.obo..", "obo.obo..", "obo.obo..", "ooo.ooo.."] as const
+const PLAY_SIGN = ["oo...oo..", "ogo..ogo.", "oggo.oggo", "ogggogggo", "oggo.oggo", "ogo..ogo.", "oo...oo.."] as const
+const clockSign = (ctx: CanvasRenderingContext2D, x: number, y: number, running: boolean, now: number): void => {
+  const nudge = running ? Math.round(Math.sin(now * 18)) : 0
+  bitmap(ctx, running ? PLAY_SIGN : PAUSE_SIGN, x + nudge + 2, y, { o: INK, b: "#7fd8ff", g: "#edc66c" }, 2)
 }
 
 type Project = (x: number, y: number, z?: number) => { x: number; y: number }
@@ -385,15 +397,11 @@ const hintText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 /**
- * First Cut's lesson, drawn in the room until the gunner falls: there is no attack button, your ring cuts. Target
- * brackets on it ("get it inside your ring"), your ring pulsing gold at your feet until you first move ("enemies in
- * your ring get cut"), teal chevrons
- * from you toward it, and, while a shot is coming and you have frozen, "step out of the red line" over you.
+ * First Cut's lesson, shown rather than said. Until you first move, a ghost of you dashes into the gunner on a loop
+ * (2.4 real s): it comes within touching range, a cut flashes, the gunner blinks white. Gold brackets mark the
+ * gunner and teal chevrons point at it until it falls; with a shot coming and the world frozen, "step out of the red line".
  */
-const cutHint = (
-  ctx: CanvasRenderingContext2D, view: FightView, P: (x: number, y: number, z?: number) => { x: number; y: number },
-  erx: number, ery: number, now: number, fresh: boolean
-): void => {
+const cutHint = (ctx: CanvasRenderingContext2D, view: FightView, P: Project, now: number, fresh: boolean): void => {
   const p = view.player
   const target = view.enemies[0]
   if (p === null || target === undefined) return
@@ -407,30 +415,33 @@ const cutHint = (
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, INK, 3); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, INK, 3)
     pixelLine(ctx, { x: cx, y: cy }, { x: cx - sx * 4, y: cy }, "#edc66c"); pixelLine(ctx, { x: cx, y: cy }, { x: cx, y: cy + v }, "#edc66c")
   }
-  hintText(ctx, "GET IT INSIDE YOUR RING", them.x, top - 12, "#edc66c")
-  // Chevrons from you toward it, marching in real time: go this way. A shot in the air comes first: they give way.
-  const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy)
-  if (d > 2 && view.shots.length === 0) {
-    const ux = dx / d, uy = dy / d, a = Math.atan2(uy * SQUASH, ux)
-    const shift = (now * 1.5) % 0.7
-    for (let k = 1.2 + shift; k < Math.min(d - 1.2, 4.6); k += 0.7) {
-      const c = P(p.x + ux * k, p.y + uy * k)
-      const tipPt = { x: c.x + Math.cos(a) * 2, y: c.y + Math.sin(a) * 2 }
-      for (const side of [-1, 1]) {
-        const end = { x: c.x - Math.cos(a) * 2 + Math.sin(a) * side * 3, y: c.y - Math.sin(a) * 2 - Math.cos(a) * side * 3 }
-        pixelLine(ctx, tipPt, end, INK, 3); pixelLine(ctx, tipPt, end, "#64b6b3")
-      }
-    }
-  }
-  // Your blade's reach, pulsing gold until you first move.
+  // Chevrons toward it; a shot in the air comes first: they give way.
+  if (view.shots.length === 0) chevronsToward(ctx, p, target, P, now, "#64b6b3")
+  // The demo: a ghost of you runs into it and cuts, until you move.
   if (fresh) {
-    const r = p.attackRange + (pulse ? 0.06 : 0)
-    pixelArc(ctx, me, r * erx, r * ery, 0, Math.PI * 2, INK, 3)
-    pixelArc(ctx, me, r * erx, r * ery, 0, Math.PI * 2, "#edc66c", 1)
-    hintText(ctx, "ENEMIES IN YOUR RING GET CUT", me.x, me.y + Math.round(p.attackRange * ery) + 4, "#edc66c")
+    const t = now % 2.4
+    const run = Math.max(0, Math.min(1, (t - 0.2) / 0.8))
+    const eased = run * run * (3 - 2 * run)
+    // It stops a step short of the gunner: touching range, not on top of it.
+    const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy) || 1
+    const reach = Math.max(0, d - 0.9) * eased
+    const g = P(p.x + (dx / d) * reach, p.y + (dy / d) * reach)
+    const fade = t > 2 ? 1 - (t - 2) / 0.4 : 1
+    ctx.save()
+    ctx.globalAlpha = fade
+    silhouette(ctx, bodyName("player"), g.x, g.y, dx < 0, GHOST, 0.6)
+    // The cut: a bright crescent across the gunner, which blinks white for a moment.
+    if (t > 1.0 && t < 1.5) {
+      const k = (t - 1.0) / 0.5
+      const c = { x: them.x, y: them.y - 10 }
+      pixelArc(ctx, c, 12 + k * 6, 8 + k * 4, -2.4 + k, -0.6 + k, INK, 4)
+      pixelArc(ctx, c, 12 + k * 6, 8 + k * 4, -2.4 + k, -0.6 + k, "#f4efda", 2)
+      if (k < 0.6) silhouette(ctx, bodyName(target.kind), them.x, them.y, false, "#f4efda", 0.85)
+    }
+    ctx.restore()
   }
   // A shot on its way while you stand still: say what the freeze is for.
-  if (view.shots.length > 0 && view.scale < 0.2) hintText(ctx, "STEP OUT OF THE RED LINE", me.x, me.y - 40, "#ff6845")
+  if (view.shots.length > 0 && view.scale < 0.2) hintText(ctx, "STEP OUT OF THE RED LINE", me.x, me.y - 54, "#ff6845")
 }
 
 /** The speed effect's colours: afterimages, the aura's outline and its hot core. */
@@ -883,20 +894,33 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       pixelArc(ctx, centre, reach * erx, reach * ery, 0, Math.PI * 2, colour, t < 0.5 ? 1 : 1, t > 0.55)
     }
   }
-  // The first room shows what to do until you do it: a hand presses beside you and drags, then lets go.
-  if (view.room.index === 0 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(0)) {
-    dragHint(ctx, P(view.player.x, view.player.y), presentation.now)
-  }
-  // The first room points the way: chevrons from you to the exit.
+  // The first room points the way: chevrons from you to the exit (under the hint's text).
   if (view.room.index === 0 && view.flow === "playing" && view.player !== null && view.room.goal.kind === "exit") {
     const g = view.room.goal
     chevronsToward(ctx, view.player, { x: g.x + g.w / 2, y: g.y + g.h / 2 }, P, presentation?.now ?? 0, "#7dff9a", 8)
+  }
+  // The first room shows the move until you make it: a hand presses, drags and keeps holding while a ghost of you
+  // walks ahead; then lets go, and the ghost stops.
+  if (view.room.index === 0 && view.flow === "playing" && view.player !== null && presentation !== null && !presentation.hasMoved(0)) {
+    dragHint(ctx, view.player, P, presentation.now)
+  }
+  // After the first room, the tutorial shows the clock you drive: a pause sign over you while you are still, a play
+  // sign while you move, and the same sign on the blade's hub: you play the world.
+  if (view.room.index >= 1 && view.room.index <= 2 && view.flow === "playing" && view.player !== null) {
+    const running = speedOf(view) > 0.15
+    const me = P(view.player.x, view.player.y)
+    clockSign(ctx, me.x, me.y - 40, running, presentation?.now ?? 0)
+    const blade = (ROOMS[view.room.index]?.hazards ?? []).find((hz): hz is Blade => hz.kind === "blade")
+    if (blade !== undefined) {
+      const hub = P(blade.x, blade.y, 0.45)
+      clockSign(ctx, hub.x, hub.y - 30, running, presentation?.now ?? 0)
+    }
   }
   // The blade's room lights the way through as a traffic light: green footprints when a straight dash now gets through.
   if (view.room.name === "The Blade" && view.flow === "playing" && view.player !== null) bladeLaneHint(ctx, view, P)
   // The cut's room shows the cut: what to run into, how far your blade reaches, and when to step aside.
   if (view.room.name === "First Cut" && view.flow === "playing" && view.player !== null && presentation !== null) {
-    cutHint(ctx, view, P, erx, ery, presentation.now, !presentation.hasMoved(view.room.index))
+    cutHint(ctx, view, P, presentation.now, !presentation.hasMoved(view.room.index))
   }
   // In the first rooms, the freeze is named the first times it happens.
   const callout = presentation?.callout ?? null
@@ -974,7 +998,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
 
   // Each attempt opens with the room's goal as a picture: a door to reach, enemies to down, or time to last.
-  if (presentation !== null && view.flow === "playing") goalSplash(ctx, view, cw, ch, presentation.now - presentation.attemptAt)
+  // (Not in the three tutorial rooms: their own pointers already say it.)
+  if (presentation !== null && view.flow === "playing" && view.room.index >= 3) goalSplash(ctx, view, cw, ch, presentation.now - presentation.attemptAt)
   // The exit, when it is off screen: a green arrow at the edge pointing to it.
   if (view.room.goal.kind === "exit" && view.flow === "playing") {
     const g = view.room.goal, sp = P(g.x + g.w / 2, g.y + g.h / 2)

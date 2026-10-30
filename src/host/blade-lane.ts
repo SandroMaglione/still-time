@@ -11,12 +11,13 @@ import { HAZARD, TUNING } from "../sim/tuning.ts"
 export type Blade = Extract<Hazard, { readonly kind: "blade" }>
 
 /**
- * The lane: left of the hub (straight through the hub always meets the bar, and on the right the bar sweeps into
- * you, so a dash there is almost never safe), from the foot of the bar's sweep to past its top.
+ * The lane: left of the hub, as far out as your body fits past the bar's tip (straight through the hub always meets
+ * the bar; on the right the bar sweeps into you; the outer edge is where it is longest away), from the foot of the
+ * bar's sweep to past its top. For The Blade (a 4.2 m gap) a dash up it gets through for about 60% of a turn.
  */
 export const bladeLane = (blade: Blade): { readonly x: number; readonly foot: number; readonly end: number } => {
   const reach = blade.length + 0.6
-  return { x: blade.x - blade.length * 0.75, foot: blade.y + reach, end: blade.y - reach }
+  return { x: blade.x - (blade.length - 0.34), foot: blade.y + reach, end: blade.y - reach }
 }
 
 export const bladeLaneSafe = (blade: Blade, world: number): boolean => {
