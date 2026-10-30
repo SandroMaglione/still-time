@@ -912,16 +912,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const next = route.find((pt) => pt.y < me.y - 0.6) ?? route.at(-1) ?? (g.kind === "exit" ? { x: g.x + g.w / 2, y: g.y + g.h / 2 } : undefined)
     if (next !== undefined) chevronsToward(ctx, me, next, P, presentation?.now ?? 0, "#7dff9a", 8)
   }
-  // The first room names what is happening, over its blades, as it happens: they spin only while you move.
-  if (view.room.index === 0 && view.flow === "playing") {
-    const moving = speedOf(view) > 0.15
-    const rows = [...new Set((ROOMS[0]?.hazards ?? []).map((hz) => (hz.kind === "blade" ? hz.y : -1)).filter((y) => y >= 0))]
-    for (const y of rows) {
-      // Above each pair, clear of the blades' tips, and drawn after the chevrons and the hand so nothing covers it.
-      const at = P(view.room.w / 2, y - 1.6, 0)
-      hintText(ctx, moving ? "TIME MOVES AS YOU MOVE" : "TIME STOPS WHEN YOU DO", at.x, at.y, moving ? "#edc66c" : "#7fd8ff")
-    }
-  }
   // After the first room, the tutorial shows the clock you drive: a pause sign over you while you are still, a play
   // sign while you move, and the same sign on the blade's hub: you play the world.
   if (view.room.index >= 1 && view.room.index <= 2 && view.flow === "playing" && view.player !== null) {

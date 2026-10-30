@@ -18,17 +18,24 @@ const barAngle = (fight: Fight): number => {
   return ((a % Math.PI) + Math.PI) % Math.PI
 }
 
-test("First Step: the blades spin only while you move, and a straight walk up the middle reaches the exit", () => {
+test("First Step: nothing moves but you; the way winds through two gaps to the exit", () => {
   const { fight, thumb } = fightIn("First Step")
   assert.equal(fight.view().room.index, 0, "it is the first room")
   assert.equal(fight.view().enemies.length, 0)
-  assert.ok(fight.view().hazards.length > 0, "blades along the walls")
-  const angle = (): number => { const h = fight.view().hazards[0]!; return Math.atan2(h.by - h.ay, h.bx - h.ax) }
-  const before = angle()
-  runUntil(fight, 120, () => false)
-  assert.ok(Math.abs(angle() - before) < 0.25, "still, they barely turn")
-  // Straight up the middle, never steering: the blades stay out of reach of it.
-  runUntil(fight, 900, () => fight.view().flow !== "playing", () => { thumb.push = { x: 0, y: -1 } })
+  assert.equal(fight.view().hazards.length, 0)
+  // Straight up from the start runs into the first wall.
+  runUntil(fight, 300, () => fight.view().flow !== "playing", () => { thumb.push = { x: 0, y: -1 } })
+  assert.equal(fight.view().flow, "playing", "a straight walk does not reach the exit")
+  // Through the right gap, the left gap, then to the exit.
+  for (const [x, y] of [[8.4, 17], [8.4, 12], [1.6, 12], [1.6, 5], [7.7, 1.8]] as const) {
+    runUntil(fight, 600, () => { const p = fight.view().player; return p === null || fight.view().flow !== "playing" || Math.hypot(x - p.x, y - p.y) < 0.2 }, () => {
+      const p = fight.view().player!
+      const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy) || 1
+      thumb.push = { x: dx / d, y: dy / d }
+    })
+  }
+  thumb.push = { x: 0, y: -1 }
+  runUntil(fight, 300, () => fight.view().flow !== "playing")
   assert.equal(fight.view().flow, "cleared")
   assert.equal(fight.view().hits, 0)
 })

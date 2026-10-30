@@ -37,6 +37,8 @@ if (canvas === null || canvas === undefined || ctx === null || ctx === undefined
 class ThumbSource {
   private push = { x: 0, y: 0 }
   private tapped = false
+  /** The most push let through (the first room's lesson holds you back until you have done its step). */
+  cap = 1
 
   /** A push on screen (direction and 0..1 strength), stored as the world direction that looks the same. */
   setScreenPush(dx: number, dy: number, strength: number): void {
@@ -54,7 +56,9 @@ class ThumbSource {
   }
 
   snapshot(): Thumb {
-    const thumb = { x: this.push.x, y: this.push.y, tap: this.tapped }
+    const len = Math.hypot(this.push.x, this.push.y)
+    const k = len > this.cap ? this.cap / len : 1
+    const thumb = { x: this.push.x * k, y: this.push.y * k, tap: this.tapped }
     this.tapped = false
     return thumb
   }
@@ -267,11 +271,12 @@ FixedLoop.start({
     if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     const k = 1 / cssPerPixel
     const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
-    draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
-    // The first rooms' step-by-step lesson, over everything.
+    const drawn = draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
+    // The first rooms' step-by-step lesson, over everything; it also holds the thumb back until its step is done.
     const input = lessonInput()
     lesson.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, input)
-    lesson.draw(ctx, canvas.width, canvas.height, view, input)
+    thumb.cap = lesson.cap()
+    lesson.draw(ctx, canvas.width, canvas.height, view, drawn.P, input)
   },
   onFailure: (failure) => console.error("Slap loop stopped", failure)
 })
