@@ -66,25 +66,14 @@ export const pressurePlate = (ctx: CanvasRenderingContext2D, lit: CanvasRenderin
   })
 }
 
-/** Over the lit scene: a waiting plate breathes a gold ring, and the one to press next has an arrow bobbing over it; a press sends out a teal ripple. */
-export const plateBeacon = (ctx: CanvasRenderingContext2D, P: Projection, plate: PlateView, next: boolean, pressAge: number, unit: number, now: number): void => {
+/** On the floor round a plate: while it waits it breathes a gold ring; a press sends out a teal ripple. */
+export const plateBeacon = (ctx: CanvasRenderingContext2D, P: Projection, plate: PlateView, pressAge: number, unit: number, now: number): void => {
   const centre = P(plate.x, plate.y), rx = plate.radius * unit, ry = rx * 0.78
   if (!plate.down) {
     const t = (now * 0.9) % 1
     ctx.save(); ctx.globalAlpha = 0.85 * (1 - t)
     pixelArc(ctx, centre, rx * (1.15 + t * 0.6), ry * (1.15 + t * 0.6), 0, Math.PI * 2, PLATE_GOLD, 1, true)
     ctx.restore()
-    if (next) {
-      const bounce = Math.round(Math.abs(Math.sin(now * 4)) * 4)
-      const top = P(plate.x, plate.y, 1.1)
-      for (const [j, row] of PLATE_ARROW.entries()) {
-        for (let i = 0; i < row.length; i++) {
-          const c = row[i] === "o" ? PLATE_INK : row[i] === "g" ? PLATE_GOLD : null
-          if (c === null) continue
-          ctx.fillStyle = c; ctx.fillRect(Math.round(top.x) - 7 + i * 2, Math.round(top.y) - 10 + bounce + j * 2, 2, 2)
-        }
-      }
-    }
   }
   if (pressAge >= 0 && pressAge < 0.5) {
     const t = pressAge / 0.5
@@ -93,7 +82,6 @@ export const plateBeacon = (ctx: CanvasRenderingContext2D, P: Projection, plate:
     ctx.restore()
   }
 }
-const PLATE_ARROW = ["ooooooo", "ogggggo", "oogggoo", ".ogggo.", ".oogoo.", "..ogo..", "...o..."] as const
 
 /** Repeating slats move in real time; fixed side rails and end rollers frame the belt. */
 export const conveyorBelt = (ctx: CanvasRenderingContext2D, P: Projection, belt: FightView["belts"][number]): void => {

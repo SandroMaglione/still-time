@@ -617,7 +617,10 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Drawn on the glow layer: copied onto the scene, and kept at full light as threats.
   const glow = glowLayer(ctx)
   // Pressure plates, at full light, with the line to the gate each opens (see `pressurePlate`).
-  for (const plate of view.plates) pressurePlate(glow, ctx, P, plate, view.doors[plate.door] ?? null, presentation?.now ?? view.world)
+  view.plates.forEach((plate, i) => {
+    pressurePlate(glow, ctx, P, plate, view.doors[plate.door] ?? null, presentation?.now ?? view.world)
+    if (view.flow === "playing") plateBeacon(glow, P, plate, presentation?.pressAge(i) ?? -1, erx, presentation?.now ?? view.world)
+  })
   // Burst crates leave their broken planks on the floor (at full light, so the room's shadow does not swallow them).
   for (const splinter of presentation?.splinters ?? []) crateWreck(glow, P, splinter)
   if (view.flow === "playing") {
@@ -1015,6 +1018,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, cw, ch)
       ctx.restore()
       ctx.drawImage(glow.canvas, 0, 0)
+      // The emissive layer holds floor things too (plates, a burst crate's planks): whoever stands on one is painted
+      // again over it, so a plate never covers you.
+      const floorMarks = [
+        ...view.plates.map((p) => ({ x: p.x, y: p.y, r: p.radius + 0.8 })),
+        ...(presentation?.splinters ?? []).map((s) => ({ x: s.x + s.w / 2, y: s.y + s.h / 2, r: Math.max(s.w, s.h) + 1 }))
+      ]
+      for (const actor of actors) if (floorMarks.some((m) => Math.hypot(actor.x - m.x, actor.y - m.y) < m.r)) actor.paint()
     }
   }
   // A hit, screen-wide: a hard red flash, then the world drains to grey under a red vignette while you are down.
@@ -1046,13 +1056,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   motes(ctx, view, P)
   // The exit is a beacon: a column of light and a bouncing arrow over the pad.
   if (view.room.goal.kind === "exit" && view.flow === "playing") exitBeacon(ctx, view.room.goal, P, erx, presentation?.now ?? view.world)
-  // Plates call you over: the next one to press has an arrow, and a press ripples.
-  if (view.flow === "playing") {
-    view.plates.forEach((plate, i) => {
-      const next = !plate.down && view.plates.every((o) => o.door !== plate.door || o.down || o.order === null || plate.order === null || o.order >= plate.order)
-      plateBeacon(ctx, P, plate, next, presentation?.pressAge(i) ?? -1, erx, presentation?.now ?? view.world)
-    })
-  }
 
   // Frozen time closes in: a cold vignette, as strong as the world is still.
   if (view.flow === "playing") {
