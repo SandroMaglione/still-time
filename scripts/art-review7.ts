@@ -111,7 +111,7 @@ try {
     const hz = { ax: 2.5, ay: 4.1, bx: 6.8, by: 5.6, kind: "blade", state: "on", live: true }
     room.spinningBlade(cc, P, hz)
     room.laserPost(cc, P, 3.1, 3.2, "on"); room.laserPost(cc, P, 6.5, 3.2, "warn")
-    combat.bombActor(cc, P, { id: 4, x: 3.1, y: 7.1, flying: false, fuse: 0.6, radius: 1.9 }, 1.5)
+    combat.bombActor(cc, P, { id: 4, x: 3.1, y: 7.1, target: null, fuse: 0.6, radius: 1.9 }, 1.5)
     const ambient: readonly [number, number, number] = [100, 115, 140]
     light.emitLight(cc, { x: 140, y: 130, radius: 3.5, colour: [255, 176, 96], intensity: 0.8, shadows: false })
     light.applyLighting(cc, { P, u: 26, squash: 20 / 26, toFloor: (x: number, y: number) => ({ x: x / 26, y: y / 20 }), blockers: [], blockerHeight: 1.2, backWall: 1.6, room: { w: 8, h: 9 }, ambient }, null)

@@ -706,7 +706,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
     // A lit bomb: its blast's reach on the floor, and a red sweep that fills as the fuse burns down.
     for (const b of view.bombs) {
-      if (b.flying) continue
+      // In flight: where it will land, as a bullet's path and the blast's reach drawn faintly there.
+      if (b.target !== null) {
+        const from = P(b.x, b.y), to = P(b.target.x, b.target.y)
+        shotPath(ctx, from, to)
+        pixelArc(ctx, to, b.radius * erx, b.radius * ery, 0, Math.PI * 2, PATH, 1, true)
+        continue
+      }
       const centre = P(b.x, b.y), rx = b.radius * erx, ry = b.radius * ery
       threatArc(ctx, centre, rx, ry, 0, Math.PI * 2, THREAT, 1, true)
       const burnt = 1 - b.fuse
@@ -809,16 +815,17 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     })
   }
   for (const shot of shots) {
-    // Each bullet carries a little red light: a glow on the floor under it and round the round itself.
-    if (shot.kind === "bullet") {
-      const ground = P(shot.x, shot.y), body = P(shot.x, shot.y, 0.6)
-      emitLight(ctx, { x: ground.x, y: ground.y, radius: 1.5, colour: [255, 110, 80], intensity: 0.9, shadows: false, halo: { lift: Math.round(ground.y - body.y), radius: 0.5, strength: 0.45 } })
+    // Every shot carries a little red light (the sniper's slug the most): a glow on the floor under it and round it.
+    {
+      const ground = P(shot.x, shot.y), body = P(shot.x, shot.y, 0.6), slug = shot.kind === "slug"
+      emitLight(ctx, { x: ground.x, y: ground.y, radius: slug ? 1.9 : 1.5, colour: [255, 110, 80], intensity: slug ? 1 : 0.9, shadows: false, halo: { lift: Math.round(ground.y - body.y), radius: slug ? 0.6 : 0.5, strength: slug ? 0.55 : 0.45 } })
     }
     const paintShot = (ctx: CanvasRenderingContext2D): void => {
-      /** A line held at height z from (x, y) toward angle a. */
-      const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
+      /** A line held at height z from (x, y) toward angle a; with `rim`, a warm glow round it first (as the bullet's). */
+      const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number, rim = false): void => {
         const start = P(x + Math.cos(a) * from, y + Math.sin(a) * from, z)
         const end = P(x + Math.cos(a) * to, y + Math.sin(a) * to, z)
+        if (rim) pixelLine(ctx, start, end, "#ff9a80", width + 3)
         pixelLine(ctx, start, end, "#171c2e", width + 1)
         pixelLine(ctx, start, end, colour, width)
       }
@@ -834,16 +841,19 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
           disc(ctx, p.x, p.y, 1, DANGER)
           pixelLine(ctx, p, p, "#fff2dc", 1)
         } else if (shot.kind === "slug") {
-          held(shot.x, shot.y, a + Math.PI, 0, 0.36, z, DANGER, 1)
-          held(shot.x, shot.y, a, -0.1, 0.12, z, THREAT, 3)
-          held(shot.x, shot.y, a, 0, 0.1, z, "#f4efda", 1)
+          // The fastest shot: a long streak behind, a glowing red body, a white-hot core.
+          held(shot.x, shot.y, a + Math.PI, 0.1, 0.6, z, THREAT, 1)
+          held(shot.x, shot.y, a, -0.14, 0.14, z, DANGER, 3, true)
+          held(shot.x, shot.y, a, -0.06, 0.1, z, "#fff2dc", 1)
         } else if (shot.kind === "arrow") {
           held(shot.x, shot.y, a + Math.PI, 0, 0.36, z, THREAT, 1)
-          held(shot.x, shot.y, a, -0.05, 0.14, z, DANGER, 2)
           for (const side of [-0.6, 0.6]) held(shot.x, shot.y, a + Math.PI + side, 0.26, 0.38, z, THREAT, 1)
+          held(shot.x, shot.y, a, -0.05, 0.14, z, DANGER, 2, true)
+          held(shot.x, shot.y, a, 0.02, 0.12, z, "#fff2dc", 1)
         } else {
-          held(shot.x, shot.y, a, -0.14, 0.14, z, DANGER, 2)
-          held(shot.x, shot.y, a, 0, 0.14, z, "#f4efda", 1)
+          // A knife: a glowing blade with a white edge.
+          held(shot.x, shot.y, a, -0.14, 0.14, z, DANGER, 2, true)
+          held(shot.x, shot.y, a, 0, 0.14, z, "#fff2dc", 1)
         }
       }
     }

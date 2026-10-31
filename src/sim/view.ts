@@ -109,7 +109,8 @@ export interface BombView {
   readonly id: number
   readonly x: number
   readonly y: number
-  readonly flying: boolean
+  /** Where it will land while it flies (where you stood when it was thrown); null once it has landed, lit. */
+  readonly target: { readonly x: number; readonly y: number } | null
   readonly fuse: number
   readonly radius: number
 }
@@ -320,7 +321,7 @@ export const FightViewInspector = Game.Inspector(
     const bombs = queries.bombs.each().map(({ entity, data }): BombView => {
       const at = data.body.get()
       const bomb = data.bomb.get()
-      return { id: entity.id, x: at.x, y: at.y, flying: bomb._tag === "flying", fuse: bomb._tag === "lit" ? Math.max(0, Math.min(1, bomb.left / BOMB.fuse)) : 1, radius: BOMB.radius }
+      return { id: entity.id, x: at.x, y: at.y, target: bomb._tag === "flying" ? { x: bomb.tx, y: bomb.ty } : null, fuse: bomb._tag === "lit" ? Math.max(0, Math.min(1, bomb.left / BOMB.fuse)) : 1, radius: BOMB.radius }
     })
     return {
       step: time.step,

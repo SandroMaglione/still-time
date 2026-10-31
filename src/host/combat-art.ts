@@ -150,10 +150,10 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
 
 /** Native bomb and a two-frame fuse; blast reach/fuse telegraphs remain owned by draw.ts. */
 export const bombActor = (ctx: CanvasRenderingContext2D, P: Projection, bomb: BombView, world: number): void => {
-  const ground = P(bomb.x, bomb.y), at = P(bomb.x, bomb.y, bomb.flying ? 0.7 : 0.15)
+  const ground = P(bomb.x, bomb.y), at = P(bomb.x, bomb.y, bomb.target !== null ? 0.7 : 0.15)
   sprite(ctx, "shadow", ground.x + 1, ground.y + 3)
   sprite(ctx, Math.floor(world * (bomb.fuse < 0.3 ? 24 : 10)) % 2 === 0 ? "bomb-0" : "bomb-1", at.x, at.y + 5)
-  emitLight(ctx, { x: ground.x, y: ground.y, radius: 1.2, colour: [255, 190, 110], intensity: bomb.flying ? 0.35 : 0.7, shadows: false, halo: { lift: Math.round(ground.y - at.y + 10), radius: 0.4, strength: 0.18 } })
+  emitLight(ctx, { x: ground.x, y: ground.y, radius: 1.2, colour: [255, 190, 110], intensity: bomb.target !== null ? 0.35 : 0.7, shadows: false, halo: { lift: Math.round(ground.y - at.y + 10), radius: 0.4, strength: 0.18 } })
 }
 
 export const muzzle = (ctx: CanvasRenderingContext2D, at: Point, angle: number, progress: number): void => {

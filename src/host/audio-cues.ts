@@ -97,8 +97,8 @@ export const cuesBetween = (old: FightView, view: FightView): Array<Cue> => {
   for (const bomb of view.bombs) {
     const was = earlierBombs.get(bomb.id)
     if (was === undefined) cues.push(cue("bomb.throw", "world", bomb))
-    else if (was.flying && !bomb.flying) cues.push(cue("bomb.land", "world", bomb))
-    else if (!bomb.flying && Math.ceil(was.fuse * 10) !== Math.ceil(bomb.fuse * 10)) cues.push(cue("bomb.fuse", "world", bomb))
+    else if (was.target !== null && bomb.target === null) cues.push(cue("bomb.land", "world", bomb))
+    else if (bomb.target === null && Math.ceil(was.fuse * 10) !== Math.ceil(bomb.fuse * 10)) cues.push(cue("bomb.fuse", "world", bomb))
   }
   const earlierBlasts = new Set(old.blasts.map(boxKey))
   for (const blast of view.blasts) if (!earlierBlasts.has(boxKey(blast))) cues.push(cue("bomb.blast", "world", blast))

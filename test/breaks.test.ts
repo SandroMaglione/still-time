@@ -60,9 +60,9 @@ test("the grenadier lobs a bomb at where you stand, and it lands lit", () => {
     if (me !== null) stood = { x: me.x, y: me.y }
     wait()
   })
-  assert.equal(fight.view().bombs[0]?.flying, true)
-  runUntil(fight, 4000, () => fight.view().bombs.some((b) => !b.flying) || fight.view().flow !== "playing", wait)
-  const lit = fight.view().bombs.find((b) => !b.flying)
+  assert.equal(fight.view().bombs[0]?.target !== null, true)
+  runUntil(fight, 4000, () => fight.view().bombs.some((b) => b.target === null) || fight.view().flow !== "playing", wait)
+  const lit = fight.view().bombs.find((b) => b.target === null)
   assert.ok(lit !== undefined)
   assert.ok(Math.hypot(lit.x - stood.x, lit.y - stood.y) < 0.6, `landed ${Math.hypot(lit.x - stood.x, lit.y - stood.y).toFixed(2)} m from where you stood`)
 })
