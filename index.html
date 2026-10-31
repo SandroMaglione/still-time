@@ -135,6 +135,15 @@
       .crash h2 { margin: 0; font-size: var(--t2); line-height: var(--l2); color: var(--red); }
       .cleared .msg-cta, .won .msg-cta { color: var(--gold); }
       .msg-lines .best { color: var(--gold); animation: pop 0.35s steps(4) both; }
+      /* A clear's time, big; and how the attempt was spent, as one bar: still (ice) against moving (gold). */
+      .msg-lines .time { font-size: var(--t2); line-height: var(--l2); font-weight: 700; color: var(--light); }
+      .msg-lines .split { display: flex; align-items: center; gap: calc(var(--u) * 3); font-size: var(--t0); line-height: var(--l0); margin-top: calc(var(--u) * 2); }
+      .split-still { color: var(--ice); }
+      .split-moving { color: var(--gold); }
+      .split-bar {
+        width: calc(var(--u) * 40); height: calc(var(--u) * 3); border: var(--u) solid var(--ink);
+        background: linear-gradient(to right, var(--ice-lo) var(--still), var(--gold) var(--still));
+      }
       .pop { animation: pop 0.24s steps(4) both; }
       @keyframes pop { 0% { transform: scale(0); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
       @keyframes rise { from { translate: 0 calc(var(--u) * 8); opacity: 0; } to { translate: 0 0; opacity: 1; } }

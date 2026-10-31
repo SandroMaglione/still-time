@@ -234,26 +234,30 @@ export class Hud {
       this.msgLines.append(span)
       return span
     }
-    const small = (text: string): HTMLElement => Object.assign(document.createElement("span"), { className: "dim small", textContent: text })
     {
-      const over = result.world > view.room.par
-      // The time counts up as the stars pop in.
+      // The time, big, counting up as the stars pop in; under it, only what three stars take, if you missed them.
       const time = Object.assign(document.createElement("span"), { textContent: "0.0s" })
       this.text.set(time, "0.0s")
-      add(over ? "line over" : "line", "").append(time, small(`/ par ${view.room.par}s`))
+      add("line time", "").append(time)
       this.countUp = { node: time, to: result.world, from: this.now }
+      if (result.stars < 3) add("line dim small", `3 stars under ${view.room.par}s`)
     }
-    // How you spent it: the real seconds you stood still (looking, the world frozen) and the ones you moved.
-    if (this.times !== null) {
-      const t = this.times
-      add("line dim small", `${t.still.toFixed(1)}s standing still · ${t.moving.toFixed(1)}s moving`)
+    // How you spent it, as one bar: the real seconds you stood still (looking, the world frozen) and the ones you moved.
+    if (this.times !== null && this.times.still + this.times.moving > 0) {
+      const t = this.times, share = t.still / (t.still + t.moving)
+      const split = add("split", "")
+      const bar = Object.assign(document.createElement("span"), { className: "split-bar" })
+      bar.style.setProperty("--still", `${(share * 100).toFixed(1)}%`)
+      split.append(
+        Object.assign(document.createElement("span"), { className: "split-still", textContent: `${t.still.toFixed(1)}s still` }),
+        bar,
+        Object.assign(document.createElement("span"), { className: "split-moving", textContent: `${t.moving.toFixed(1)}s moving` })
+      )
     }
-    // Against your best before this clear: a new best says so; otherwise the best to beat.
+    // A new best says so (and nothing otherwise: the card stays small, the replay behind it).
     const before = this.bestBefore
-    if (before !== null) {
-      const better = result.stars > before.stars || result.world < before.world - 0.05
-      if (better) add("line best", "new best!").style.animationDelay = `${COUNT_UP.toFixed(2)}s`
-      else add("line dim small", `best ${before.world.toFixed(1)}s`)
+    if (before !== null && (result.stars > before.stars || result.world < before.world - 0.05)) {
+      add("line best", "new best!").style.animationDelay = `${COUNT_UP.toFixed(2)}s`
     }
     if (won) {
       const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)

@@ -62,14 +62,15 @@ test("the room's clock runs in world seconds: it barely moves while you stand st
   assert.ok(ran > 0.8 && ran <= 1.0001, `full push for 1 s: ${ran}`)
 })
 
-test("stars: one for the clear, one for no hit, one for beating par", () => {
-  assert.equal(starsFor(0, 3, 4), 3)
-  assert.equal(starsFor(1, 3, 4), 2)
-  assert.equal(starsFor(0, 5, 4), 2)
-  assert.equal(starsFor(2, 9, 4), 1)
+test("stars by time alone: three at par or under, two within twice par, one for any clear", () => {
+  assert.equal(starsFor(3, 4), 3)
+  assert.equal(starsFor(4, 4), 3)
+  assert.equal(starsFor(5, 4), 2)
+  assert.equal(starsFor(8, 4), 2)
+  assert.equal(starsFor(9, 4), 1)
 })
 
-test("a clean dodge-and-cut beats the Duel's par for three stars; a hit first costs one", () => {
+test("a clean dodge-and-cut beats the Duel's par for three stars; a hit before a retry costs none", () => {
   const { fight, thumb } = fightIn("Duel")
   duelClear(fight, thumb)
   const clean = fight.view().result
@@ -92,8 +93,7 @@ test("a clean dodge-and-cut beats the Duel's par for three stars; a hit first co
   fight.tick()
   assert.equal(fight.view().hits, 1, "a retry keeps the room's hit")
   duelClear(fight, thumb)
-  assert.equal(fight.view().result?.stars, 2)
-  assert.equal(fight.view().best[duel]?.stars, 3, "the best of the run stays")
+  assert.equal(fight.view().result?.stars, 3, "a fast retry earns all three, hit or not")
 })
 
 test("a door holds until its chamber is clear, then opens", () => {

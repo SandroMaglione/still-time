@@ -208,8 +208,14 @@ export const LocksSystem = Game.System(
   }
 )
 
-/** Stars for a clear: one for the clear, one for no hit in the room, one for beating its par in world seconds. */
-export const starsFor = (hits: number, world: number, par: number): number => 1 + (hits === 0 ? 1 : 0) + (world <= par ? 1 : 0)
+/**
+ * Stars for a clear, by time alone (world seconds against the room's `par`): three at par or under, two within twice
+ * par, one for any clear. (One for no hit in the room was tried: a hit before a retry kept the third star out of reach
+ * however fast the retry, and read as broken.)
+ */
+export const starsFor = (world: number, par: number): number => (world <= par ? 3 : world <= par * TWO_STARS ? 2 : 1)
+/** Within this many times par, a clear earns two stars. */
+export const TWO_STARS = 2
 
 /**
  * The clock of the attempt runs in world seconds, so it only moves while you
@@ -246,7 +252,7 @@ export const OutcomeSystem = Game.System(
       return
     }
     const scored = world
-    const result: RoomResult = { stars: starsFor(run.hits, scored, room.par), world: scored }
+    const result: RoomResult = { stars: starsFor(scored, room.par), world: scored }
     const was = run.best[run.room] ?? null
     const best = was === null ? result : { stars: Math.max(was.stars, result.stars), world: Math.min(was.world, result.world) }
     resources.run.set({ ...run, world, best: run.best.map((b, i) => (i === run.room ? best : b)) })
