@@ -88,19 +88,17 @@ writeFileSync('assets/art/player-body.pixel.config.json', JSON.stringify({ palet
 exports.push({ name: 'player-body', source: 'assets/art/source/player-body.sprite.txt', canonical: true })
 
 for (const state of ['up', 'down', 'missed']) make(`plate-${state}`, r => {
-  const y = state === 'down' ? 7 : 5
-  // A bevelled cast-iron plinth. Raised/up and sunken/down are different silhouettes.
-  r(3, y, 18, 1, 0); r(1, y + 1, 22, 12, 0); r(3, y + 13, 18, 2, 0)
-  r(2, y + 2, 20, 10, 2); r(3, y + 1, 18, 2, 5)
-  r(2, y + 3, 2, 7, 3); r(4, y + 3, 17, 8, 1)
-  r(3, y + 12, 18, state === 'down' ? 1 : 2, 1)
-  const lit = state === 'missed' ? 8 : state === 'down' ? 14 : 11
-  r(4, y + 3, 16, 1, lit); r(4, y + 10, 16, 1, lit)
-  r(4, y + 4, 2, 6, lit); r(18, y + 4, 2, 6, lit)
-  r(6, y + 5, 12, 4, 2)
-  if (state === 'missed') { r(10, y + 5, 2, 2, 8); r(14, y + 5, 2, 2, 8); r(12, y + 7, 2, 2, 8) }
-  else { r(10, y + 6, 6, 2, state === 'down' ? 14 : 5) }
-  for (const x of [2, 20]) { r(x, y + 1, 2, 2, 0); r(x, y + 10, 2, 2, 0) }
+  // A stone slab with a coloured rim and nothing in the middle: raised (a front lip under its top) while it waits,
+  // gold; sunk flush with the floor once pressed, teal; a wrong press, red. The top's centre is at (12, 10) raised and
+  // (12, 13) sunk: the page draws it 3 px higher while it stands proud.
+  const down = state === 'down', y = down ? 5 : 2, rim = state === 'missed' ? 8 : down ? 14 : 11
+  r(1, y, 22, down ? 18 : 21, 0)
+  r(2, y + 1, 20, 15, down ? 1 : 3)
+  if (down) r(2, y + 1, 20, 1, 0)
+  else { r(2, y + 1, 20, 1, 5); r(2, y + 16, 20, 1, 1); r(2, y + 17, 20, 2, 2) }
+  r(4, y + 3, 16, 1, rim); r(4, y + 13, 16, 1, rim); r(4, y + 3, 1, 11, rim); r(19, y + 3, 1, 11, rim)
+  const bottom = y + (down ? 17 : 20)
+  for (const [cx, cy] of [[1, y], [22, y], [1, bottom], [22, bottom]]) r(cx, cy, 1, 1, -1)
 })
 
 make('belt-tread', r => {

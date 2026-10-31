@@ -533,6 +533,50 @@ export interface Frame {
 }
 
 /** Draws the view; returns this frame's mapping, for overlays drawn after it and for turning a touch into a floor point. */
+/** A second transparent layer the size of the scene, reused per context: floor marks kept at full light (see `keepLit`). */
+const floorLayers = new WeakMap<CanvasRenderingContext2D, HTMLCanvasElement>()
+const floorLayer = (ctx: CanvasRenderingContext2D): CanvasRenderingContext2D => {
+  let c = floorLayers.get(ctx)
+  if (c === undefined) { c = document.createElement("canvas"); floorLayers.set(ctx, c) }
+  if (c.width !== ctx.canvas.width) c.width = ctx.canvas.width
+  if (c.height !== ctx.canvas.height) c.height = ctx.canvas.height
+  const g = c.getContext("2d", { willReadFrequently: true })!
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, c.width, c.height)
+  g.imageSmoothingEnabled = false
+  return g
+}
+/** The whole-pixel screen box round a floor point, `hw` by `hh` metres either side (and a body's height above, for what stands there). */
+const screenArea = (P: (x: number, y: number, z?: number) => { x: number; y: number }, x: number, y: number, hw: number, hh: number): { x: number; y: number; w: number; h: number } => {
+  const a = P(x - hw, y - hh, 1.6), b = P(x + hw, y + hh)
+  const x0 = Math.max(0, Math.floor(a.x)), y0 = Math.max(0, Math.floor(a.y))
+  return { x: x0, y: y0, w: Math.max(0, Math.ceil(b.x) - x0), h: Math.max(0, Math.ceil(b.y) - y0) }
+}
+const scratch = typeof document === "undefined" ? null : document.createElement("canvas")
+/**
+ * Floor marks (plates, wreckage) are painted on the floor, under everyone; then the pixels of them that nobody came
+ * to stand over (unchanged since `bare`, taken before anyone was painted) go onto the emissive layer, so they keep full
+ * light and colour while frozen time greys the rest, and never cover whoever stands on them.
+ */
+const keepLit = (ctx: CanvasRenderingContext2D, glow: CanvasRenderingContext2D, marks: CanvasRenderingContext2D, areas: ReadonlyArray<{ x: number; y: number; w: number; h: number }>, bare: ReadonlyArray<ImageData>): void => {
+  if (scratch === null) return
+  areas.forEach((a, i) => {
+    const before = bare[i]
+    if (before === undefined) return
+    const after = ctx.getImageData(a.x, a.y, a.w, a.h).data, mark = marks.getImageData(a.x, a.y, a.w, a.h)
+    const m = mark.data, was = before.data
+    for (let j = 0; j < m.length; j += 4) {
+      if (m[j + 3] === 0) continue
+      if (after[j] !== was[j] || after[j + 1] !== was[j + 1] || after[j + 2] !== was[j + 2]) m[j + 3] = 0
+    }
+    if (scratch.width < a.w) scratch.width = a.w
+    if (scratch.height < a.h) scratch.height = a.h
+    const sc = scratch.getContext("2d", { willReadFrequently: true })!
+    sc.clearRect(0, 0, scratch.width, scratch.height)
+    sc.putImageData(mark, 0, 0)
+    glow.drawImage(scratch, 0, 0, a.w, a.h, a.x, a.y, a.w, a.h)
+  })
+}
+
 export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): Frame => {
   // Margins are in source pixels, so short desktop/landscape views need smaller ones.
   const TOP = Math.min(32, Math.round(ch * 0.08)), BOTTOM = Math.min(42, Math.round(ch * 0.12))
@@ -616,13 +660,19 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Ground decals: where shots will pass, what each enemy covers, your reach.
   // Drawn on the glow layer: copied onto the scene, and kept at full light as threats.
   const glow = glowLayer(ctx)
-  // Pressure plates, at full light, with the line to the gate each opens (see `pressurePlate`).
+  // Floor marks kept at full light (see `keepLit`): pressure plates, with the line to the gate each opens, and the
+  // planks a burst crate leaves.
+  const marks = floorLayer(ctx)
   view.plates.forEach((plate, i) => {
-    pressurePlate(glow, ctx, P, plate, view.doors[plate.door] ?? null, presentation?.now ?? view.world)
-    if (view.flow === "playing") plateBeacon(glow, P, plate, presentation?.pressAge(i) ?? -1, erx, presentation?.now ?? view.world)
+    pressurePlate(marks, ctx, P, plate, view.doors[plate.door] ?? null, presentation?.now ?? view.world)
+    if (view.flow === "playing") plateBeacon(marks, P, plate, presentation?.pressAge(i) ?? -1, erx, presentation?.now ?? view.world)
   })
-  // Burst crates leave their broken planks on the floor (at full light, so the room's shadow does not swallow them).
-  for (const splinter of presentation?.splinters ?? []) crateWreck(glow, P, splinter)
+  for (const splinter of presentation?.splinters ?? []) crateWreck(marks, P, splinter)
+  const markAreas = [
+    ...view.plates.map((p) => screenArea(P, p.x, p.y, p.radius * 1.9, p.radius * 1.9)),
+    ...(presentation?.splinters ?? []).map((sp) => screenArea(P, sp.x + sp.w / 2, sp.y + sp.h / 2, sp.w + 1.2, sp.h + 1.2))
+  ].filter((a) => a.w > 0 && a.h > 0)
+  if (markAreas.length > 0) ctx.drawImage(marks.canvas, 0, 0)
   if (view.flow === "playing") {
     const ctx = glow
     ctx.save()
@@ -981,6 +1031,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   const paintAll = (things: Array<Thing>): void => {
     for (const t of things.sort((a, b) => a.y - b.y)) t.paint()
   }
+  // What the floor marks look like before anyone stands on them (see `keepLit`).
+  const bare = markAreas.map((a) => ctx.getImageData(a.x, a.y, a.w, a.h))
   paintAll(first)
   boxes.forEach((b, i) => {
     if (b.lift !== undefined) portcullis(ctx, b, P, PILLAR_HEIGHT, b.lift)
@@ -992,6 +1044,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
     paintAll(slots[i] ?? [])
   })
+  keepLit(ctx, glow, marks, markAreas, bare)
 
   if (lit) {
     const t = Math.max(0, Math.min(1, (view.scale - view.slow) / (1 - view.slow)))
@@ -1018,13 +1071,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, cw, ch)
       ctx.restore()
       ctx.drawImage(glow.canvas, 0, 0)
-      // The emissive layer holds floor things too (plates, a burst crate's planks): whoever stands on one is painted
-      // again over it, so a plate never covers you.
-      const floorMarks = [
-        ...view.plates.map((p) => ({ x: p.x, y: p.y, r: p.radius + 0.8 })),
-        ...(presentation?.splinters ?? []).map((s) => ({ x: s.x + s.w / 2, y: s.y + s.h / 2, r: Math.max(s.w, s.h) + 1 }))
-      ]
-      for (const actor of actors) if (floorMarks.some((m) => Math.hypot(actor.x - m.x, actor.y - m.y) < m.r)) actor.paint()
     }
   }
   // A hit, screen-wide: a hard red flash, then the world drains to grey under a red vignette while you are down.

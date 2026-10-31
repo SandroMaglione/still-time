@@ -13,17 +13,15 @@ const CAPS = ["cap", "cover-cap-1", "cover-cap-2"] as const
 const DIGITS = ["111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001", "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"] as const
 
 const PLATE_INK = "#171c2e", PLATE_GOLD = "#edc66c", PLATE_TEAL = "#64b6b3", PLATE_RED = "#ce4655"
-const plateColour = (plate: PlateView): string => (plate.missed ? PLATE_RED : plate.down ? PLATE_TEAL : PLATE_GOLD)
 
 /**
- * A pressure plate, the size of where it presses (its radius): a raised stone slab with a gold rim and a gold
- * diamond while it waits, sunk flush and lit teal once pressed, red on a wrong press; an ordered lock's plates carry
+ * A pressure plate: a raised stone slab with a gold rim while it waits, sunk flush with a teal rim once pressed, red
+ * on a wrong press; an ordered lock's plates carry
  * their number. A dotted line on the floor runs from it to the gate it opens: dim gold, with a spark running to the
- * gate, while it waits; teal once pressed. Painted on `ctx` (the full-light layer, so the room's shadow never hides
- * it); its light is cast on `lit`, the scene.
+ * gate, while it waits; teal once pressed. Painted on `ctx` (a floor layer kept at full light: see `keepLit` in
+ * draw.ts); its light is cast on `lit`, the scene.
  */
 export const pressurePlate = (ctx: CanvasRenderingContext2D, lit: CanvasRenderingContext2D, P: Projection, plate: PlateView, door: Pillar | null, now: number): void => {
-  const colour = plateColour(plate)
   if (door !== null) {
     const from = P(plate.x, plate.y), to = P(door.x + door.w / 2, door.y + door.h)
     pixelLine(ctx, from, to, plate.down ? "#3c7c7a" : "#6b5a35", 1, 3)
@@ -33,31 +31,16 @@ export const pressurePlate = (ctx: CanvasRenderingContext2D, lit: CanvasRenderin
       ctx.fillStyle = PLATE_GOLD; ctx.fillRect(Math.round(at.x) - 1, Math.round(at.y) - 1, 2, 2)
     }
   }
-  const r = plate.radius, a = P(plate.x - r, plate.y - r), b = P(plate.x + r, plate.y + r)
-  const x = Math.round(a.x), y = Math.round(a.y), w = Math.round(b.x) - x, h = Math.round(b.y) - y
-  // Raised: a front lip under the top; pressed: sunk flush with the floor.
-  const lip = plate.down ? 0 : 3, top = y - lip
-  ctx.fillStyle = PLATE_INK; ctx.fillRect(x - 1, top - 1, w + 2, h + lip + 2)
-  if (lip > 0) { ctx.fillStyle = "#465477"; ctx.fillRect(x, top + h, w, lip) }
-  ctx.fillStyle = plate.down ? "#29334b" : "#8996b0"; ctx.fillRect(x, top, w, h)
-  // The rim, two pixels in.
-  ctx.fillStyle = colour
-  ctx.fillRect(x + 2, top + 2, w - 4, 1); ctx.fillRect(x + 2, top + h - 3, w - 4, 1)
-  ctx.fillRect(x + 2, top + 2, 1, h - 4); ctx.fillRect(x + w - 3, top + 2, 1, h - 4)
-  const cx = Math.round(x + w / 2), cy = Math.round(top + h / 2)
+  // The slab (art: `plate-up`, `plate-down`, `plate-missed`), its top centred on the plate (3 px higher while raised).
+  const at = P(plate.x, plate.y), state = plate.missed ? "missed" : plate.down ? "down" : "up"
+  tile(ctx, `plate-${state}`, Math.round(at.x) - 12, Math.round(at.y) - 13)
+  const cx = Math.round(at.x), cy = Math.round(at.y) - (plate.down ? 0 : 3)
+  // An ordered lock's plates carry their number; any other plate is plain: its rim says it all.
   if (plate.order !== null) {
     ctx.fillStyle = PLATE_INK; ctx.fillRect(cx - 4, cy - 4, 9, 9)
     ctx.fillStyle = plate.missed ? PLATE_RED : plate.down ? PLATE_TEAL : "#f4efda"
     const bits = DIGITS[plate.order % 10] ?? DIGITS[0]
     for (let i = 0; i < bits.length; i++) if (bits[i] === "1") ctx.fillRect(cx - 1 + i % 3, cy - 2 + Math.floor(i / 3), 1, 1)
-  } else {
-    // A diamond: hollow while it waits, filled once pressed.
-    for (let d = -3; d <= 3; d++) {
-      const span = 3 - Math.abs(d)
-      ctx.fillStyle = colour
-      if (plate.down) ctx.fillRect(cx - span, cy + d, span * 2 + 1, 1)
-      else { ctx.fillRect(cx - span, cy + d, 1, 1); ctx.fillRect(cx + span, cy + d, 1, 1) }
-    }
   }
   emitLight(lit, {
     x: cx, y: cy, radius: plate.down ? 1.6 : 1.3,
