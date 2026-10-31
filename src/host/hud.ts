@@ -100,6 +100,8 @@ export class Hud {
   private text = new Map<HTMLElement, string>()
   private now = 0
   private attempt = ""
+  /** The cleared attempt's real seconds standing still and moving (see `setAttemptTimes`). */
+  private times: { readonly still: number; readonly moving: number } | null = null
   private tipAt = 0
   private messageKey = ""
   /** This room's best as the attempt began (the clear panel compares against it: the save already holds the new one). */
@@ -124,6 +126,11 @@ export class Hud {
     if (this.text.get(node) === value) return
     this.text.set(node, value)
     node.textContent = value
+  }
+
+  /** The attempt just cleared: real seconds standing still and moving, for the clear card. */
+  setAttemptTimes(still: number, moving: number): void {
+    this.times = { still, moving }
   }
 
   update(view: FightView, seconds: number): void {
@@ -235,6 +242,11 @@ export class Hud {
       this.text.set(time, "0.0s")
       add(over ? "line over" : "line", "").append(time, small(`/ par ${view.room.par}s`))
       this.countUp = { node: time, to: result.world, from: this.now }
+    }
+    // How you spent it: the real seconds you stood still (looking, the world frozen) and the ones you moved.
+    if (this.times !== null) {
+      const t = this.times
+      add("line dim small", `${t.still.toFixed(1)}s standing still · ${t.moving.toFixed(1)}s moving`)
     }
     // Against your best before this clear: a new best says so; otherwise the best to beat.
     const before = this.bestBefore

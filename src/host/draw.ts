@@ -570,7 +570,8 @@ const keepLit = (ctx: CanvasRenderingContext2D, glow: CanvasRenderingContext2D, 
   })
 }
 
-export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true): Frame => {
+/** Draws the fight; `cards` false leaves the page's message cards alone (a replay drawn under the live room's card). */
+export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view: FightView, stick: Stick | null, camera: Camera, presentation: Presentation | null = null, lit = true, cards = true): Frame => {
   // Margins are in source pixels, so short desktop/landscape views need smaller ones.
   const TOP = Math.min(32, Math.round(ch * 0.08)), BOTTOM = Math.min(42, Math.round(ch * 0.12))
   const u = unitFor(cw)
@@ -1240,6 +1241,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   if (stick !== null && view.flow === "playing") thumbPad(ctx, { x: stick.ox, y: stick.oy }, stick, stick.reach)
 
   // Messages: a hit, or a clear with its stars (pixel-styled page elements, see `hud.ts`).
-  messages(ctx, view, presentation)
+  if (cards) messages(ctx, view, presentation)
   return { P, floorAt: (sx, sy) => ({ x: (sx - cx) / u, y: (sy - cy) / (u * SQUASH) }) }
 }

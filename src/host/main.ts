@@ -17,7 +17,8 @@ import { Progress, layer as progressLayer } from "./progress.ts"
 import { storageLayer } from "./storage.ts"
 import { loadArt } from "./art.ts"
 import { Presentation } from "./fx.ts"
-import { Hud } from "./hud.ts"
+import { Replay } from "./replay.ts"
+import { Hud, messages } from "./hud.ts"
 import { Guide } from "./guide.ts"
 import { Director, letterbox, onSkip, type Cue } from "./intro.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
@@ -88,7 +89,12 @@ const saved = await app.runPromise(progress.best)
 const params = new URLSearchParams(window.location.search)
 const asked = params.get("room")
 const thumb = new ThumbSource()
-const fight = createFight(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1), thumb, { best: saved, open: params.has("all") || window.location.hash === "#all" })
+// Every thumb the simulation reads is recorded for the attempt's replay (see `replay.ts`).
+const replay = new Replay()
+const recorded = { snapshot: () => { const t = thumb.snapshot(); replay.record(t); return t } }
+const fight = createFight(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1), recorded, { best: saved, open: params.has("all") || window.location.hash === "#all" })
+/** The attempt under way (room and player), to snapshot each new one for its replay. */
+let replayAttempt = ""
 
 /** Folds this run's bests into the device's save, in the background. */
 const save = (best: Best): void => {
@@ -389,6 +395,18 @@ class Attract {
   }
 }
 const attract = new Attract()
+/** Over the replay: a small blinking mark in the corner, so it reads as a playback. */
+const replayLabel = (ctx: CanvasRenderingContext2D, cw: number, now: number): void => {
+  const u = Math.max(1, Math.round(cw / 360))
+  ctx.save()
+  ctx.font = `${8 * u}px Silkscreen, monospace`
+  ctx.textBaseline = "top"
+  const x = Math.round(cw - 74 * u), y = Math.round(ctx.canvas.height * 0.13)
+  if (Math.floor(now * 2) % 2 === 0) { ctx.fillStyle = "#ce4655"; ctx.fillRect(x, y + u, 6 * u, 6 * u) }
+  ctx.fillStyle = "#171c2e"; ctx.fillText("replay", x + 10 * u + u, y + u)
+  ctx.fillStyle = "#f4efda"; ctx.fillText("replay", x + 10 * u, y)
+  ctx.restore()
+}
 /** How many steps (of 1/60 s) the world holds still when your cut lands, and how many are left of the current one. */
 const HIT_STOP_STEPS = 4
 let hitStop = 0
@@ -409,7 +427,16 @@ FixedLoop.start({
     if (before.room.scene && before.flow === "playing") scene.drive(before)
     const result = fight.runtime.tick(updateSchedule)
     if (result.ok) {
-      presentation.observe(fight.view())
+      const after = fight.view()
+      // The replay: snapshot each new attempt as it starts, count its still and moving seconds, play it on a clear.
+      const attempt = `${after.room.index}:${after.player?.id ?? -1}`
+      if (after.flow === "playing" && attempt !== replayAttempt) { replayAttempt = attempt; if (!after.room.scene) replay.begin(fight) }
+      else replay.count(after)
+      if ((after.flow === "cleared" || after.flow === "won") && before.flow === "playing" && !after.room.scene) {
+        hud.setAttemptTimes(replay.still, replay.moving)
+        replay.cleared(after.best)
+      }
+      presentation.observe(after)
       audio.observe(fight.view())
       if (presentation.cuts > cutsSeen) { cutsSeen = presentation.cuts; hitStop = HIT_STOP_STEPS }
       for (const kind of presentation.takePulses()) pulse(kind)
@@ -446,6 +473,15 @@ FixedLoop.start({
     const dirs = [...held].filter((key) => DIRS[key] !== undefined)
     const guideInput = { stick: pixelStick, keys: usingKeys, down: usingKeys ? dirs.length > 0 : stick !== null && !consumed }
     guide.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, guideInput)
+    // A clear: your run, replayed at full speed behind the clear card.
+    const played = view.flow === "cleared" || view.flow === "won" ? replay.frame(frame.elapsedSeconds) : null
+    if (played !== null) {
+      draw(ctx, canvas.width, canvas.height, played.view, null, played.camera, played.presentation, lit, false)
+      replayLabel(ctx, canvas.width, presentation.now)
+      // The clear card is the live room's (the replay's own view is still playing).
+      messages(ctx, view, presentation)
+      return
+    }
     const drawn = draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
     // The first rooms' guide, over everything; a cutscene's letterbox and words instead.
     if (view.room.scene) letterbox(ctx, canvas.width, canvas.height, scene.cue, scene.age, drawn.P, presentation.now, view.flow === "playing", scene.opened)
