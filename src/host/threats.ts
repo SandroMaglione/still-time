@@ -50,6 +50,23 @@ export const reloadArc = (ctx: CanvasRenderingContext2D, centre: Point, rx: numb
   }
 }
 
+/**
+ * A sniper's aim: single dots like a bullet's path (no ink, no beam), in red, from its muzzle to its mark. Faint
+ * while it charges and brightening as the charge fills; once it locks, denser and blinking: step off the line.
+ */
+export const laserSight = (ctx: CanvasRenderingContext2D, a: Point, b: Point, charge: number, locked: boolean, blink: boolean): void => {
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  if (length < 1) return
+  ctx.save()
+  ctx.fillStyle = DANGER
+  ctx.globalAlpha = locked ? (blink ? 0.7 : 0.3) : 0.12 + 0.3 * Math.max(0, Math.min(1, charge))
+  for (let d = 6; d <= length; d += locked ? 3 : 5) {
+    const k = d / length
+    ctx.fillRect(Math.round(a.x + (b.x - a.x) * k), Math.round(a.y + (b.y - a.y) * k), 1, 1)
+  }
+  ctx.restore()
+}
+
 /** A small 1 px chevron: a frozen path still says which way it goes. */
 export const pathArrow = (ctx: CanvasRenderingContext2D, at: Point, angle: number, colour = THREAT): void => {
   const tip = { x: at.x + Math.cos(angle) * 2, y: at.y + Math.sin(angle) * 2 }

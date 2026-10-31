@@ -16,7 +16,7 @@ import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, plateBeacon, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
 import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
 import { feelSettings } from "./feel.ts"
-import { DANGER, PATH, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
+import { DANGER, PATH, THREAT, laserSight, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
@@ -680,14 +680,15 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       const p = P(shot.x, shot.y)
       ctx.fillStyle = "#263234"; ctx.fillRect(Math.round(p.x - 2), Math.round(p.y), 5, 2)
     }
-    // Snipers' lasers: a dotted line that tracks you while it charges, solid and blinking once locked.
+    // Snipers' aim: faint dots that track you while it charges, denser and blinking once locked (see `laserSight`),
+    // with the bullet path's small chevron near the sniper.
     for (const e of view.enemies) {
       const l = e.laser
       if (l === null) continue
       const from = P(e.x, e.y, 0.6), to = P(e.x + Math.cos(l.aim) * l.length, e.y + Math.sin(l.aim) * l.length, 0.6)
-      if (l.locked) threatLine(ctx, from, to, true)
-      else pixelLine(ctx, from, to, DANGER, 1, 3)
-      pathArrow(ctx, { x: to.x - Math.cos(l.aim) * 10, y: to.y - Math.sin(l.aim) * 8 }, Math.atan2(to.y - from.y, to.x - from.x))
+      laserSight(ctx, from, to, e.charge, l.locked, Math.floor((presentation?.now ?? view.world) * 10) % 2 === 0)
+      const angle = Math.atan2(to.y - from.y, to.x - from.x)
+      pathArrow(ctx, { x: from.x + (to.x - from.x) * 0.22, y: from.y + (to.y - from.y) * 0.22 }, angle, l.locked ? DANGER : PATH)
     }
     // Hazards: a blade's sweep on the floor; a laser gate's beam, faint when off, dashed when about to light, solid when on.
     // (Bolts are drawn with the shots.)
