@@ -2,7 +2,7 @@
  * The itch.io page assets, from the running game (`pnpm exec vite --port 5310` first):
  * portrait screenshots (720×1280), the cover (630×500), and the Prologue (alert to cut)
  * as a GIF (240×427, the canvas's own pixels).
- * Usage: node scripts/itch-shots.ts [baseUrl] [--only=shots,cover,gif,gif-play] [--shot=cut,...] [--fps=15] [--colours=48]
+ * Usage: node scripts/itch-shots.ts [baseUrl] [--only=shots,cover,banner,controls,gif,gif-play] [--shot=cut,...] [--fps=15] [--colours=48]
  *
  * Every moment is staged by reading the live fight (keys held until the view
  * shows the moment, then let go: time freezes on it), so it lands on the same
@@ -223,8 +223,75 @@ try {
   // you, keys still held, HUD hidden; a crop of it fills the whole cover at a whole-number scale, nearest-neighbour.
   // The title's own logo sits over it, a margin in, on a soft ink gradient (no box). Three drafts go to output/itch;
   // `coverPick` is copied to the store. `crop` is in the canvas's pixels (240 wide), `unit` the logo's pixel.
+  // The banner (960×320, over the page's title) is the same recipe, wide: the canvas's whole 240 px at 4×, 80 px tall.
+  type Cover = { room: string; keys: string; near: number; wait: number; crop: { x: number; y: number }; scale: number; title: "left" | "top" | "wide"; unit: number; size?: { width: number; height: number } }
+  const card = async (name: string, cover: Cover): Promise<void> => {
+    const { width, height } = cover.size ?? { width: 630, height: 500 }
+    const page = await browser.newPage({ viewport: { width: 240, height: 427 }, deviceScaleFactor: 1 })
+    page.on("pageerror", (e) => errors.push(String(e)))
+    await expose(page)
+    await page.goto(at(cover.room))
+    await page.waitForFunction(() => (window as unknown as { stillTimeFight?: { view: () => { flow: string } } }).stillTimeFight?.view().flow === "playing")
+    await page.addStyleTag({ content: "#hud { display: none !important; }" })
+    await page.waitForTimeout(cover.wait)
+    const frame = await page.evaluate(async ({ keys, near }) => {
+      type Body = { readonly x: number; readonly y: number }
+      const fight = (window as unknown as { stillTimeFight: { view: () => { flow: string; player: Body | null; shots: ReadonlyArray<Body> } } }).stillTimeFight
+      const canvas = document.querySelector("canvas")!, list = keys.split("+")
+      for (const k of list) window.dispatchEvent(new KeyboardEvent("keydown", { key: k, code: k }))
+      const began = performance.now()
+      const data = await new Promise<string>((resolve) => {
+        const tick = (): void => {
+          const v = fight.view(), me = v.player
+          if (v.flow !== "playing" || me === null || performance.now() - began > 5000) { resolve(""); return }
+          if (v.shots.some((s) => Math.hypot(s.x - me.x, s.y - me.y) < near)) { resolve(canvas.toDataURL()); return }
+          requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      })
+      for (const k of list) window.dispatchEvent(new KeyboardEvent("keyup", { key: k, code: k }))
+      return data
+    }, { keys: cover.keys, near: cover.near })
+    await page.close()
+    assert(frame !== "", `no cover moment in ${cover.room}`)
+    writeFileSync(`${drafts}/${name}-frame.png`, Buffer.from(frame.split(",")[1]!, "base64"))
+    const w = Math.ceil(width / cover.scale), h = Math.ceil(height / cover.scale)
+    ffmpeg(["-i", `${drafts}/${name}-frame.png`, "-vf", `crop=${w}:${h}:${cover.crop.x}:${cover.crop.y},scale=${w * cover.scale}:${h * cover.scale}:flags=neighbor,crop=${width}:${height}:0:0`, `${drafts}/${name}-scene.png`])
+    const scene = readFileSync(`${drafts}/${name}-scene.png`).toString("base64")
+    const sheet = await open(browser, base, { width, height }, 1)
+    await sheet.evaluate(({ scene, u, title, width, height }) => {
+      const logo = document.querySelector(".logo")!.cloneNode(true) as HTMLElement
+      logo.querySelector(".clock-face")?.remove()
+      const left = title !== "top"
+      const shade = {
+        left: "radial-gradient(ellipse 300px 250px at 215px 225px, #0b0d12f2 0, #0b0d12d0 45%, #0b0d1200 100%), linear-gradient(90deg, #0b0d12a0 0, #0b0d1200 55%)",
+        top: "radial-gradient(ellipse 380px 180px at 315px 100px, #0b0d12f2 0, #0b0d12d0 45%, #0b0d1200 100%), linear-gradient(#0b0d12b0 0, #0b0d1200 50%)",
+        wide: "radial-gradient(ellipse 330px 230px at 200px 160px, #0b0d12f2 0, #0b0d12d0 45%, #0b0d1200 100%), linear-gradient(90deg, #0b0d12b0 0, #0b0d1200 50%)"
+      }[title]
+      const place = { left: "left: 72px; top: 92px; align-items: flex-start;", top: "left: 0; right: 0; top: 16px; align-items: center;", wide: "left: 56px; top: 28px; align-items: flex-start;" }[title]
+      const style = document.createElement("style")
+      style.textContent = `
+        .cover { position: fixed; inset: 0; width: ${width}px; height: ${height}px; z-index: 100; background: #0b0d12; overflow: hidden; }
+        .cover, .cover *, .cover *::before { animation: none !important; }
+        .cover img { position: absolute; left: 0; top: 0; width: ${width}px; height: ${height}px; image-rendering: pixelated; }
+        .cover .shade { position: absolute; inset: 0; background: ${shade}; }
+        .cover .block { position: absolute; z-index: 2; display: flex; flex-direction: column; ${place} }
+        .cover .logo { position: relative; margin: 0; align-items: flex-start; --u: ${u}px; }
+        .cover .logo-time { margin-top: calc(var(--u) * 6); margin-left: calc(var(--u) * 14); }
+        .cover .strap { --u: 2px; margin-top: ${title === "left" ? 34 : title === "wide" ? 22 : 6}px; ${left ? "margin-left: 2px;" : "text-align: center;"} color: var(--light); font-size: 23px; line-height: 32px; letter-spacing: 0; text-shadow: 0 2px 0 #0b0d12; }
+        .cover .strap b { color: var(--teal); font-weight: 400; }`
+      const box = document.createElement("div")
+      box.className = "cover"
+      box.innerHTML = `<img src="data:image/png;base64,${scene}"><div class="shade"></div><div class="block"><div class="strap">Time moves only<br>when <b>you</b> move</div></div>`
+      box.querySelector(".block")!.prepend(logo)
+      document.head.append(style); document.body.append(box)
+    }, { scene, u: cover.unit, title: cover.title, width, height })
+    await sheet.evaluate(() => document.fonts.ready)
+    await sheet.waitForTimeout(300)
+    await sheet.screenshot({ path: `${drafts}/${name}.png`, clip: { x: 0, y: 0, width, height } })
+    await sheet.close()
+  }
   if (only.includes("cover")) {
-    type Cover = { room: string; keys: string; near: number; wait: number; crop: { x: number; y: number }; scale: number; title: "left" | "top"; unit: number }
     const covers: Record<string, Cover> = {
       // Courtyard, running up and right: a gunner above, its shot on the way down at you, a crate and torches beside.
       a: { room: "Courtyard", keys: "ArrowUp+ArrowRight", near: 3.5, wait: 700, crop: { x: 2, y: 110 }, scale: 3, title: "left", unit: 3 },
@@ -233,69 +300,103 @@ try {
       // The Courtyard moment again, closer (4×): the hero bigger in the jam's half-size grid.
       c: { room: "Courtyard", keys: "ArrowUp+ArrowRight", near: 3.5, wait: 700, crop: { x: 45, y: 122 }, scale: 4, title: "left", unit: 3 }
     }
-    for (const [name, cover] of Object.entries(covers)) {
-      const page = await browser.newPage({ viewport: { width: 240, height: 427 }, deviceScaleFactor: 1 })
-      page.on("pageerror", (e) => errors.push(String(e)))
-      await expose(page)
-      await page.goto(at(cover.room))
-      await page.waitForFunction(() => (window as unknown as { stillTimeFight?: { view: () => { flow: string } } }).stillTimeFight?.view().flow === "playing")
-      await page.addStyleTag({ content: "#hud { display: none !important; }" })
-      await page.waitForTimeout(cover.wait)
-      const frame = await page.evaluate(async ({ keys, near }) => {
-        type Body = { readonly x: number; readonly y: number }
-        const fight = (window as unknown as { stillTimeFight: { view: () => { flow: string; player: Body | null; shots: ReadonlyArray<Body> } } }).stillTimeFight
-        const canvas = document.querySelector("canvas")!, list = keys.split("+")
-        for (const k of list) window.dispatchEvent(new KeyboardEvent("keydown", { key: k, code: k }))
-        const began = performance.now()
-        const data = await new Promise<string>((resolve) => {
-          const tick = (): void => {
-            const v = fight.view(), me = v.player
-            if (v.flow !== "playing" || me === null || performance.now() - began > 5000) { resolve(""); return }
-            if (v.shots.some((s) => Math.hypot(s.x - me.x, s.y - me.y) < near)) { resolve(canvas.toDataURL()); return }
-            requestAnimationFrame(tick)
-          }
-          requestAnimationFrame(tick)
-        })
-        for (const k of list) window.dispatchEvent(new KeyboardEvent("keyup", { key: k, code: k }))
-        return data
-      }, { keys: cover.keys, near: cover.near })
-      await page.close()
-      assert(frame !== "", `no cover moment in ${cover.room}`)
-      writeFileSync(`${drafts}/cover-${name}-frame.png`, Buffer.from(frame.split(",")[1]!, "base64"))
-      const w = Math.ceil(630 / cover.scale), h = Math.ceil(500 / cover.scale)
-      ffmpeg(["-i", `${drafts}/cover-${name}-frame.png`, "-vf", `crop=${w}:${h}:${cover.crop.x}:${cover.crop.y},scale=${w * cover.scale}:${h * cover.scale}:flags=neighbor,crop=630:500:0:0`, `${drafts}/cover-${name}-scene.png`])
-      const scene = readFileSync(`${drafts}/cover-${name}-scene.png`).toString("base64")
-      const card = await open(browser, base, { width: 630, height: 500 }, 1)
-      await card.evaluate(({ scene, u, title }) => {
-        const logo = document.querySelector(".logo")!.cloneNode(true) as HTMLElement
-        logo.querySelector(".clock-face")?.remove()
-        const left = title === "left"
-        const style = document.createElement("style")
-        style.textContent = `
-          .cover { position: fixed; inset: 0; width: 630px; height: 500px; z-index: 100; background: #0b0d12; overflow: hidden; }
-          .cover, .cover *, .cover *::before { animation: none !important; }
-          .cover img { position: absolute; left: 0; top: 0; width: 630px; height: 500px; image-rendering: pixelated; }
-          .cover .shade { position: absolute; inset: 0; background: ${left
-            ? "radial-gradient(ellipse 300px 250px at 215px 225px, #0b0d12f2 0, #0b0d12d0 45%, #0b0d1200 100%), linear-gradient(90deg, #0b0d12a0 0, #0b0d1200 55%)"
-            : "radial-gradient(ellipse 380px 180px at 315px 100px, #0b0d12f2 0, #0b0d12d0 45%, #0b0d1200 100%), linear-gradient(#0b0d12b0 0, #0b0d1200 50%)"}; }
-          .cover .block { position: absolute; z-index: 2; display: flex; flex-direction: column; ${left ? "left: 72px; top: 92px; align-items: flex-start;" : "left: 0; right: 0; top: 16px; align-items: center;"} }
-          .cover .logo { position: relative; margin: 0; align-items: flex-start; --u: ${u}px; }
-          .cover .logo-time { margin-top: calc(var(--u) * 6); margin-left: calc(var(--u) * 14); }
-          .cover .strap { --u: 2px; margin-top: ${left ? 34 : 6}px; ${left ? "margin-left: 2px;" : "text-align: center;"} color: var(--light); font-size: 23px; line-height: 32px; letter-spacing: 0; text-shadow: 0 2px 0 #0b0d12; }
-          .cover .strap b { color: var(--teal); font-weight: 400; }`
-        const box = document.createElement("div")
-        box.className = "cover"
-        box.innerHTML = `<img src="data:image/png;base64,${scene}"><div class="shade"></div><div class="block"><div class="strap">Time moves only<br>when <b>you</b> move</div></div>`
-        box.querySelector(".block")!.prepend(logo)
-        document.head.append(style); document.body.append(box)
-      }, { scene, u: cover.unit, title: cover.title })
-      await card.evaluate(() => document.fonts.ready)
-      await card.waitForTimeout(300)
-      await card.screenshot({ path: `${drafts}/cover-${name}.png`, clip: { x: 0, y: 0, width: 630, height: 500 } })
-      await card.close()
-    }
+    for (const [name, cover] of Object.entries(covers)) await card(`cover-${name}`, cover)
     writeFileSync(`${assets}/cover.png`, readFileSync(`${drafts}/cover-${coverPick}.png`))
     assert(statSync(`${assets}/cover.png`).size < 2_900_000, "the cover is over itch's 3 MB")
+  }
+  // The banner: the Courtyard run again, held to the frame a shot comes close (inside 2.2 m, so it shares the 80 px strip
+  // with you), the logo and strap on the left over the dark.
+  if (only.includes("banner")) {
+    await card("banner", { room: "Courtyard", keys: "ArrowUp+ArrowRight", near: 2.2, wait: 700, crop: { x: 0, y: 170 }, scale: 4, title: "wide", unit: 3, size: { width: 960, height: 320 } })
+    writeFileSync(`${assets}/banner.png`, readFileSync(`${drafts}/banner.png`))
+    assert(statSync(`${assets}/banner.png`).size < 2_900_000, "the banner is over itch's 3 MB")
+  }
+  // The controls strip (720×180, under the Controls heading): three panels on the ink, each 80×60 of the game's own
+  // drawing (its sprites, hand, signs and rings, imported from the page's modules) at 3×, nearest-neighbour, with a
+  // Silkscreen caption over it: drag to move (hand sliding, hero running, gold play sign), let go (hand lifted, hero
+  // still under the ice pause sign, a shot hanging in a gold ring), get close (the gunner's gold cut ring round you both).
+  if (only.includes("controls")) {
+    const sheet = await open(browser, base, { width: 720, height: 180 }, 1)
+    await sheet.evaluate(async () => {
+      const load = (path: string): Promise<Record<string, unknown>> => import(/* @vite-ignore */ path) as Promise<Record<string, unknown>>
+      const art = await load("/src/host/art.ts"), draw = await load("/src/host/draw.ts"), pixels = await load("/src/host/pixels.ts")
+      type Ctx = CanvasRenderingContext2D
+      type P = { x: number; y: number }
+      const loadArt = art.loadArt as () => Promise<void>, sprite = art.sprite as (c: Ctx, n: string, x: number, y: number, flip?: boolean) => void
+      const posed = art.posedSprite as (c: Ctx, n: string, x: number, y: number, pose: { flip?: boolean }) => void
+      const silhouette = draw.silhouette as (c: Ctx, n: string, x: number, y: number, flip: boolean, colour: string, alpha: number) => void
+      const hand = draw.hand as (c: Ctx, x: number, y: number, pressed: boolean) => void, thumbPad = draw.thumbPad as (c: Ctx, base: P, knob: P, reach: number) => void
+      const paceSign = draw.paceSign as (c: Ctx, x: number, y: number, running: boolean) => void
+      const pixelArc = pixels.pixelArc as (c: Ctx, at: P, rx: number, ry: number, a: number, b: number, colour: string, width?: number, segmented?: boolean) => void
+      const pixelLine = pixels.pixelLine as (c: Ctx, a: P, b: P, colour: string, width?: number, dash?: number) => void
+      await loadArt()
+      const INK = "#171c2e", GOLD = "#edc66c"
+      const canvas = document.createElement("canvas"); canvas.width = 240; canvas.height = 60
+      const ctx = canvas.getContext("2d")!
+      ctx.imageSmoothingEnabled = false
+      ctx.fillStyle = "#0b0d12"; ctx.fillRect(0, 0, 240, 60)
+      const disc = (x: number, y: number, r: number, colour: string): void => {
+        ctx.fillStyle = colour
+        for (let j = -r; j <= r; j++) { const half = Math.floor(Math.sqrt(r * r - j * j)); ctx.fillRect(Math.round(x) - half, Math.round(y) + j, half * 2 + 1, 1) }
+      }
+      // People as the fight draws them: a shadow, then the body with its light rim.
+      const body = (name: string, x: number, y: number, flip: boolean): void => { sprite(ctx, "shadow", x + 2, y + 3); posed(ctx, name, x, y, { flip }) }
+      const feet = 50
+      // (a) Drag: move. Afterimages trailing, the electric outline, the gold play sign; the hand sliding on its pad.
+      {
+        const x = 30
+        silhouette(ctx, "player-body", x - 14, feet, false, "#5ff0ff", 0.25)
+        silhouette(ctx, "player-body", x - 7, feet, false, "#5ff0ff", 0.45)
+        sprite(ctx, "shadow", x + 2, feet + 3)
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) silhouette(ctx, "player-body", x + dx, feet + dy, false, "#7ff6ff", 0.9)
+        sprite(ctx, "player-body", x, feet)
+        paceSign(ctx, x, feet - 34, true)
+        thumbPad(ctx, { x: 54, y: 30 }, { x: 65, y: 30 }, 10)
+        hand(ctx, 65, 32, true)
+      }
+      // (b) Let go: time stops. The hero still under the ice pause sign; a shot hanging in a gold ring; the hand lifted.
+      {
+        const x = 98
+        body("player-body", x, feet, false)
+        paceSign(ctx, x, feet - 34, false)
+        const shot = { x: 130, y: 32 }
+        pixelLine(ctx, { x: shot.x + 4, y: shot.y - 2 }, { x: shot.x + 12, y: shot.y - 6 }, "#ce4655", 1, 2)
+        disc(shot.x, shot.y, 3, "#ff9a80"); disc(shot.x, shot.y, 2, INK); disc(shot.x, shot.y, 1, "#ff4055")
+        ctx.fillStyle = "#fff2dc"; ctx.fillRect(shot.x, shot.y, 1, 1)
+        pixelArc(ctx, shot, 9, 9, 0, Math.PI * 2, INK, 3)
+        pixelArc(ctx, shot, 9, 9, 0, Math.PI * 2, GOLD, 1)
+        ctx.save(); ctx.globalAlpha = 0.85; hand(ctx, 150, 26, false); ctx.restore()
+      }
+      // (c) Get close: cut. You beside a gunner, inside its gold ring at touching range (1.15 m at 24 px to the metre).
+      {
+        const gunner = { x: 206, y: 36 }, rx = 28, ry = Math.round(rx * 0.78)
+        pixelArc(ctx, gunner, rx, ry, 0, Math.PI * 2, INK, 3, true)
+        pixelArc(ctx, gunner, rx, ry, 0, Math.PI * 2, GOLD, 1, true)
+        body("gunner-body", gunner.x, gunner.y, true)
+        body("player-body", 184, 42, false)
+      }
+      const scene = canvas.toDataURL()
+      const style = document.createElement("style")
+      style.textContent = `
+        .controls { position: fixed; inset: 0; width: 720px; height: 180px; z-index: 100; background: #0b0d12; overflow: hidden; }
+        .controls * { animation: none !important; }
+        .controls img { position: absolute; left: 0; top: 0; width: 720px; height: 180px; image-rendering: pixelated; }
+        .controls .cap { position: absolute; top: 8px; width: 240px; text-align: center; color: var(--light); font-size: 16px; line-height: 16px; letter-spacing: 0; text-shadow: 2px 0 0 #0b0d12, -2px 0 0 #0b0d12, 0 2px 0 #0b0d12, 0 -2px 0 #0b0d12; }
+        .controls .cap b { font-weight: 400; }
+        .controls .sep { position: absolute; top: 12px; bottom: 12px; width: 3px; background: #1d2233; }`
+      const box = document.createElement("div")
+      box.className = "controls"
+      box.innerHTML = `<img src="${scene}"><div class="sep" style="left: 239px"></div><div class="sep" style="left: 479px"></div>
+        <div class="cap" style="left: 0"><b style="color: var(--gold)">Drag:</b> move</div>
+        <div class="cap" style="left: 240px"><b style="color: var(--ice)">Let go:</b> time stops</div>
+        <div class="cap" style="left: 480px"><b style="color: var(--gold)">Get close:</b> cut</div>`
+      document.head.append(style); document.body.append(box)
+    })
+    await sheet.evaluate(() => document.fonts.ready)
+    await sheet.waitForTimeout(300)
+    await sheet.screenshot({ path: `${assets}/controls.png`, clip: { x: 0, y: 0, width: 720, height: 180 } })
+    await sheet.close()
+    assert(statSync(`${assets}/controls.png`).size < 2_900_000, "the controls strip is over itch's 3 MB")
   }
 
   // The GIF: the Prologue from the gunner's alert (the freeze lands 2.5 s in, before a judge scrolls past) to the cut,

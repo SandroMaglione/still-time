@@ -14,8 +14,6 @@ Stand still and the world stops. Move and it runs as fast as you do. One hit kil
 
 Speed is not a stat here, it is your choice: the world runs exactly as fast as you walk. Stop and everything stops dead; push and it all comes at you at full speed. The fastest clear wins the stars, so the best runs stop only to read, and move everywhere else at full speed.
 
-You face gunners, archers, knife throwers, snipers whose lasers lock before they fire, spearmen who outreach your blade, shield-bearers, grenadiers, a clockwork tower that keeps real time, and a stalker that only moves while you stand still. Pressure plates, laser gates, spinning blades and conveyor belts join them, one new idea per room.
-
 The music and every sound slow down and go muffled when time freezes, and snap back the moment you run.
 
 Shake, flash and vibrate can each be turned off, and the whole game plays on a keyboard.
@@ -23,6 +21,8 @@ Shake, flash and vibrate can each be turned off, and the whole game plays on a k
 Made for phones in portrait; plays in any browser. Your best stars and times are saved in your browser.
 
 ## Controls
+
+(The image `controls.png` goes here, under the heading: drag to move, let go and time stops, get close to cut.)
 
 **Phone**
 - Drag anywhere to move: the world runs as you go.
@@ -33,6 +33,8 @@ Made for phones in portrait; plays in any browser. Your best stars and times are
 - Arrow keys or WASD to move; release to stop time.
 - Space to continue, R to restart the room.
 - M or Escape for pause and the rooms; `[` and `]` for the previous and next open room.
+
+You face gunners, archers, knife throwers, snipers whose lasers lock before they fire, spearmen who outreach your blade, shield-bearers, grenadiers, a clockwork tower that keeps real time, and a stalker that only moves while you stand still. Pressure plates, laser gates, spinning blades and conveyor belts join them, one new idea per room.
 
 ## Credits and tools
 
@@ -57,6 +59,8 @@ Suggested itch theme settings: dark background `#0b0d12`, page background `#171c
 - Game: `output/still-time-itch.zip` from `pnpm package` (HTML, "This file will be played in the browser").
 - Embed: 720×1280, **Mobile friendly** on (orientation portrait), **Fullscreen button** on. If the page column is narrow, the scaled 405×720 keeps the ratio.
 - Cover image: `cover.png` (630×500).
+- Banner: `banner.png` (960×320), in the page's Theme editor (Edit theme → Banner), so the game's art heads the page instead of a text title.
+- Controls strip: `controls.png` (720×180), uploaded into the description directly under the Controls heading.
 - Screenshots, in this order (720×1280):
   1. `screenshot-1-running-belfry.png`: running, warm floor, a clock ring of bullets streaming (the brightest frame leads)
   2. `screenshot-2-prologue-stop.png`: the rule, "when you stop, time stops"
