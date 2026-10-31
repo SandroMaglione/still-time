@@ -1,6 +1,8 @@
 # Still Time
 
-A Slapjam AI #2 entry (theme: Speed): top-down rooms where time stops while you stand still and runs while you move. Built on [`@typeonce/ritmo`](https://www.npmjs.com/package/@typeonce/ritmo). Design and rules: [`docs/design.md`](docs/design.md).
+A [Slapjam AI #2](https://itch.io/jam/slapjam-ai-2) entry (theme: Speed): top-down rooms where time stops while you stand still and runs while you move. Built on [`@typeonce/ritmo`](https://www.npmjs.com/package/@typeonce/ritmo). Design and rules: [`docs/design.md`](docs/design.md).
+
+**Play it:** [sandromaglione.itch.io/still-time](https://sandromaglione.itch.io/still-time) (browser, phone or desktop). **Jam entry:** [itch.io/jam/slapjam-ai-2/rate/5270540](https://itch.io/jam/slapjam-ai-2/rate/5270540), submitted 31 October 2026 at about 10:59 UTC, four hours before the deadline.
 
 ```sh
 pnpm install
