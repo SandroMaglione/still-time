@@ -10,7 +10,7 @@ import { SHOTS, STALKER, TUNING } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
-import { GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
+import { APPEAR_LIFE, GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
@@ -785,7 +785,15 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   if (vanish !== null && vanishAge < VANISH_LIFE) {
     actors.push({ x: vanish.x, y: vanish.y, paint: () => { vanishBurst(ctx, P(vanish.x, vanish.y), vanish.flip, vanishAge); vanishBurst(glow, P(vanish.x, vanish.y), vanish.flip, vanishAge) } })
   }
-  if (view.player !== null && view.flow !== "dead" && !(vanish !== null && vanishAge > VANISH_POP)) {
+  // Starting the room: you appear, the vanish played backwards (smoke gathering, afterimages closing in, the glow
+  // settling), where you are. Your body shows once it has gathered.
+  const appearAge = presentation?.appearAge ?? -1
+  const appearing = appearAge >= 0 && view.player !== null ? VANISH_LIFE * (1 - appearAge / APPEAR_LIFE) : -1
+  if (appearing >= 0 && view.player !== null) {
+    const p = view.player, flip = p.vx < 0
+    actors.push({ x: p.x, y: p.y, paint: () => { vanishBurst(ctx, P(p.x, p.y), flip, appearing); vanishBurst(glow, P(p.x, p.y), flip, appearing) } })
+  }
+  if (view.player !== null && view.flow !== "dead" && !(vanish !== null && vanishAge > VANISH_POP) && !(appearing > VANISH_POP)) {
     const p = view.player
     const at = P(p.x, p.y)
     const body = bodyName("player")

@@ -36,6 +36,8 @@ export const STOP_LIFE = 0.5
 export const RUN_MIN = 0.4
 /** The vanish on a clear, in real seconds: you gather until the pop, then you are gone; the effect ends at its life. */
 export const VANISH_POP = 0.35, VANISH_LIFE = 1.0
+/** The appear as an attempt starts, in real seconds: the vanish played backwards, quicker. */
+export const APPEAR_LIFE = 0.6
 /** When (real s after the clear) the clear panel shows, and when its i-th star pops in: the HUD and the chimes both keep this. */
 export const CLEAR_PANEL_AT = VANISH_LIFE - 0.2
 export const starPopAt = (i: number): number => CLEAR_PANEL_AT + 0.12 + i * 0.16
@@ -60,6 +62,8 @@ export class Presentation {
   /** The moments to buzz since the page last took them (see `takePulses`). */
   private pulses: Array<Pulse> = []
   private cutAt: number | null = null
+  /** When you appeared in the room (an attempt's start), or null. */
+  private appearedAt: number | null = null
   private lastGhost = -1
   /** Armed by a real run, fired by stopping: one freeze moment per stop. */
   private running = false
@@ -82,6 +86,15 @@ export class Presentation {
   get clearAge(): number { return this.clearedAt === null ? -1 : this.now - this.clearedAt }
   /** Real s since your last cut landed, or -1. */
   get cutAge(): number { return this.cutAt === null ? -1 : this.now - this.cutAt }
+  /** Real s since you appeared, while the appear plays; else -1. */
+  get appearAge(): number {
+    const age = this.appearedAt === null ? -1 : this.now - this.appearedAt
+    return age < APPEAR_LIFE ? age : -1
+  }
+  /** Plays the appear again from the start (the page shows a room that was waiting behind a menu). */
+  appear(): void {
+    this.appearedAt = this.now
+  }
   /** The moments to buzz since the last call, oldest first. */
   takePulses(): ReadonlyArray<Pulse> {
     const taken = this.pulses
@@ -100,6 +113,8 @@ export class Presentation {
       this.running = false; this.runFrom = -1
       // A new attempt (a room entered, a retry, a restart) teaches the move again.
       this.deadAt = null; this.clearedAt = null; this.vanish = null; this.cutAt = null
+      // ...and you appear, ninja-style (not in a cutscene, which has its own opening).
+      this.appearedAt = view.player !== null && view.flow === "playing" && !view.room.scene ? this.now : null
       this.previous = view
       return
     }

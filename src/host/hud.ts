@@ -1,20 +1,17 @@
 /**
  * The page's heads-up display over the canvas, in DOM and CSS (cheap next to
- * canvas draws): the room plate, the clock against par (or, in a survive
- * room, the world seconds left to hold out), the time-freeze gauge (how fast
- * the world runs right now), the pressing order of numbered plates, the
- * room's tip (it fades once you move), and the messages (a hit, a clear with
- * its stars, the run's end).
+ * canvas draws): the clock against par (or, in a survive room, the world
+ * seconds left to hold out), the pressing order of numbered plates, the
+ * room's goal (live: how many are left to cut, the exit, or holding out), the
+ * room's tip (its number and name, then its hint; it fades once you move),
+ * and the messages (a hit, a clear with its stars, the run's end).
  * Every size is a whole number of UI pixels (`--u`), so the pixel font and
  * borders stay crisp.
  */
 import type { FightView, HitBy, PlateView, ResultView } from "../sim/view.ts"
 import { CLEAR_PANEL_AT, starPopAt, type Presentation } from "./fx.ts"
-import { ICONS, fromHtml, hourglass, pixelSvg, star } from "./ui-pixels.ts"
+import { ICONS, fromHtml, pixelSvg, star } from "./ui-pixels.ts"
 
-const CELLS = 10
-/** The gauge from frozen to full speed: ice, the player's teal, gold, then hot. */
-const CELL_COLOURS = ["#8fb8de", "#8fb8de", "#64b6b3", "#64b6b3", "#91c69b", "#edc66c", "#edc66c", "#e98a49", "#e98a49", "#ce4655"]
 /** Seconds a tip stays up at most, and the world seconds of moving that dismiss it. */
 const TIP_SECONDS = 7
 const TIP_MOVED = 0.25
@@ -87,17 +84,15 @@ export const messages = (ctx: CanvasRenderingContext2D, view: FightView, present
 
 export class Hud {
   private readonly root = byId("hud")
-  private readonly roomIndex = byId("room-index")
   private readonly room = byId("room")
   private readonly clock = byId("clock")
   private readonly clockPanel = byId("clock-panel")
   private readonly clockSub = byId("clock-sub")
+  private readonly goalPanel = byId("goal-panel")
+  private readonly goal = byId("goal")
   private readonly platesRow = byId("plates-row")
   private readonly plates = byId("plates")
   private readonly pips = byId("pips")
-  private readonly pace = byId("pace")
-  private readonly gauge = byId("gauge")
-  private readonly glass = byId("glass")
   private readonly tip = byId("tip")
   private readonly msg = byId("message")
   private readonly msgTitle = byId("msg-title")
@@ -105,10 +100,7 @@ export class Hud {
   private readonly msgLines = byId("msg-lines")
   private readonly msgCta = byId("msg-cta")
   private readonly after = byId("msg-buttons")
-  private readonly cells: Array<HTMLElement> = []
   private text = new Map<HTMLElement, string>()
-  private lit = -1
-  private glassFrame = -1
   private now = 0
   private attempt = ""
   private tipAt = 0
@@ -120,12 +112,6 @@ export class Hud {
 
   constructor(canvas: HTMLCanvasElement) {
     huds.set(canvas, this)
-    for (let i = 0; i < CELLS; i++) {
-      const cell = document.createElement("i")
-      cell.style.setProperty("--c", CELL_COLOURS[i] ?? "#edc66c")
-      this.cells.push(cell)
-      this.gauge.append(cell)
-    }
     byId("pause").replaceChildren(fromHtml(pixelSvg(ICONS.menu, { outline: true })))
     byId("restart").replaceChildren(fromHtml(pixelSvg(ICONS.restart, { outline: true })))
     const resize = (): void => {
@@ -151,19 +137,9 @@ export class Hud {
       if (k >= 1) this.countUp = null
     }
     this.root.classList.toggle("ended", view.flow !== "playing")
-    this.set(this.roomIndex, `${view.room.index + 1}`)
-    // The name, then the hits taken in this room (✕ is kept for scripts that wait on it; a pixel cross shows instead).
-    const hits = view.hits > 0 ? ` ✕${view.hits}` : ""
-    if (this.text.get(this.room) !== view.room.name + hits) {
-      this.text.set(this.room, view.room.name + hits)
-      this.room.replaceChildren(view.room.name)
-      if (view.hits > 0) {
-        const tag = document.createElement("span")
-        tag.className = "hits"
-        tag.append(fromHtml(pixelSvg(ICONS.hit, { outline: true })), Object.assign(document.createElement("span"), { className: "sr", textContent: "✕" }), String(view.hits))
-        this.room.append(" ", tag)
-      }
-    }
+    // The room's name and the hits taken in it, for screen readers and the screenshot scripts that wait on it (not shown:
+    // the name shows in the tip as an attempt starts).
+    this.set(this.room, view.room.name + (view.hits > 0 ? ` ✕${view.hits}` : ""))
     // The attempt's clock in world seconds against par: it only runs while you move. A survive room counts down instead.
     const goal = view.room.goal
     const left = goal.kind === "survive" ? Math.max(0, goal.seconds - view.world) : 0
@@ -172,6 +148,10 @@ export class Hud {
     this.clockPanel.classList.toggle("survive", goal.kind === "survive")
     this.clockPanel.classList.toggle("closing", goal.kind === "survive" && left <= CLOSING)
     this.clockPanel.classList.toggle("over", goal.kind !== "survive" && view.world > view.room.par)
+    // The goal, live: how many are left to cut, the exit, or holding out.
+    const standing = view.enemies.length
+    this.set(this.goal, goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? "hold out" : standing === 0 ? "all down" : `cut ${standing} more`)
+    this.goalPanel.classList.toggle("done", goal.kind === "clear" && standing === 0)
 
     // Numbered plates: which are pressed and which comes next (the plates themselves can be off screen).
     const ordered = orderedPlates(view)
@@ -187,23 +167,6 @@ export class Hud {
         pip.textContent = String(p.order)
         return pip
       }))
-    }
-
-    // How fast the world runs: from frozen (still) to full speed (full push).
-    const t = Math.max(0, Math.min(1, (view.scale - view.slow) / Math.max(1e-6, 1 - view.slow)))
-    const lit = t < 0.02 ? 0 : Math.max(1, Math.round(t * CELLS))
-    if (lit !== this.lit) {
-      this.lit = lit
-      this.cells.forEach((c, i) => c.classList.toggle("on", i < lit))
-      this.root.classList.toggle("frozen", lit === 0)
-      this.root.classList.toggle("fast", lit >= CELLS - 1)
-    }
-    this.set(this.pace, `×${view.scale < 0.995 ? view.scale.toFixed(2) : "1"}`)
-    // The hourglass settles while frozen and trickles while time runs, faster the faster it runs.
-    const frame = lit === 0 ? 2 : Math.floor(this.now * (2 + t * 10)) % 2
-    if (frame !== this.glassFrame) {
-      this.glassFrame = frame
-      this.glass.replaceChildren(fromHtml(hourglass(frame as 0 | 1 | 2)))
     }
 
     // The tip: up on every new attempt, gone once you move or after a few seconds.
@@ -226,8 +189,8 @@ export class Hud {
       span.textContent = text
       frag.append(span)
     }
-    const goal = view.room.goal
-    line("tip-goal", goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? `survive ${goal.seconds} s` : "down every enemy")
+    line("tip-room", `${view.room.index + 1} · ${view.room.name}`)
+    // (The goal is in the top bar, live.)
     if (view.room.tip !== null) line("tip-text", view.room.tip)
     // (The first rooms' how-to is the guide's caption over the scene, see `guide.ts`.)
     return frag

@@ -102,6 +102,8 @@ const menu = new Menu(document.body, {
   play: (room) => {
     goTo(room)
     menu.close()
+    // The room was waiting behind the title: you appear as it shows.
+    presentation.appear()
   },
   resume: () => menu.close(),
   restart: () => {

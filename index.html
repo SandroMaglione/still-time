@@ -66,27 +66,18 @@
         position: absolute; left: 0; right: 0; top: 0; display: flex; flex-wrap: wrap; align-items: stretch; gap: calc(var(--u) * 4);
         padding: calc(env(safe-area-inset-top) + var(--u) * 4) calc(env(safe-area-inset-right) + var(--u) * 4) 0 calc(env(safe-area-inset-left) + var(--u) * 4);
       }
-      /* One row: the room plate (name, then the freeze gauge), the clock against par, the buttons. Every panel is at least a button high and grows with its lines. */
+      /* One row: the clock against par, the buttons. (The room's name shows in the tip as an attempt starts.) Every panel is at least a button high and grows with its lines. */
       .hud-top > .panel { box-sizing: border-box; min-height: max(44px, calc(var(--u) * 23)); padding: calc(var(--u) * 3) calc(var(--u) * 5) calc(var(--u) * 4); display: flex; flex-direction: column; justify-content: center; gap: var(--u); }
-      .plate { flex: 1 1 0; min-width: 0; max-width: calc(var(--u) * 150); }
-      .plate .plate-row:first-child { gap: calc(var(--u) * 4); }
-      .plate-row { display: flex; align-items: center; gap: calc(var(--u) * 3); min-width: 0; }
-      .room-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--light); min-width: 0; }
-      .hits { color: var(--red); display: inline-flex; align-items: center; gap: var(--u); vertical-align: top; }
       .hud-buttons { display: flex; gap: calc(var(--u) * 4); margin-left: auto; }
 
-      /* The freeze gauge: how fast the world runs, frozen (one ice cell) to full speed; then the time scale. */
-      .gauge { flex: 1; display: flex; gap: var(--u); height: calc(var(--u) * 5); min-width: calc(var(--u) * 30); max-width: calc(var(--u) * 80); }
-      .gauge i { flex: 1; background: var(--ink); box-shadow: inset 0 calc(var(--u) * -1) 0 #ffffff10; }
-      .gauge i.on { background: var(--c); box-shadow: inset 0 var(--u) 0 #ffffff59, inset 0 calc(var(--u) * -1) 0 #00000059; }
-      .frozen .gauge i:first-child { background: var(--ice-lo); }
-      .pace { color: var(--gold); white-space: nowrap; font-size: var(--t0); line-height: var(--l0); }
-      .frozen .pace { color: var(--ice); }
-      .clock-panel { align-items: flex-end; min-width: calc(var(--u) * 26); white-space: nowrap; }
-      #glass { display: flex; }
+      .clock-panel { align-items: flex-end; flex: 0 0 calc(var(--u) * 42); min-width: 0; white-space: nowrap; }
       .clock { font-weight: 700; }
       .over .clock { color: var(--red); }
-      .ended .plate-row + .plate-row, .ended .clock-panel { opacity: 0.5; }
+      .ended .clock-panel, .ended .goal-panel { opacity: 0.5; }
+      /* The room's goal, live: the enemies left to cut, the exit, or holding out. */
+      .goal-panel { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+      .goal { font-weight: 700; color: var(--gold); overflow: hidden; text-overflow: ellipsis; font-size: var(--t0); line-height: var(--l1); }
+      .goal-panel.done .goal { color: var(--teal); }
       /* A survive room: the clock counts down the world seconds left to hold out, in the player's teal, gold for the last three. */
       .survive .clock { color: var(--teal); }
       .survive.closing .clock { color: var(--gold); }
@@ -110,11 +101,12 @@
       .tip-row { justify-content: center; }
       .tip {
         width: fit-content; min-width: 0; max-width: 100%;
-        display: flex; flex-direction: column; align-items: center; gap: var(--u); text-align: center; padding: calc(var(--u) * 3) calc(var(--u) * 6) calc(var(--u) * 4);
+        display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3); text-align: center; padding: calc(var(--u) * 4) calc(var(--u) * 6) calc(var(--u) * 5);
+        font-size: var(--t0); line-height: var(--l1);
         box-sizing: border-box; opacity: 0; transition: opacity 0.5s, translate 0.5s; translate: 0 calc(var(--u) * -4);
       }
       .tip.shown { opacity: 1; translate: 0 0; transition-duration: 0.2s; }
-      .tip-goal { color: var(--gold); font-weight: 700; }
+      .tip-room { color: var(--dim); }
       .tip-hint { color: var(--dim); font-size: var(--t0); line-height: var(--l0); }
 
       /* Messages: a hit, a clear and its stars, the run's end. */
@@ -258,12 +250,12 @@
     <canvas id="view"></canvas>
     <div id="hud" class="hud">
       <div class="hud-top">
-        <div class="panel glass plate">
-          <div class="plate-row"><span id="room-index" class="dim"></span><span id="room" class="room-name"></span></div>
-          <div class="plate-row"><span id="glass"></span><span id="gauge" class="gauge"></span><span id="pace" class="pace"></span></div>
-        </div>
+        <span id="room" class="sr"></span>
         <div id="clock-panel" class="panel glass clock-panel">
           <span id="clock" class="clock"></span><span id="clock-sub" class="dim small clock-sub"></span>
+        </div>
+        <div id="goal-panel" class="panel glass goal-panel">
+          <span class="dim small">goal</span><span id="goal" class="goal"></span>
         </div>
         <div class="hud-buttons">
           <button id="pause" class="btn square" type="button" aria-label="Menu"></button>
