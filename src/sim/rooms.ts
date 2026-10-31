@@ -295,7 +295,7 @@ export const ROOMS: ReadonlyArray<Room> = [
     ],
     goal: CLEAR,
     par: 7,
-    tip: "wooden crates splinter under fire"
+    tip: "wooden crates hide nothing: they splinter under fire"
   },
   {
     name: "Switchyard",

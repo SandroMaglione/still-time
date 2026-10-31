@@ -43,6 +43,21 @@ test("a crate splinters after its hits; a cracked wall shrugs shots off", () => 
   assert.equal(cracked(breach.fight).length, 1)
 })
 
+test("a wooden crate hides you from no one: the gunners fire into it at you behind it, and splinter it", () => {
+  const { fight, thumb } = fightIn("Splinters")
+  // Tucked behind the middle crate, which stands between you and both gunners.
+  const target = crates(fight).find((c) => c.x < 7 && c.x + c.w > 7 && c.y > 8 && c.y < 11)
+  assert.ok(target !== undefined)
+  placePlayer(fight, 7, target.y + target.h + 0.4)
+  const standing = () => crates(fight).some((c) => c.x === target.x && c.y === target.y)
+  const wait = jiggle(thumb, 0.2)
+  runUntil(fight, 600, () => fight.view().enemies.every((e) => !e.arriving), wait)
+  assert.ok(fight.view().enemies.every((e) => e.sees), "the crate does not hide you")
+  runUntil(fight, 6000, () => !standing() || fight.view().flow !== "playing", wait)
+  assert.equal(fight.view().flow, "playing", "the crate took the shots")
+  assert.ok(!standing(), "their shots splintered the crate")
+})
+
 test("a spearman's thrust breaks the cracked wall you lure it into", () => {
   const { fight, thumb } = fightIn("Breach")
   const wall = cracked(fight)[0]

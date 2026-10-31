@@ -15,7 +15,7 @@ import { angleDiff, canSee, segmentDistance, settle, turnToward } from "../geome
 import { Body, Bomb, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time, Wear } from "../schema.ts"
 import type { Pillar } from "../rooms.ts"
 import { COVER, CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
-import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, StalkerQuery, StalkerRead, roomOf, wallsOf } from "./queries.ts"
+import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, StalkerQuery, StalkerRead, roomOf, sightWalls, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
 
@@ -56,6 +56,7 @@ export const ShootersSystem = Game.System(
     if (me === undefined) return
     const room = roomOf(resources.run.get().room)
     const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
+    const eye = sightWalls(walls)
     const dt = worldDt(resources.time.get(), resources.pace.get())
     // Everyone's place at the start of the step, to keep lines of fire clear of allies.
     const allies = [
@@ -81,7 +82,7 @@ export const ShootersSystem = Game.System(
         else data.body.set({ x: at.x + (dx / d) * step, y: at.y + (dy / d) * step })
         continue
       }
-      const sees = canSee(at.x, at.y, me.x, me.y, spec.sight, walls)
+      const sees = canSee(at.x, at.y, me.x, me.y, spec.sight, eye)
       const reload = data.reload.get()
       // A scoped shooter's aim stops following you for the last `lock` of its charge.
       const aim = spec.scoped && reload.left <= spec.lock ? reload.aim : Ops.atan2(me.y - at.y, me.x - at.x)

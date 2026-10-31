@@ -5,7 +5,7 @@ import { canSee, clearLine } from "./geometry.ts"
 import { hazardAt, type HazardShape } from "./hazards.ts"
 import { ROOMS, roomAt, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
 import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Post, Reload, Run, Shot, Slashes, Stalk, Time, Wear, type HitBy } from "./schema.ts"
-import { wallsOf } from "./systems/queries.ts"
+import { sightWalls, wallsOf } from "./systems/queries.ts"
 import { BELT, BOMB, COVER, LOCKS, MELEE, RUNNER, STALKER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export type MeleePhase = "idle" | "chase" | "windup" | "swing" | "recover"
@@ -224,8 +224,8 @@ export const FightViewInspector = Game.Inspector(
       const locked = spec.scoped && reload.left <= spec.lock
       const aim = locked ? reload.aim : player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x)
       const arriving = data.post.get().arriving
-      // (Walking in, it has not noticed you yet.)
-      const seesYou = !arriving && player !== null && canSee(at.x, at.y, player.x, player.y, spec.sight, walls)
+      // (Walking in, it has not noticed you yet. A wooden crate does not hide you.)
+      const seesYou = !arriving && player !== null && canSee(at.x, at.y, player.x, player.y, spec.sight, sightWalls(walls))
       const laser = !spec.scoped || !seesYou || player === null ? null
         : { aim, locked, length: locked ? rayLength(at.x, at.y, aim, spec.sight, walls) : Ops.hypot(player.x - at.x, player.y - at.y) }
       return [{

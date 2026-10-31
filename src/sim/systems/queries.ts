@@ -3,7 +3,7 @@
  * Disjoint by their filters, so one system may write the player's body and
  * read the enemies' (or the reverse).
  */
-import { roomAt, type Cover, type Pillar, type Room } from "../rooms.ts"
+import { roomAt, type Cover, type Room } from "../rooms.ts"
 import { Blade, Body, Bomb, Carry, Enemy, Game, Melee, Player, Post, Reload, Shot, Stalk } from "../schema.ts"
 
 export const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
@@ -57,8 +57,14 @@ export const standing = (room: Room, wear: ReadonlyArray<number | null>): Readon
   wear.every((w) => w !== 0) ? room.pillars : room.pillars.filter((_, i) => wear[i] !== 0)
 
 /** What stands in the way this step: the room's walls and cover still standing, and its doors still shut. */
-export const wallsOf = (room: Room, open: ReadonlyArray<boolean>, wear: ReadonlyArray<number | null>): ReadonlyArray<Pillar> =>
+export const wallsOf = (room: Room, open: ReadonlyArray<boolean>, wear: ReadonlyArray<number | null>): ReadonlyArray<Cover> =>
   room.doors.length === 0 ? standing(room, wear) : [...standing(room, wear), ...room.doors.filter((_, i) => open[i] !== true)]
+
+/**
+ * What a shooter's eye stops at: a wooden crate hides you from no one. It still stops shots, so a shooter fires
+ * into it at you behind, and splinters it.
+ */
+export const sightWalls = (walls: ReadonlyArray<Cover>): ReadonlyArray<Cover> => walls.filter((p) => p.breaks !== "crate")
 
 /** Wear a fresh room starts with, by pillar: a crate's hits, a cracked wall's one, null for cover that never breaks. */
 export const freshWear = (room: Room, crateHits: number): Array<number | null> =>
