@@ -9,8 +9,8 @@ import { ROOMS, type Hazard, type Lock, type Pillar } from "../sim/rooms.ts"
 import { SHOTS, STALKER, TUNING } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
-import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
-import { APPEAR_LIFE, GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
+import { attackWave, bodyName, bombActor, combatActor, crateBurst, crateWreck, dyingActor, impactBurst } from "./combat-art.ts"
+import { APPEAR_LIFE, GHOST_LIFE, SPLINTER_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
@@ -553,9 +553,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   const deathAge = presentation?.playerDeathAge ?? -1
   // The screen shakes when you are hit, and a little when your cut lands (unless shake is off).
   const cutAge = presentation?.cutAge ?? -1
+  // ...and a little when a crate bursts.
+  const splinterAge = presentation?.splinterAge ?? -1
   const shake = !feelSettings().shake ? 0
     : deathAge >= 0 && deathAge < 0.25 ? Math.round(Math.sin(deathAge * 80) * 3 * (1 - deathAge / 0.25))
     : cutAge >= 0 && cutAge < CUT_SHAKE ? Math.round(Math.sin(cutAge * 90) * 2 * (1 - cutAge / CUT_SHAKE))
+    : splinterAge >= 0 && splinterAge < CUT_SHAKE ? Math.round(Math.sin(splinterAge * 90) * 2 * (1 - splinterAge / CUT_SHAKE))
     : 0
   const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx)) + shake
   const cy = fit(TOP + (ch - TOP - BOTTOM) / 2 - centre.y, TOP, ch - BOTTOM, Math.min(...sy), Math.max(...sy))
@@ -615,6 +618,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Ground decals: where shots will pass, what each enemy covers, your reach.
   // Drawn on the glow layer: copied onto the scene, and kept at full light as threats.
   const glow = glowLayer(ctx)
+  // Burst crates leave their broken planks on the floor (at full light, so the room's shadow does not swallow them).
+  for (const splinter of presentation?.splinters ?? []) crateWreck(glow, P, splinter)
   if (view.flow === "playing") {
     const ctx = glow
     ctx.save()
@@ -904,6 +909,11 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   for (const death of presentation?.deaths ?? []) {
     actors.push({ x: death.x, y: death.y, paint: () => dyingActor(ctx, death, P(death.x, death.y), presentation!.now - death.born) })
+  }
+  // A burst is drawn at full light too (like the blades), so the room's shadow never hides it.
+  for (const splinter of presentation?.splinters ?? []) {
+    const age = presentation!.now - splinter.born
+    if (age < SPLINTER_LIFE) actors.push({ x: splinter.x + splinter.w / 2, y: splinter.y + splinter.h + 0.02, paint: () => { crateBurst(ctx, P, splinter, PILLAR_HEIGHT, age); crateBurst(glow, P, splinter, PILLAR_HEIGHT, age, false) } })
   }
   for (const impact of presentation?.impacts ?? []) {
     actors.push({ x: impact.x, y: impact.y + 0.01, paint: () => impactBurst(ctx, impact, P(impact.x, impact.y, 0.55), presentation!.now - impact.born) })

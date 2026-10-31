@@ -19,6 +19,10 @@ export interface Impact {
   readonly seed: number
   readonly kind: "cut" | "shot" | "stone" | "player"
 }
+/** A crate that burst: its footprint, the way the blow pushed it (radians, on the floor), when (real s), and a seed. */
+export interface Splinter { readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly angle: number; readonly born: number; readonly seed: number }
+/** Real s a crate's burst plays; its broken planks stay on the floor until the attempt ends. */
+export const SPLINTER_LIFE = 0.75
 export interface Fire { readonly born: number; readonly aim: number }
 /** An afterimage of the player: where it stood, which way it faced, and how fast the world ran then (0 to 1). */
 export interface Ghost { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number; readonly strength: number }
@@ -55,6 +59,8 @@ export class Presentation {
   /** Afterimages of enemies walking, chasing or swinging while time runs: what moves, shows that it moves. */
   enemyGhosts: Array<EnemyGhost> = []
   stops: Array<Stop> = []
+  /** Crates that burst this attempt (the burst plays for SPLINTER_LIFE; the planks stay). */
+  splinters: Array<Splinter> = []
   /** Where you were when the room was cleared: you vanish from there, ninja-style. */
   vanish: { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number } | null = null
   /** How many of your cuts have landed (the page holds the world still for a beat on each: the hit-stop). */
@@ -82,6 +88,11 @@ export class Presentation {
     this.stops = this.stops.filter(s => this.now - s.born < STOP_LIFE)
   }
 
+  /** Real s since the last crate burst, or -1. */
+  get splinterAge(): number {
+    const last = this.splinters[this.splinters.length - 1]
+    return last === undefined ? -1 : this.now - last.born
+  }
   get playerDeathAge(): number { return this.deadAt === null ? -1 : this.now - this.deadAt }
   get clearAge(): number { return this.clearedAt === null ? -1 : this.now - this.clearedAt }
   /** Real s since your last cut landed, or -1. */
@@ -109,7 +120,7 @@ export class Presentation {
   observe(view: FightView): void {
     const old = this.previous
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
-      this.deaths = []; this.impacts = []; this.ghosts = []; this.enemyGhosts = []; this.stops = []; this.fire.clear()
+      this.deaths = []; this.impacts = []; this.ghosts = []; this.enemyGhosts = []; this.stops = []; this.splinters = []; this.fire.clear()
       this.running = false; this.runFrom = -1
       // A new attempt (a room entered, a retry, a restart) teaches the move again.
       this.deadAt = null; this.clearedAt = null; this.vanish = null; this.cutAt = null
@@ -179,6 +190,17 @@ export class Presentation {
       const y = Math.max(0, Math.min(view.room.h, shot.y + shot.vy * dt))
       const hitEnemy = old.enemies.some(e => !live.has(e.id) && Math.hypot(e.x - x, e.y - y) < 0.9)
       if (!hitEnemy) this.impacts.push({ x, y, angle: Math.atan2(-shot.vy, -shot.vx), born: this.now, seed: shot.id, kind: "stone" })
+    }
+    // A crate gone since the last tick burst: pushed the way the shot (or the nearest blast) was going.
+    const standing = new Set(view.cover.map(c => `${c.x}:${c.y}`))
+    for (const c of old.cover) {
+      if (c.kind !== "crate" || standing.has(`${c.x}:${c.y}`)) continue
+      const mx = c.x + c.w / 2, my = c.y + c.h / 2
+      const by = old.shots.filter(s => !shots.has(s.id)).sort((a, b) => Math.hypot(a.x - mx, a.y - my) - Math.hypot(b.x - mx, b.y - my))[0]
+      const blast = [...old.bombs].sort((a, b) => Math.hypot(a.x - mx, a.y - my) - Math.hypot(b.x - mx, b.y - my))[0]
+      const angle = by !== undefined ? Math.atan2(by.vy, by.vx) : blast !== undefined ? Math.atan2(my - blast.y, mx - blast.x) : -Math.PI / 2
+      this.splinters.push({ x: c.x, y: c.y, w: c.w, h: c.h, angle, born: this.now, seed: Math.round(c.x * 97 + c.y * 31) })
+      this.pulses.push("crate")
     }
     if (old.flow === "playing" && view.flow === "dead" && view.player !== null) {
       this.deadAt = this.now

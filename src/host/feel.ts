@@ -45,6 +45,8 @@ const PULSES = {
   cut: [28],
   /** You stop dead after a run, and the world freezes. */
   freeze: [10],
+  /** A crate bursts. */
+  crate: [16],
   /** You are hit. */
   hit: [70, 50, 40],
   /** The room is clear. */

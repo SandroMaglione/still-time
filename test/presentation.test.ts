@@ -121,3 +121,19 @@ test("a cutscene's clear is quiet: no fanfare, no star chimes, no vanish; a room
   assert.ok(room.cues.includes("room.clear") && room.cues.includes("star.1"), `a room's clear sings: ${room.cues.join(", ")}`)
   assert.equal(room.vanished, true)
 })
+
+test("a crate a shot breaks bursts the shot's way, once, and its planks stay until the attempt ends", () => {
+  const base = initial()
+  const crate = { x: 4, y: 6, w: 1.2, h: 1.2, kind: "crate" as const, hits: 1, maxHits: 1 }
+  const view = { ...base, cover: [...base.cover, crate], shots: [{ id: 7, kind: "bullet" as const, x: 3.3, y: 6.6, radius: 0.12, vx: 9, vy: 0 }] }
+  const fx = new Presentation(); fx.observe(view)
+  const burst = next(view, { cover: base.cover, shots: [] })
+  fx.observe(burst); fx.observe(burst); fx.observe(next(burst))
+  assert.equal(fx.splinters.length, 1, "one burst, not replayed on a render")
+  assert.ok(Math.abs(fx.splinters[0]!.angle) < 0.01, "thrown the way the bullet flew")
+  assert.deepEqual(fx.takePulses(), ["crate"])
+  fx.advance(2)
+  assert.equal(fx.splinters.length, 1, "the planks stay on the floor")
+  fx.observe({ ...initial(), step: 0 })
+  assert.equal(fx.splinters.length, 0, "a retry clears them")
+})

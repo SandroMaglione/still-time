@@ -1,6 +1,6 @@
 import type { BombView, EnemyView } from "../sim/view.ts"
 import { posedSprite, sprite, type Sprite } from "./art.ts"
-import type { Death, Impact } from "./fx.ts"
+import { SPLINTER_LIFE, type Death, type Impact, type Splinter } from "./fx.ts"
 import { emitLight } from "./lighting.ts"
 import { feelSettings } from "./feel.ts"
 import { decorationHash, pixelArc, pixelLine, pixelPolygon, type Point } from "./pixels.ts"
@@ -267,5 +267,65 @@ export const torchFire = (ctx: CanvasRenderingContext2D, x: number, y: number, t
     const t = ((time * 1.4 + i * 0.31 + seed * 0.17) % 1 + 1) % 1
     if (t > 0.8) continue
     rect(ctx, x + Math.sin(i + t * 4) * (2 + t * 4), y - 20 - t * 15, 1, t < 0.3 ? 2 : 1, t < 0.35 ? GOLD : "#e98a49")
+  }
+}
+
+const WOOD = "#8b6b50", WOOD_DARK = "#5d493d", WOOD_LIGHT = "#b19b73", DUST = "#899692"
+
+/**
+ * A crate bursting (`age` in real s, up to SPLINTER_LIFE): a white flash of its box, then planks and splinters
+ * thrown up and out the way the blow went, falling back to the floor, and a puff of dust. (`light`: whether it lights
+ * the room, once per burst however many layers it is painted on.)
+ */
+export const crateBurst = (ctx: CanvasRenderingContext2D, P: Projection, s: Splinter, height: number, age: number, light = true): void => {
+  const mx = s.x + s.w / 2, my = s.y + s.h / 2
+  const t = clamp(age / SPLINTER_LIFE)
+  // The box itself, for a blink: a flash, then its outline blowing apart.
+  if (age < 0.08 && feelSettings().flash) {
+    const a = P(s.x, s.y, height), b = P(s.x + s.w, s.y + s.h)
+    rect(ctx, a.x - 1, a.y - 1, b.x - a.x + 2, b.y - a.y + 2, INK)
+    rect(ctx, a.x, a.y, b.x - a.x, b.y - a.y, age < 0.04 ? IVORY : WOOD_LIGHT)
+  }
+  if (light && age < 0.06) emitLight(ctx, { ...P(mx, my, height / 2), radius: 2.4, colour: [255, 214, 150], intensity: 0.9 })
+  // Dust: low rings spreading on the floor, fading.
+  if (t < 0.7) {
+    const d = t / 0.7, ground = P(mx, my)
+    for (let i = 0; i < 6; i++) {
+      const seed = decorationHash(i, s.seed, 7), a = (i / 6) * Math.PI * 2 + (seed % 10) / 10
+      const r = (6 + (seed % 5)) + d * (14 + (seed % 9))
+      const size = Math.max(1, Math.round((1 - d) * 5))
+      rect(ctx, ground.x + Math.cos(a) * r - size / 2, ground.y + Math.sin(a) * r * 0.55 - size / 2 - d * 4, size, size, DUST)
+    }
+  }
+  // Planks and splinters: thrown up and out (mostly the blow's way), spinning, falling back to the floor.
+  for (let i = 0; i < 14; i++) {
+    const seed = decorationHash(i, s.seed, 5)
+    const a = s.angle + ((seed % 100) / 100 - 0.5) * (i < 9 ? 2.2 : 6.2)
+    const reach = 0.6 + (seed % 9) / 8
+    const fly = 1 - (1 - t) * (1 - t)
+    const x = mx + Math.cos(a) * reach * fly, y = my + Math.sin(a) * reach * fly
+    const z = Math.max(0, height * 0.6 + Math.sin(Math.min(1, t * 1.6) * Math.PI) * (0.5 + (seed % 5) / 6) - t * height * 0.6)
+    const at = P(x, y, z)
+    const plank = i % 3 === 0
+    const spin = Math.floor(t * (8 + seed % 6) + seed) % 2 === 0
+    const w = plank ? (spin ? 7 : 3) : 2, h = plank ? (spin ? 2 : 5) : 2
+    rect(ctx, at.x - w / 2 - 1, at.y - h / 2 - 1, w + 2, h + 2, INK)
+    rect(ctx, at.x - w / 2, at.y - h / 2, w, h, age < 0.07 ? IVORY : seed % 2 === 0 ? WOOD : WOOD_LIGHT)
+  }
+}
+
+/** What a burst crate leaves on the floor: broken planks and chips where it stood, scattered the way it went. */
+export const crateWreck = (ctx: CanvasRenderingContext2D, P: Projection, s: Splinter): void => {
+  const mx = s.x + s.w / 2, my = s.y + s.h / 2
+  for (let i = 0; i < 12; i++) {
+    const seed = decorationHash(i, s.seed, 11)
+    const a = s.angle + ((seed % 100) / 100 - 0.5) * (i < 5 ? 2.2 : 6.2)
+    const reach = (0.2 + (seed % 9) / 9) * (i < 5 ? 1.5 : 0.8)
+    const at = P(mx + Math.cos(a) * reach, my + Math.sin(a) * reach)
+    const plank = i % 2 === 0
+    const w = plank ? (seed % 3 === 0 ? 3 : 10) : 3, h = plank ? (seed % 3 === 0 ? 7 : 3) : 2
+    rect(ctx, at.x - w / 2 - 1, at.y - h / 2 - 1, w + 2, h + 2, INK)
+    rect(ctx, at.x - w / 2, at.y - h / 2, w, h, seed % 2 === 0 ? WOOD : WOOD_LIGHT)
+    if (plank && w > h) rect(ctx, at.x - w / 2, at.y + h / 2 - 1, w, 1, WOOD_DARK)
   }
 }
