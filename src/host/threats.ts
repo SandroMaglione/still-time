@@ -3,6 +3,8 @@ import { pixelArc, pixelLine, type Point } from "./pixels.ts"
 export const THREAT = "#ff6845"
 export const DANGER = "#ff4055"
 const INK = "#171c2e"
+/** A bullet's path: a dusty, muted rose, so the path whispers where the bullet itself (red) shouts. */
+export const PATH = "#a88a86"
 
 /** A 1 px signal on a 3 px ink bed, so the threat survives every floor value without shouting. */
 export const threatLine = (ctx: CanvasRenderingContext2D, a: Point, b: Point, locked = false, dash = 0): void => {
@@ -10,9 +12,21 @@ export const threatLine = (ctx: CanvasRenderingContext2D, a: Point, b: Point, lo
   pixelLine(ctx, a, b, locked ? DANGER : THREAT, 1, dash)
 }
 
-/** Where a shot will pass: a fine dotted line, no ink, so many paths at once still read as lines and not as walls. */
+/**
+ * Where a shot will pass: single dots, sparse and fading away from the bullet, no ink, so it reads as a trajectory
+ * and not as a beam (a sniper's laser is a line; a bullet's path is a trail of dots).
+ */
 export const shotPath = (ctx: CanvasRenderingContext2D, a: Point, b: Point): void => {
-  pixelLine(ctx, a, b, THREAT, 1, 2)
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  if (length < 1) return
+  ctx.save()
+  ctx.fillStyle = PATH
+  for (let d = 6; d <= length; d += 5) {
+    const k = d / length
+    ctx.globalAlpha = 0.5 * (1 - k) + 0.06
+    ctx.fillRect(Math.round(a.x + (b.x - a.x) * k), Math.round(a.y + (b.y - a.y) * k), 1, 1)
+  }
+  ctx.restore()
 }
 
 export const threatArc = (ctx: CanvasRenderingContext2D, centre: Point, rx: number, ry: number, start: number, end: number, colour = THREAT, width = 2, segmented = false): void => {
@@ -37,7 +51,7 @@ export const reloadArc = (ctx: CanvasRenderingContext2D, centre: Point, rx: numb
 }
 
 /** A small 1 px chevron: a frozen path still says which way it goes. */
-export const pathArrow = (ctx: CanvasRenderingContext2D, at: Point, angle: number): void => {
+export const pathArrow = (ctx: CanvasRenderingContext2D, at: Point, angle: number, colour = THREAT): void => {
   const tip = { x: at.x + Math.cos(angle) * 2, y: at.y + Math.sin(angle) * 2 }
-  for (const side of [-1, 1]) pixelLine(ctx, tip, { x: at.x - Math.cos(angle) * 2 + Math.sin(angle) * side * 2, y: at.y - Math.sin(angle) * 2 - Math.cos(angle) * side * 2 }, THREAT)
+  for (const side of [-1, 1]) pixelLine(ctx, tip, { x: at.x - Math.cos(angle) * 2 + Math.sin(angle) * side * 2, y: at.y - Math.sin(angle) * 2 - Math.cos(angle) * side * 2 }, colour)
 }

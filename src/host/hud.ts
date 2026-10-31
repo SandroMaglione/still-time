@@ -8,7 +8,7 @@
  * Every size is a whole number of UI pixels (`--u`), so the pixel font and
  * borders stay crisp.
  */
-import type { FightView, HitBy, PlateView } from "../sim/view.ts"
+import type { FightView, HitBy, PlateView, ResultView } from "../sim/view.ts"
 import { CLEAR_PANEL_AT, starPopAt, type Presentation } from "./fx.ts"
 import { ICONS, fromHtml, hourglass, pixelSvg, star } from "./ui-pixels.ts"
 
@@ -64,6 +64,9 @@ const LESSON: Record<HitBy, readonly [string, string]> = {
   touch: ["it creeps while you stand still.", "no hesitating near it: rush it at full speed"]
 }
 
+/** How long (real s) the clear panel's time takes to count up. */
+const COUNT_UP = 0.6
+
 /** The HUD over each page canvas (other canvases, such as review renders, get no messages). */
 const huds = new WeakMap<object, Hud>()
 
@@ -110,6 +113,10 @@ export class Hud {
   private attempt = ""
   private tipAt = 0
   private messageKey = ""
+  /** This room's best as the attempt began (the clear panel compares against it: the save already holds the new one). */
+  private bestBefore: ResultView | null = null
+  /** The clear panel's time, counting up from zero to the time you took. */
+  private countUp: { readonly node: HTMLElement; readonly to: number; readonly from: number } | null = null
 
   constructor(canvas: HTMLCanvasElement) {
     huds.set(canvas, this)
@@ -138,6 +145,11 @@ export class Hud {
 
   update(view: FightView, seconds: number): void {
     this.now += seconds
+    if (this.countUp !== null) {
+      const k = Math.min(1, (this.now - this.countUp.from) / COUNT_UP)
+      this.set(this.countUp.node, `${(this.countUp.to * (1 - (1 - k) ** 3)).toFixed(1)}s`)
+      if (k >= 1) this.countUp = null
+    }
     this.root.classList.toggle("ended", view.flow !== "playing")
     this.set(this.roomIndex, `${view.room.index + 1}`)
     // The name, then the hits taken in this room (✕ is kept for scripts that wait on it; a pixel cross shows instead).
@@ -198,6 +210,7 @@ export class Hud {
     const attempt = `${view.room.index}:${view.player?.id ?? -1}`
     if (attempt !== this.attempt && view.flow === "playing") {
       this.attempt = attempt
+      this.bestBefore = view.best[view.room.index] ?? null
       this.tipAt = this.now
       this.tip.replaceChildren(this.tipContent(view))
     }
@@ -229,6 +242,7 @@ export class Hud {
     this.after.hidden = m.kind !== "cleared" && m.kind !== "won"
     this.msgStars.replaceChildren()
     this.msgLines.replaceChildren()
+    this.countUp = null
     if (m.kind === "none") return
     if (m.kind === "dead") {
       this.msgTitle.textContent = "hit"
@@ -263,7 +277,19 @@ export class Hud {
       add("line dim small", view.hits === 0 ? "no hits" : `${view.hits} ${view.hits === 1 ? "hit" : "hits"}`)
     } else {
       const over = result.world > view.room.par
-      add(over ? "line over" : "line", `${result.world.toFixed(1)}s`).append(small(`/ par ${view.room.par}s`))
+      // The time counts up as the stars pop in.
+      const time = Object.assign(document.createElement("span"), { textContent: "0.0s" })
+      this.text.set(time, "0.0s")
+      add(over ? "line over" : "line", "").append(time, small(`/ par ${view.room.par}s`))
+      this.countUp = { node: time, to: result.world, from: this.now }
+    }
+    // Against your best before this clear: a new best says so; otherwise the best to beat.
+    const before = this.bestBefore
+    if (before !== null) {
+      const timed = view.room.goal.kind !== "survive"
+      const better = result.stars > before.stars || (timed && result.world < before.world - 0.05)
+      if (better) add("line best", "new best!").style.animationDelay = `${COUNT_UP.toFixed(2)}s`
+      else if (timed) add("line dim small", `best ${before.world.toFixed(1)}s`)
     }
     if (won) {
       const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)

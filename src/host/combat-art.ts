@@ -2,6 +2,7 @@ import type { BombView, EnemyView } from "../sim/view.ts"
 import { posedSprite, sprite, type Sprite } from "./art.ts"
 import type { Death, Impact } from "./fx.ts"
 import { emitLight } from "./lighting.ts"
+import { feelSettings } from "./feel.ts"
 import { decorationHash, pixelArc, pixelLine, pixelPolygon, type Point } from "./pixels.ts"
 import type { Projection } from "./room-art.ts"
 
@@ -173,7 +174,7 @@ export const dyingActor = (ctx: CanvasRenderingContext2D, death: Death, ground: 
   const knock = Math.round(smooth(age / 0.2) * 4)
   if (age < 0.72) sprite(ctx, "shadow", ground.x + direction * (2 + Math.round(Math.abs(fall) * 9)), ground.y + 3)
   posedSprite(ctx, bodyName(death.kind), ground.x + direction * knock, ground.y + Math.round(Math.sin(clamp(age / 0.3) * Math.PI) * -3), {
-    flip: Math.cos(death.aim) < 0, flash: age < 0.065, fall, dissolve, seed: death.id
+    flip: Math.cos(death.aim) < 0, flash: age < 0.065 && feelSettings().flash, fall, dissolve, seed: death.id
   })
   if (age > 0.32 && age < 0.56) {
     const t = (age - 0.32) / 0.24

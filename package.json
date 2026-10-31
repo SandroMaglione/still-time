@@ -7,6 +7,7 @@
     "art": "node scripts/art.mjs && node scripts/environment.mjs",
     "art:environment": "node scripts/environment.mjs",
     "audio": "node scripts/audio.mjs",
+    "icons": "node scripts/icons.ts",
     "dev": "vite --host --port 5301",
     "build": "vite build",
     "preview": "vite preview",

@@ -3,7 +3,7 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { canSee, clearLine } from "./geometry.ts"
 import { hazardAt, type HazardShape } from "./hazards.ts"
-import { ROOMS, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
+import { ROOMS, roomAt, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
 import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear, type HitBy } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
 import { BELT, BOMB, COVER, LOCKS, MELEE, RUNNER, STALKER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
@@ -202,7 +202,7 @@ export const FightViewInspector = Game.Inspector(
   ({ queries, resources, machines }): FightView => {
     const run = resources.run.get()
     const time = resources.time.get()
-    const room = ROOMS[run.room] ?? ROOMS[0]
+    const room = roomAt(run.room) ?? ROOMS[0]
     if (room === undefined) throw new Error("Slap: no rooms")
     const p = queries.players.each()[0]
     const player = p === undefined ? null : { id: p.entity.id, ...p.data.body.get(), radius: TUNING.player.radius, vx: p.data.player.get().vx, vy: p.data.player.get().vy, attackRange: TUNING.attackRange }

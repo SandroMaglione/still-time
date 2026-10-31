@@ -591,3 +591,23 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 18
   }
 ]
+
+/**
+ * The title screen's room, never played and not one of ROOMS: a long empty aisle the title's backdrop climbs (no doors,
+ * no enemies, no exit; its "survive" goal never comes due). Its index is `TITLE_ROOM`.
+ */
+export const TITLE_ROOM = ROOMS.length
+const AISLE: Room = {
+  name: "Aisle",
+  w: 8,
+  h: 1000,
+  start: { x: 4, y: 998 },
+  pillars: [],
+  doors: [],
+  enemies: [],
+  goal: { kind: "survive", seconds: 1e9 },
+  par: 0
+}
+
+/** The room at `index`: one of ROOMS, or the title's aisle. */
+export const roomAt = (index: number): Room | undefined => (index === TITLE_ROOM ? AISLE : ROOMS[index])

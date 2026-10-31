@@ -6,7 +6,7 @@
 import { Clock, Ops } from "@typeonce/ritmo"
 
 import { unlocked } from "../progress.ts"
-import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
+import { ROOMS, roomAt, type Lock, type Pillar } from "../rooms.ts"
 import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Shot, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
 import { BOMB, COVER, CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, freshWear, roomOf } from "./queries.ts"
@@ -70,7 +70,7 @@ export const BuildRoomSystem = Game.System(
     // Several requests in one step: the last one wins.
     const asked = events.enter.all().at(-1)
     if (asked === undefined) return
-    const room = ROOMS[asked.room]
+    const room = roomAt(asked.room)
     if (room === undefined) return
     commands.despawnScope(RoomScope)
     commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: room.start.x, y: room.start.y }], [Player, { vx: 0, vy: 0 }]))

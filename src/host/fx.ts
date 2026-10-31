@@ -1,5 +1,6 @@
 import type { EnemyView, FightView } from "../sim/view.ts"
 import type { EnemyKind } from "../sim/tuning.ts"
+import type { Pulse } from "./feel.ts"
 
 export interface Death {
   readonly id: number
@@ -54,6 +55,11 @@ export class Presentation {
   stops: Array<Stop> = []
   /** Where you were when the room was cleared: you vanish from there, ninja-style. */
   vanish: { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number } | null = null
+  /** How many of your cuts have landed (the page holds the world still for a beat on each: the hit-stop). */
+  cuts = 0
+  /** The moments to buzz since the page last took them (see `takePulses`). */
+  private pulses: Array<Pulse> = []
+  private cutAt: number | null = null
   private lastGhost = -1
   /** Armed by a real run, fired by stopping: one freeze moment per stop. */
   private running = false
@@ -74,6 +80,14 @@ export class Presentation {
 
   get playerDeathAge(): number { return this.deadAt === null ? -1 : this.now - this.deadAt }
   get clearAge(): number { return this.clearedAt === null ? -1 : this.now - this.clearedAt }
+  /** Real s since your last cut landed, or -1. */
+  get cutAge(): number { return this.cutAt === null ? -1 : this.now - this.cutAt }
+  /** The moments to buzz since the last call, oldest first. */
+  takePulses(): ReadonlyArray<Pulse> {
+    const taken = this.pulses
+    this.pulses = []
+    return taken
+  }
   firing(enemy: EnemyView, world: number): number {
     const shot = this.fire.get(enemy.id)
     return shot === undefined ? -1 : Math.max(0, world - shot.born)
@@ -85,7 +99,7 @@ export class Presentation {
       this.deaths = []; this.impacts = []; this.ghosts = []; this.enemyGhosts = []; this.stops = []; this.fire.clear()
       this.running = false; this.runFrom = -1
       // A new attempt (a room entered, a retry, a restart) teaches the move again.
-      this.deadAt = null; this.clearedAt = null; this.vanish = null
+      this.deadAt = null; this.clearedAt = null; this.vanish = null; this.cutAt = null
       this.previous = view
       return
     }
@@ -116,6 +130,7 @@ export class Presentation {
       if (this.running && k < 0.12) {
         this.running = false; this.runFrom = -1
         this.stops = [...this.stops, { x: p.x, y: p.y, born: this.now }].slice(-3)
+        this.pulses.push("freeze")
       }
     }
     const live = new Set(view.enemies.map(e => e.id))
@@ -124,6 +139,7 @@ export class Presentation {
       const cut = view.slashes.find(s => !s.blocked && Math.hypot(s.x - enemy.x, s.y - enemy.y) < 0.8)
       const angle = cut?.angle ?? enemy.aim
       this.deaths.push({ ...enemy, x: cut?.x ?? enemy.x, y: cut?.y ?? enemy.y, angle, born: this.now })
+      if (cut !== undefined) { this.cuts++; this.cutAt = this.now; this.pulses.push("cut") }
       this.fire.delete(enemy.id)
     }
     const earlier = new Map(old.enemies.map(e => [e.id, e]))
@@ -151,6 +167,7 @@ export class Presentation {
     }
     if (old.flow === "playing" && view.flow === "dead" && view.player !== null) {
       this.deadAt = this.now
+      this.pulses.push("hit")
       const p = view.player
       const nearest = [...view.shots].sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]
       const attacker = [...view.enemies].sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0]
@@ -161,11 +178,12 @@ export class Presentation {
     // A clear: you vanish, ninja-style (not in a cutscene, whose last words are said with you still standing there).
     if (old.flow === "playing" && (view.flow === "cleared" || view.flow === "won") && !view.room.scene) {
       this.clearedAt = this.now
+      this.pulses.push("clear")
       const p = view.player ?? old.player
       if (p !== null) this.vanish = { x: p.x, y: p.y, flip: p.vx < 0, born: this.now }
     }
     this.previous = view
     // Bounded cosmetics, including projectile-heavy fan attacks.
-    this.deaths = this.deaths.slice(-24); this.impacts = this.impacts.slice(-48)
+    this.deaths = this.deaths.slice(-24); this.impacts = this.impacts.slice(-48); this.pulses = this.pulses.slice(-8)
   }
 }

@@ -15,12 +15,15 @@ import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
 import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
-import { DANGER, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
+import { feelSettings } from "./feel.ts"
+import { DANGER, PATH, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
 const PILLAR_HEIGHT = 1.2
 const BACK_WALL = 1.6
+/** How long (real s) the screen shakes when your cut lands. */
+const CUT_SHAKE = 0.14
 
 /**
  * How world metres land on screen: the room stays upright and the camera
@@ -538,7 +541,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     return from > to ? (from + to) / 2 : Math.max(from, Math.min(to, want))
   }
   const deathAge = presentation?.playerDeathAge ?? -1
-  const shake = deathAge >= 0 && deathAge < 0.25 ? Math.round(Math.sin(deathAge * 80) * 3 * (1 - deathAge / 0.25)) : 0
+  // The screen shakes when you are hit, and a little when your cut lands (unless shake is off).
+  const cutAge = presentation?.cutAge ?? -1
+  const shake = !feelSettings().shake ? 0
+    : deathAge >= 0 && deathAge < 0.25 ? Math.round(Math.sin(deathAge * 80) * 3 * (1 - deathAge / 0.25))
+    : cutAge >= 0 && cutAge < CUT_SHAKE ? Math.round(Math.sin(cutAge * 90) * 2 * (1 - cutAge / CUT_SHAKE))
+    : 0
   const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx)) + shake
   const cy = fit(TOP + (ch - TOP - BOTTOM) / 2 - centre.y, TOP, ch - BOTTOM, Math.min(...sy), Math.max(...sy))
   const P = (x: number, y: number, z = 0): { x: number; y: number } => {
@@ -605,7 +613,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       const start = P(shot.x, shot.y), end = P(shot.x + shot.vx, shot.y + shot.vy)
       shotPath(ctx, start, end)
       const angle = Math.atan2(end.y - start.y, end.x - start.x)
-      pathArrow(ctx, { x: start.x + (end.x - start.x) * 0.22, y: start.y + (end.y - start.y) * 0.22 }, angle)
+      pathArrow(ctx, { x: start.x + (end.x - start.x) * 0.22, y: start.y + (end.y - start.y) * 0.22 }, angle, PATH)
     }
     for (const shot of shots) {
       const p = P(shot.x, shot.y)
@@ -731,6 +739,11 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     })
   }
   for (const shot of shots) {
+    // Each bullet carries a little red light: a glow on the floor under it and round the round itself.
+    if (shot.kind === "bullet") {
+      const ground = P(shot.x, shot.y), body = P(shot.x, shot.y, 0.6)
+      emitLight(ctx, { x: ground.x, y: ground.y, radius: 1.5, colour: [255, 110, 80], intensity: 0.9, shadows: false, halo: { lift: Math.round(ground.y - body.y), radius: 0.5, strength: 0.45 } })
+    }
     const paintShot = (ctx: CanvasRenderingContext2D): void => {
       /** A line held at height z from (x, y) toward angle a. */
       const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
@@ -743,12 +756,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const a = Math.atan2(shot.vy, shot.vx)
         const z = 0.6
         if (shot.kind === "bullet") {
-          // A small round: 1 px trail, a 3 px red body on ink, one hot pixel.
+          // A small round: 1 px trail, a red body with a hot core, ringed in ink and a warm glowing rim so it pops off any floor.
           held(shot.x, shot.y, a + Math.PI, 0, 0.2, z, THREAT, 1)
           const p = P(shot.x, shot.y, z)
-          pixelLine(ctx, p, p, INK, 5)
-          pixelLine(ctx, p, p, DANGER, 3)
-          pixelLine(ctx, p, p, "#f4efda", 1)
+          disc(ctx, p.x, p.y, 3, "#ff9a80")
+          disc(ctx, p.x, p.y, 2, INK)
+          disc(ctx, p.x, p.y, 1, DANGER)
+          pixelLine(ctx, p, p, "#fff2dc", 1)
         } else if (shot.kind === "slug") {
           held(shot.x, shot.y, a + Math.PI, 0, 0.36, z, DANGER, 1)
           held(shot.x, shot.y, a, -0.1, 0.12, z, THREAT, 3)
@@ -985,7 +999,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     red.addColorStop(0, "rgba(206,70,85,0)")
     red.addColorStop(1, "rgba(206,70,85,0.6)")
     ctx.fillStyle = red; ctx.fillRect(0, 0, cw, ch)
-    if (deathAge < 0.3) { ctx.fillStyle = `rgba(255,64,85,${(0.6 * (1 - deathAge / 0.3)).toFixed(3)})`; ctx.fillRect(0, 0, cw, ch) }
+    if (deathAge < 0.3 && feelSettings().flash) { ctx.fillStyle = `rgba(255,64,85,${(0.6 * (1 - deathAge / 0.3)).toFixed(3)})`; ctx.fillRect(0, 0, cw, ch) }
     // The shot that took you hangs where it struck: a gold ring round it, pulsing, so the hit screen's words have a referent.
     if (view.death?.by === "shot" && view.player !== null && deathAge >= 0.3) {
       const p = view.player
@@ -1089,7 +1103,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const rx = b.radius * erx * (0.55 + 0.45 * t), ry = b.radius * ery * (0.55 + 0.45 * t)
     if (t < 0.35) {
       emitLight(ctx, { x: centre.x, y: centre.y, radius: 3.5, colour: [255, 200, 120], intensity: 1 - t / 0.35, shadows: false })
-      pixelArc(ctx, centre, rx * 0.6, ry * 0.6, 0, Math.PI * 2, t < 0.15 ? "#f4efda" : "#edc66c", 4)
+      pixelArc(ctx, centre, rx * 0.6, ry * 0.6, 0, Math.PI * 2, t < 0.15 && feelSettings().flash ? "#f4efda" : "#edc66c", 4)
     }
     pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, INK, 4, true)
     pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, t < 0.4 ? "#e98a49" : "#899692", 2, true)

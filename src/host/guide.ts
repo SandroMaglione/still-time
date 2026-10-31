@@ -13,6 +13,7 @@
 import { TUNING } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { hand, thumbPad, type Project, type Stick } from "./draw.ts"
+import { pulse } from "./feel.ts"
 import { pixelArc } from "./pixels.ts"
 
 export interface GuideInput {
@@ -119,10 +120,6 @@ const DONE_LIFE = 2.2
 /** How long the "CUT!" over a fallen target lasts (real s). */
 const CUT_LIFE = 1.4
 
-/** A short buzz where the phone can (Android browsers; iOS ignores it). */
-export const buzz = (ms: number): void => {
-  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(ms)
-}
 
 export class Guide {
   private room = ""
@@ -164,7 +161,7 @@ export class Guide {
     this.held += dt
     if (this.held < step.need) return
     this.step++; this.held = 0
-    buzz(this.step >= steps.length ? 60 : 40)
+    pulse("tick")
     if (this.step >= steps.length) this.doneAt = this.now
   }
 

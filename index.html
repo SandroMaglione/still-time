@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0d12" />
     <title>Still Time</title>
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preload" href="/ui/fonts/Silkscreen-Regular.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/ui/fonts/Silkscreen-Bold.ttf" as="font" type="font/ttf" crossorigin />
     <style>
@@ -136,6 +140,13 @@
       .msg-buttons { display: flex; gap: calc(var(--u) * 4); }
       .msg-cta { color: var(--light); animation: blink 1.1s steps(1) infinite; }
       .msg-cta:empty { display: none; }
+      /* Something broke: one panel over everything, and a way back. */
+      .crash { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: #0b0d12d9; }
+      .crash[hidden] { display: none; }
+      .crash .panel { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); padding: calc(var(--u) * 10) calc(var(--u) * 8); max-width: calc(var(--u) * 150); text-align: center; }
+      .crash h2 { margin: 0; font-size: var(--t2); line-height: var(--l2); color: var(--red); }
+      .cleared .msg-cta, .won .msg-cta { color: var(--gold); }
+      .msg-lines .best { color: var(--gold); animation: pop 0.35s steps(4) both; }
       .pop { animation: pop 0.24s steps(4) both; }
       @keyframes pop { 0% { transform: scale(0); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
       @keyframes rise { from { translate: 0 calc(var(--u) * 8); opacity: 0; } to { translate: 0 0; opacity: 1; } }
@@ -204,6 +215,9 @@
       .pause-screen .btn { width: 100%; box-sizing: border-box; }
       /* Sound and music: two on/off toggles side by side; off is a sunken, darker stone. */
       .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 4); width: 100%; }
+      .settings { display: flex; flex-direction: column; gap: calc(var(--u) * 3); width: 100%; }
+      .toggles.small { grid-template-columns: 1fr 1fr 1fr; gap: calc(var(--u) * 3); }
+      .toggles.small .btn.toggle { min-height: max(40px, calc(var(--u) * 18)); font-size: var(--t0); line-height: var(--l0); gap: calc(var(--u) * 2); padding: 0 calc(var(--u) * 2); }
       .btn.toggle { gap: calc(var(--u) * 3); padding: 0 calc(var(--u) * 4); }
       .btn.toggle.off { --f: #1d2233; --h: #262c40; --s: #161a28; color: var(--dim); }
       .toggle .state { font-size: var(--t0); line-height: var(--l0); padding: var(--u) calc(var(--u) * 2) 0; background: var(--ink); color: var(--gold); }
@@ -268,6 +282,25 @@
         </div>
       </div>
     </div>
+    <div id="crash" class="crash" hidden>
+      <div class="panel">
+        <h2>something broke</h2>
+        <span class="dim">sorry! your progress is saved.</span>
+        <button id="crash-reload" class="btn gold big" type="button">Reload</button>
+      </div>
+    </div>
+    <script>
+      // The crash fallback: an error that leaves the game stopped (no frame drawn for a second after it) shows the
+      // panel above, rather than a frozen canvas. The page marks each frame in `window.stillTimeFrame`.
+      (() => {
+        const show = () => { document.getElementById("crash").hidden = false }
+        const check = () => setTimeout(() => { if (!(performance.now() - (window.stillTimeFrame ?? -Infinity) < 1000)) show() }, 1500)
+        window.stillTimeCrash = show
+        window.addEventListener("error", check)
+        window.addEventListener("unhandledrejection", check)
+        document.getElementById("crash-reload").addEventListener("click", () => window.location.reload())
+      })()
+    </script>
     <script type="module" src="/src/host/main.ts"></script>
   </body>
 </html>
