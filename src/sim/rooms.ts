@@ -145,7 +145,6 @@ const thief = gate(16, 3.6, 8, 3, { kind: "key", key: 0 })
 const market = gate(18, 12, 9, 3, { kind: "clear", chamber: 0 }, 1)
 const switchyard = gate(14, 6, 7, 3, { kind: "plates", plates: [0], ordered: false })
 const combination = gate(16, 6, 8, 3, { kind: "plates", plates: [0, 1, 2], ordered: true })
-const conveyorGate = gate(14, 4.5, 12, 3, { kind: "plates", plates: [0], ordered: false })
 const warehouseDoor = gate(20, 4, 10, 3, { kind: "key", key: 0 })
 const grinderGate = gate(16, 6, 8, 3, { kind: "plates", plates: [0], ordered: false })
 const fortressYard = gate(22, 26, 11, 4, { kind: "clear", chamber: 0 }, 1)
@@ -517,28 +516,27 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "it moves only while you stand still"
   },
   {
-    // Three belts make a route, up, across and up again, through two lanes of bolts: on a belt the world waits, so you
-    // ride through a lane untouched. The gate at the top opens from a plate off the belts, on a lane, under two gunners.
+    // Shooters make you stop and look; here the places to stop are on the belts. Two belts run across the room, and
+    // the crates to hide behind stand on them: stand still in cover and the belt carries you out of it, the world
+    // still frozen, into the open or into a bullet hanging in the air. Clear the room.
     name: "Conveyor",
-    w: 14,
-    h: 28,
-    start: { x: 2, y: 25.5 },
-    pillars: [...conveyorGate.walls, crate(9.5, 17)],
-    doors: [conveyorGate.door],
+    w: 16,
+    h: 24,
+    start: { x: 8, y: 22 },
+    pillars: [crate(8, 19.5), crate(4, 15.5), crate(12, 15.5), crate(6, 9.5), crate(11, 9.5)],
+    doors: [],
     belts: [
-      { x: 1, y: 13, w: 2, h: 13.5, dx: 0, dy: -1 },
-      { x: 1, y: 11, w: 12, h: 2, dx: 1, dy: 0 },
-      { x: 11, y: 5.3, w: 2, h: 5.7, dx: 0, dy: -1 }
+      { x: 0, y: 14.5, w: 16, h: 2.4, dx: -1, dy: 0 },
+      { x: 0, y: 8.5, w: 16, h: 2.4, dx: 1, dy: 0 }
     ],
-    plates: [{ x: 6.5, y: 7.6 }],
-    hazards: [...stream(14 - MUZZLE, 20, 0, 20, 0.8), ...stream(MUZZLE, 7.6, 14, 7.6, 0.9)],
     enemies: [
-      { kind: "gunner", x: 7, y: 23, delay: 0.5 },
-      { kind: "gunner", x: 4, y: 2.2, delay: 0.8 }
+      { kind: "gunner", x: 3, y: 4, delay: 0.6 },
+      { kind: "gunner", x: 13, y: 5.5, delay: 0.9 },
+      { kind: "thrower", x: 8, y: 2.5, delay: 1.2 }
     ],
-    goal: { kind: "exit", x: 10.8, y: 0.6, w: 2.4, h: 2.2 },
-    par: 7,
-    tip: "a belt carries you while the world waits"
+    goal: CLEAR,
+    par: 9,
+    tip: "the belts never stop: stand still on one and it carries you"
   },
   {
     // The Crossing grown up: three lanes of bolts at different beats, under a sniper's eye. Look before every step.

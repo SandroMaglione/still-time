@@ -92,11 +92,12 @@ test("the stalker strikes from just past your cut if you stand still; rushing it
 
 test("a belt carries you while time stays frozen", () => {
   const { fight } = fightIn("Conveyor")
-  placePlayer(fight, 2, 24)
+  // On the lower belt, which runs west, clear of its crates.
+  placePlayer(fight, 15, 16.7)
   runUntil(fight, 60, () => fight.view().flow !== "playing")
   const me = fight.view().player
   assert.ok(me !== null)
-  assert.ok(Math.abs(24 - me.y - BELT.speed) < 0.1, `carried ${(24 - me.y).toFixed(2)} m in a second`)
+  assert.ok(Math.abs(15 - me.x - BELT.speed) < 0.1, `carried ${(15 - me.x).toFixed(2)} m in a second`)
   assert.ok(fight.view().world < 0.1, `with ${fight.view().world.toFixed(3)} world s gone`)
   assert.ok(fight.view().scale < 0.05, "time stays frozen")
 })
