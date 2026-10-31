@@ -50,21 +50,24 @@ test("a wooden crate hides you from no one: the gunners fire into it at you behi
   assert.ok(!standing(), "their shots splintered the crate")
 })
 
-test("the grenadier lobs a bomb at where you stand, and it lands lit", () => {
+test("the grenadier leads you: its bomb lands where your walk is taking you, and lands lit", () => {
   const { fight, thumb } = fightIn("Powder Room")
-  placePlayer(fight, 6, 6.2)
-  let stood = { x: 0, y: 0 }
-  const wait = jiggle(thumb, 0.4)
+  // Walking steadily west across the room, in its sight.
+  placePlayer(fight, 13, 9.5)
+  let thrown: { x: number; y: number } | null = null
   runUntil(fight, 4000, () => fight.view().bombs.length > 0 || fight.view().flow !== "playing", () => {
     const me = fight.view().player
-    if (me !== null) stood = { x: me.x, y: me.y }
-    wait()
+    if (me !== null) thrown = { x: me.x, y: me.y }
+    thumb.push = { x: -1, y: 0 }
   })
-  assert.equal(fight.view().bombs[0]?.target !== null, true)
-  runUntil(fight, 4000, () => fight.view().bombs.some((b) => b.target === null) || fight.view().flow !== "playing", wait)
-  const lit = fight.view().bombs.find((b) => b.target === null)
-  assert.ok(lit !== undefined)
-  assert.ok(Math.hypot(lit.x - stood.x, lit.y - stood.y) < 0.6, `landed ${Math.hypot(lit.x - stood.x, lit.y - stood.y).toFixed(2)} m from where you stood`)
+  const bomb = fight.view().bombs[0]
+  assert.ok(bomb?.target !== null && bomb?.target !== undefined && thrown !== null, `no bomb (${fight.view().flow})`)
+  const from: { x: number; y: number } = thrown
+  const ahead = from.x - bomb.target.x
+  assert.ok(ahead > 1 && ahead <= BOMB.lead + 0.6, `it threw ${ahead.toFixed(2)} m ahead of you`)
+  assert.ok(Math.abs(bomb.target.y - from.y) < 0.6, "along your heading")
+  runUntil(fight, 4000, () => fight.view().bombs.some((b) => b.target === null) || fight.view().flow !== "playing", () => { thumb.push = { x: 1, y: 0 } })
+  assert.ok(fight.view().bombs.some((b) => b.target === null), "it landed lit")
 })
 
 test("a blast takes anyone in its reach, you or an enemy, and a fuse burns in world time", () => {

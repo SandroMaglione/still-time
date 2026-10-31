@@ -13,7 +13,7 @@ import { Ops } from "@typeonce/ritmo"
 
 import { angleDiff, canSee, distanceTo, segmentDistance, settle, turnToward } from "../geometry.ts"
 import { Body, Bomb, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time, Wear } from "../schema.ts"
-import { CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
+import { BOMB, CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
 import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, StalkerQuery, StalkerRead, roomOf, sightWalls, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
@@ -40,6 +40,9 @@ export const ShootersSystem = Game.System(
   ({ queries, resources, commands }) => {
     const me = queries.players.each()[0]?.data.body.get()
     if (me === undefined) return
+    // Your walk (real m/s) and the world's speed: a grenadier leads you by them.
+    const vel = queries.players.each()[0]?.data.player.get()
+    const pace = resources.pace.get().scale
     const room = roomOf(resources.run.get().room)
     const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const eye = sightWalls(walls)
@@ -109,9 +112,16 @@ export const ShootersSystem = Game.System(
       }
       data.reload.set({ left: left + spec.period, aim })
       if (fires === "bomb" || shot === null) {
-        // At where you stand, as far as it can see.
-        const d = Math.min(reach, spec.sight)
-        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: to.x, y: to.y }], [Bomb, { _tag: "flying", tx: to.x + Ops.cos(aim) * d, ty: to.y + Ops.sin(aim) * d }]))
+        // Where you will be when it goes off: your heading, walked on through its flight and half its fuse (in world
+        // time, which runs as you walk: any walk covers about your top speed per world second), `BOMB.lead` at most;
+        // standing still, at your feet. Within the room, and as far as it can see.
+        const walk = vel === undefined ? { x: 0, y: 0 } : { x: vel.vx / Math.max(pace, 0.05), y: vel.vy / Math.max(pace, 0.05) }
+        const ahead = Math.min(BOMB.lead, Ops.hypot(walk.x, walk.y) * (reach / BOMB.speed + BOMB.fuse / 2))
+        const heading = Ops.hypot(walk.x, walk.y) > 0.01 ? Ops.atan2(walk.y, walk.x) : 0
+        const mark = { x: me.x + Ops.cos(heading) * ahead, y: me.y + Ops.sin(heading) * ahead }
+        const tx = Math.max(0.5, Math.min(room.w - 0.5, mark.x)), ty = Math.max(0.5, Math.min(room.h - 0.5, mark.y))
+        const d = Math.min(Ops.hypot(tx - to.x, ty - to.y), spec.sight), throwAt = Ops.atan2(ty - to.y, tx - to.x)
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: to.x, y: to.y }], [Bomb, { _tag: "flying", tx: to.x + Ops.cos(throwAt) * d, ty: to.y + Ops.sin(throwAt) * d }]))
         continue
       }
       for (const offset of spec.spread) {

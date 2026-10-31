@@ -51,8 +51,8 @@ export const SHOOTERS = {
   thrower: { radius: 0.38, period: 1.8, shot: "knife", spread: [-0.3, 0, 0.3], sight: 13, creeps: true, scoped: false, lock: 0 },
   /** Sees across the room and holds still; a laser charges on you, locks, then one very fast slug. */
   sniper: { radius: 0.36, period: 1.5, shot: "slug", spread: [0], sight: 24, creeps: false, scoped: true, lock: 0.4 },
-  /** Lobs a bomb at where you stand (over allies: it does not care who the blast takes). */
-  grenadier: { radius: 0.4, period: 2.6, shot: "bomb", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 }
+  /** Lobs a bomb where your walk is taking you (over allies: it does not care who the blast takes). */
+  grenadier: { radius: 0.4, period: 2, shot: "bomb", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 }
 } as const satisfies Record<ShooterKind, {
   radius: number
   period: number
@@ -169,15 +169,17 @@ export const CROWD = {
 export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, grenadier: 0.25, brute: 1, shield: 0.5, clockwork: 0.4, runner: 0.6, stalker: 0.6 } as const satisfies Record<EnemyKind, number>
 
 /**
- * A bomb flies (in world time) to where you stood when it was thrown, lands,
+ * A bomb flies (in world time) to where your walk was taking you when it was thrown, lands,
  * and burns its fuse; then its blast takes everyone within `radius` with
  * nothing solid in between (you, allies, the grenadier itself) and breaks
  * any crate it reaches.
  */
 export const BOMB = {
-  speed: 7,
-  fuse: 1.3,
+  speed: 10,
+  fuse: 0.7,
   radius: 1.9,
+  /** How far ahead of you (m) a grenadier throws, at most: where your walk takes you by the time it goes off. */
+  lead: 4,
   /** A blast mark stays on screen this many steps (real time): 0.4 s. */
   showSteps: 24
 } as const
