@@ -3,7 +3,7 @@
  * Disjoint by their filters, so one system may write the player's body and
  * read the enemies' (or the reverse).
  */
-import { ROOMS, type Cover, type Pillar, type Room } from "../rooms.ts"
+import { roomAt, type Cover, type Pillar, type Room } from "../rooms.ts"
 import { Blade, Body, Bomb, Carry, Enemy, Game, Melee, Player, Post, Reload, Shot, Stalk } from "../schema.ts"
 
 export const PlayerQuery = Game.Query({ selection: { body: Game.Query.write(Body), player: Game.Query.write(Player) } })
@@ -45,9 +45,9 @@ export const EnemyRead = Game.Query({ selection: { body: Game.Query.read(Body), 
 export const ShotQuery = Game.Query({ selection: { body: Game.Query.write(Body), shot: Game.Query.read(Shot) }, without: [Player, Enemy] })
 export const BombQuery = Game.Query({ selection: { body: Game.Query.write(Body), bomb: Game.Query.write(Bomb) }, without: [Player, Enemy, Shot] })
 
-/** The room of the run. The run's room is always one of ROOMS (BuildRoom only enters existing rooms). */
+/** The room of the run. The run's room is always one of ROOMS or the title's aisle (BuildRoom only enters existing rooms). */
 export const roomOf = (index: number): Room => {
-  const room = ROOMS[index]
+  const room = roomAt(index)
   if (room === undefined) throw new Error(`Slap: no room ${index}`)
   return room
 }

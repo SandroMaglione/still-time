@@ -10,17 +10,20 @@ import { SHOTS, STALKER, TUNING } from "../sim/tuning.ts"
 import type { FightView } from "../sim/view.ts"
 import { posedSprite, sprite, spriteImage, type Sprite } from "./art.ts"
 import { attackWave, bodyName, bombActor, combatActor, dyingActor, impactBurst } from "./combat-art.ts"
-import { GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
+import { APPEAR_LIFE, GHOST_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
 import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
 import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
-import { DANGER, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
+import { feelSettings } from "./feel.ts"
+import { DANGER, PATH, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
 
 export interface Stick { ox: number; oy: number; x: number; y: number; reach: number }
 
 const PILLAR_HEIGHT = 1.2
 const BACK_WALL = 1.6
+/** How long (real s) the screen shakes when your cut lands. */
+const CUT_SHAKE = 0.14
 
 /**
  * How world metres land on screen: the room stays upright and the camera
@@ -65,6 +68,14 @@ export class Camera {
     const k = 1 - Math.exp(-dt * 8)
     this.x += (tx - this.x) * k
     this.y += (ty - this.y) * k
+  }
+
+  /** Eases toward a floor point instead of the player (a cutscene's framing: no one steers this camera). */
+  look(at: { readonly x: number; readonly y: number }, dt: number, rate = 3): void {
+    if (!this.placed) { this.x = at.x; this.y = at.y; this.placed = true; return }
+    const k = 1 - Math.exp(-dt * rate)
+    this.x += (at.x - this.x) * k
+    this.y += (at.y - this.y) * k
   }
 
   /** Snaps to the player next frame: on a new room. */
@@ -170,14 +181,16 @@ const disc = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
 }
 /** The thumb-stick as it looks under your finger and in the lesson: a ring where you pressed, and a knob on a line to it. */
 export const thumbPad = (ctx: CanvasRenderingContext2D, base: { readonly x: number; readonly y: number }, knob: { readonly x: number; readonly y: number }, reach: number): void => {
-  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, INK, 3)
-  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, "#7fd8ff", 1)
-  disc(ctx, base.x, base.y, 2, "#7fd8ff")
-  pixelLine(ctx, base, knob, INK, 3)
-  pixelLine(ctx, base, knob, "#7fd8ff", 1)
-  disc(ctx, knob.x, knob.y, 6, INK)
-  disc(ctx, knob.x, knob.y, 5, "#e8f6ff")
-  disc(ctx, knob.x - 1, knob.y - 1, 2, "#ffffff")
+  // Soft, half see-through and in muted teal-grey: it says where your thumb is without pulling the eye off the room.
+  ctx.save()
+  ctx.globalAlpha = 0.45
+  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, INK, 2)
+  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, "#6f97ad", 1, true)
+  disc(ctx, base.x, base.y, 2, "#6f97ad")
+  pixelLine(ctx, base, knob, "#6f97ad", 1)
+  disc(ctx, knob.x, knob.y, 5, INK)
+  disc(ctx, knob.x, knob.y, 4, "#a9c3d1")
+  ctx.restore()
 }
 /** How far (0 to 1) a time door's portcullis has risen: over the last DOOR_RISE world seconds before it opens. */
 const DOOR_RISE = 3
@@ -538,7 +551,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     return from > to ? (from + to) / 2 : Math.max(from, Math.min(to, want))
   }
   const deathAge = presentation?.playerDeathAge ?? -1
-  const shake = deathAge >= 0 && deathAge < 0.25 ? Math.round(Math.sin(deathAge * 80) * 3 * (1 - deathAge / 0.25)) : 0
+  // The screen shakes when you are hit, and a little when your cut lands (unless shake is off).
+  const cutAge = presentation?.cutAge ?? -1
+  const shake = !feelSettings().shake ? 0
+    : deathAge >= 0 && deathAge < 0.25 ? Math.round(Math.sin(deathAge * 80) * 3 * (1 - deathAge / 0.25))
+    : cutAge >= 0 && cutAge < CUT_SHAKE ? Math.round(Math.sin(cutAge * 90) * 2 * (1 - cutAge / CUT_SHAKE))
+    : 0
   const cx = fit(cw / 2 - centre.x, 0, cw, Math.min(...sx), Math.max(...sx)) + shake
   const cy = fit(TOP + (ch - TOP - BOTTOM) / 2 - centre.y, TOP, ch - BOTTOM, Math.min(...sy), Math.max(...sy))
   const P = (x: number, y: number, z = 0): { x: number; y: number } => {
@@ -605,7 +623,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       const start = P(shot.x, shot.y), end = P(shot.x + shot.vx, shot.y + shot.vy)
       shotPath(ctx, start, end)
       const angle = Math.atan2(end.y - start.y, end.x - start.x)
-      pathArrow(ctx, { x: start.x + (end.x - start.x) * 0.22, y: start.y + (end.y - start.y) * 0.22 }, angle)
+      pathArrow(ctx, { x: start.x + (end.x - start.x) * 0.22, y: start.y + (end.y - start.y) * 0.22 }, angle, PATH)
     }
     for (const shot of shots) {
       const p = P(shot.x, shot.y)
@@ -687,8 +705,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         ring(0, Math.PI * 2, m.phase === "recover" ? "#edc66c" : "#947058", 1, m.phase !== "recover")
       }
     }
-    // Your cut's reach.
-    if (view.player !== null) {
+    // Your cut's reach (not in a cutscene: nothing there says the character is yours).
+    if (view.player !== null && !view.room.scene) {
       pixelArc(ctx, P(view.player.x, view.player.y), view.player.attackRange * erx, view.player.attackRange * ery, 0, Math.PI * 2, view.scale < 0.15 ? "#64b6b3" : "#647373", 1, true)
     }
     ctx.restore()
@@ -721,7 +739,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     actors.push({
       x: e.x, y: e.y, paint: () => {
         const ground = P(e.x, e.y)
-        const resting = view.flow !== "playing" && e.melee !== null ? { ...e, melee: { ...e.melee, phase: "idle" as const, progress: 0 } } : e
+        // Once the room is over, weapons rest; except the blow that hit you, held at full length on the hit screen.
+        const struck = view.flow === "dead" && e.melee !== null && e.melee.phase === "swing"
+        const resting = view.flow !== "playing" && e.melee !== null ? { ...e, melee: { ...e.melee, phase: struck ? "swing" as const : "idle" as const, progress: struck ? 1 : 0 } } : e
         combatActor(ctx, resting, ground, view.flow === "playing" ? presentation?.firing(e, view.world) ?? -1 : -1)
         if (view.flow === "playing" && e.melee !== null) attackWave(ctx, e, P(e.x, e.y, 0.45), e.melee.reach * erx, e.melee.reach * ery)
         if (e.captain) {
@@ -731,6 +751,11 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     })
   }
   for (const shot of shots) {
+    // Each bullet carries a little red light: a glow on the floor under it and round the round itself.
+    if (shot.kind === "bullet") {
+      const ground = P(shot.x, shot.y), body = P(shot.x, shot.y, 0.6)
+      emitLight(ctx, { x: ground.x, y: ground.y, radius: 1.5, colour: [255, 110, 80], intensity: 0.9, shadows: false, halo: { lift: Math.round(ground.y - body.y), radius: 0.5, strength: 0.45 } })
+    }
     const paintShot = (ctx: CanvasRenderingContext2D): void => {
       /** A line held at height z from (x, y) toward angle a. */
       const held = (x: number, y: number, a: number, from: number, to: number, z: number, colour: string, width: number): void => {
@@ -743,12 +768,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const a = Math.atan2(shot.vy, shot.vx)
         const z = 0.6
         if (shot.kind === "bullet") {
-          // A small round: 1 px trail, a 3 px red body on ink, one hot pixel.
+          // A small round: 1 px trail, a red body with a hot core, ringed in ink and a warm glowing rim so it pops off any floor.
           held(shot.x, shot.y, a + Math.PI, 0, 0.2, z, THREAT, 1)
           const p = P(shot.x, shot.y, z)
-          pixelLine(ctx, p, p, INK, 5)
-          pixelLine(ctx, p, p, DANGER, 3)
-          pixelLine(ctx, p, p, "#f4efda", 1)
+          disc(ctx, p.x, p.y, 3, "#ff9a80")
+          disc(ctx, p.x, p.y, 2, INK)
+          disc(ctx, p.x, p.y, 1, DANGER)
+          pixelLine(ctx, p, p, "#fff2dc", 1)
         } else if (shot.kind === "slug") {
           held(shot.x, shot.y, a + Math.PI, 0, 0.36, z, DANGER, 1)
           held(shot.x, shot.y, a, -0.1, 0.12, z, THREAT, 3)
@@ -771,7 +797,15 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   if (vanish !== null && vanishAge < VANISH_LIFE) {
     actors.push({ x: vanish.x, y: vanish.y, paint: () => { vanishBurst(ctx, P(vanish.x, vanish.y), vanish.flip, vanishAge); vanishBurst(glow, P(vanish.x, vanish.y), vanish.flip, vanishAge) } })
   }
-  if (view.player !== null && view.flow !== "dead" && !(vanish !== null && vanishAge > VANISH_POP)) {
+  // Starting the room: you appear, the vanish played backwards (smoke gathering, afterimages closing in, the glow
+  // settling), where you are. Your body shows once it has gathered.
+  const appearAge = presentation?.appearAge ?? -1
+  const appearing = appearAge >= 0 && view.player !== null ? VANISH_LIFE * (1 - appearAge / APPEAR_LIFE) : -1
+  if (appearing >= 0 && view.player !== null) {
+    const p = view.player, flip = p.vx < 0
+    actors.push({ x: p.x, y: p.y, paint: () => { vanishBurst(ctx, P(p.x, p.y), flip, appearing); vanishBurst(glow, P(p.x, p.y), flip, appearing) } })
+  }
+  if (view.player !== null && view.flow !== "dead" && !(vanish !== null && vanishAge > VANISH_POP) && !(appearing > VANISH_POP)) {
     const p = view.player
     const at = P(p.x, p.y)
     const body = bodyName("player")
@@ -800,7 +834,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const y = ground.y - bob
         // Over your head, where the eyes are: a pause sign while the world waits, a play sign as soon as it runs at
         // all (a slow walk included). On the glow layer too, so frozen time does not grey it.
-        if (view.flow === "playing") for (const c of [ctx, glow]) paceSign(c, ground.x, y - 38, view.scale > view.slow)
+        if (view.flow === "playing" && !view.room.scene) for (const c of [ctx, glow]) paceSign(c, ground.x, y - 38, view.scale > view.slow)
         if (k > 0.3) {
           // The aura: a 1 px electric outline that flickers, thicker and steadier the faster you go.
           const strength = (k - 0.3) / 0.7, frame = Math.floor((presentation?.now ?? view.world) * 24)
@@ -985,7 +1019,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     red.addColorStop(0, "rgba(206,70,85,0)")
     red.addColorStop(1, "rgba(206,70,85,0.6)")
     ctx.fillStyle = red; ctx.fillRect(0, 0, cw, ch)
-    if (deathAge < 0.3) { ctx.fillStyle = `rgba(255,64,85,${(0.6 * (1 - deathAge / 0.3)).toFixed(3)})`; ctx.fillRect(0, 0, cw, ch) }
+    if (deathAge < 0.3 && feelSettings().flash) { ctx.fillStyle = `rgba(255,64,85,${(0.6 * (1 - deathAge / 0.3)).toFixed(3)})`; ctx.fillRect(0, 0, cw, ch) }
     // The shot that took you hangs where it struck: a gold ring round it, pulsing, so the hit screen's words have a referent.
     if (view.death?.by === "shot" && view.player !== null && deathAge >= 0.3) {
       const p = view.player
@@ -1089,7 +1123,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     const rx = b.radius * erx * (0.55 + 0.45 * t), ry = b.radius * ery * (0.55 + 0.45 * t)
     if (t < 0.35) {
       emitLight(ctx, { x: centre.x, y: centre.y, radius: 3.5, colour: [255, 200, 120], intensity: 1 - t / 0.35, shadows: false })
-      pixelArc(ctx, centre, rx * 0.6, ry * 0.6, 0, Math.PI * 2, t < 0.15 ? "#f4efda" : "#edc66c", 4)
+      pixelArc(ctx, centre, rx * 0.6, ry * 0.6, 0, Math.PI * 2, t < 0.15 && feelSettings().flash ? "#f4efda" : "#edc66c", 4)
     }
     pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, INK, 4, true)
     pixelArc(ctx, centre, rx, ry, 0, Math.PI * 2, t < 0.4 ? "#e98a49" : "#899692", 2, true)

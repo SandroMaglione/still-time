@@ -3,8 +3,8 @@ import { Clock, Ops } from "@typeonce/ritmo"
 
 import { canSee, clearLine } from "./geometry.ts"
 import { hazardAt, type HazardShape } from "./hazards.ts"
-import { ROOMS, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
-import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Reload, Run, Shot, Slashes, Stalk, Time, Wear, type HitBy } from "./schema.ts"
+import { ROOMS, roomAt, type Belt, type Goal, type Hazard, type Lock, type Pillar } from "./rooms.ts"
+import { Blade, Blasts, Body, Bomb, Carry, Doors, Enemy, Flow, Game, Keys, Melee, Pace, Plates, Player, Post, Reload, Run, Shot, Slashes, Stalk, Time, Wear, type HitBy } from "./schema.ts"
 import { wallsOf } from "./systems/queries.ts"
 import { BELT, BOMB, COVER, LOCKS, MELEE, RUNNER, STALKER, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, type EnemyKind, type ShotKind } from "./tuning.ts"
 
@@ -53,6 +53,8 @@ export interface EnemyView {
   readonly captain: boolean
   /** Never attacks: a target, drawn without threat marks. */
   readonly quiet: boolean
+  /** Still walking in to its post (a shooter's entrance): it has not noticed you yet. */
+  readonly arriving: boolean
   /** Runners: the key it carries. */
   readonly key: number | null
   readonly melee: MeleeView | null
@@ -179,7 +181,7 @@ export const FightViewInspector = Game.Inspector(
   {
     queries: {
       players: Game.Query({ selection: { body: Game.Query.read(Body), player: Game.Query.read(Player) } }),
-      shooters: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), reload: Game.Query.read(Reload) } }),
+      shooters: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), reload: Game.Query.read(Reload), post: Game.Query.read(Post) } }),
       melee: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), melee: Game.Query.read(Melee), blade: Game.Query.read(Blade) } }),
       runners: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), carry: Game.Query.read(Carry) } }),
       stalkers: Game.Query({ selection: { body: Game.Query.read(Body), enemy: Game.Query.read(Enemy), stalk: Game.Query.read(Stalk) } }),
@@ -202,7 +204,7 @@ export const FightViewInspector = Game.Inspector(
   ({ queries, resources, machines }): FightView => {
     const run = resources.run.get()
     const time = resources.time.get()
-    const room = ROOMS[run.room] ?? ROOMS[0]
+    const room = roomAt(run.room) ?? ROOMS[0]
     if (room === undefined) throw new Error("Slap: no rooms")
     const p = queries.players.each()[0]
     const player = p === undefined ? null : { id: p.entity.id, ...p.data.body.get(), radius: TUNING.player.radius, vx: p.data.player.get().vx, vy: p.data.player.get().vy, attackRange: TUNING.attackRange }
@@ -221,7 +223,9 @@ export const FightViewInspector = Game.Inspector(
       const reload = data.reload.get()
       const locked = spec.scoped && reload.left <= spec.lock
       const aim = locked ? reload.aim : player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x)
-      const seesYou = player !== null && canSee(at.x, at.y, player.x, player.y, spec.sight, walls)
+      const arriving = data.post.get().arriving
+      // (Walking in, it has not noticed you yet.)
+      const seesYou = !arriving && player !== null && canSee(at.x, at.y, player.x, player.y, spec.sight, walls)
       const laser = !spec.scoped || !seesYou || player === null ? null
         : { aim, locked, length: locked ? rayLength(at.x, at.y, aim, spec.sight, walls) : Ops.hypot(player.x - at.x, player.y - at.y) }
       return [{
@@ -230,7 +234,7 @@ export const FightViewInspector = Game.Inspector(
         aim,
         sees: seesYou,
         sealed: sealed(at),
-        captain, quiet, key: null,
+        captain, quiet, arriving, key: null,
         melee: null,
         laser: quiet ? null : laser
       }]
@@ -243,7 +247,7 @@ export const FightViewInspector = Game.Inspector(
         id: entity.id, kind: "stalker", x: at.x, y: at.y, radius: STALKER.radius, charge: still,
         aim: player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x),
         sees: true, sealed: sealed(at),
-        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, key: null, melee: null, laser: null
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, arriving: false, key: null, melee: null, laser: null
       }
     })
     const runners = queries.runners.each().map(({ entity, data }): EnemyView => {
@@ -253,7 +257,7 @@ export const FightViewInspector = Game.Inspector(
         aim: player === null ? Math.PI / 2 : Ops.atan2(at.y - player.y, at.x - player.x),
         sees: sees(at),
         sealed: sealed(at),
-        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, key: data.carry.get().key,
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, arriving: false, key: data.carry.get().key,
         melee: null,
         laser: null
       }
@@ -275,7 +279,7 @@ export const FightViewInspector = Game.Inspector(
         aim: facing,
         sees: sees(at),
         sealed: sealed(at),
-        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, key: null,
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, arriving: false, key: null,
         melee: {
           phase: blade._tag, progress, locked: blade._tag === "windup" && blade.left <= spec.lock, lockShare: spec.lock / spec.windup,
           reach: spec.reach, arc: spec.arc, guardArc: spec.guardArc, guarding, shield: spec.guard === "always"

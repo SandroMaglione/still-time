@@ -65,14 +65,18 @@ export const SHOOTERS = {
 }>
 
 /**
- * The melee family: each walks at you with a blade held in front. Close
+ * The melee family: each walks at you with a weapon held in front. Close
  * enough, it stops, winds up (tracking you, then committed for the last
- * `lock`), swings a wedge in front of it, and recovers. Its front is guarded
- * within `guardArc` of its facing: while it attacks (`guard: "attack"`), or
- * always (`"always"`, the shield-bearer). A guarded front stops your cut and
- * any shot; any other blow downs it.
+ * `lock`), strikes a wedge in front of it, and recovers. Its front may be
+ * guarded within `guardArc` of its facing: never (`guard: "none"`), while it
+ * attacks (`"attack"`), or always (`"always"`, the shield-bearer). A guarded
+ * front stops your cut and any shot; any other blow downs it.
  *
- * - brute: fast, guarded only while it attacks.
+ * - brute: the spearman. Unguarded, but its spear outreaches your cut: it
+ *   starts its thrust from `trigger`, and the wind-up is short, so rushing it
+ *   head-on covers too little ground (time runs only as you move: about
+ *   `TUNING.player.speed` metres per world second) to reach it before the
+ *   thrust lands. Step off the narrow line, then cut in while it recovers.
  * - clockwork: a slow brass brute whose `clock` is real time: it walks,
  *   winds up and swings at its own pace however still you stand.
  * - shield-bearer: slow and slow to turn (circling it within 3 m at full
@@ -85,19 +89,22 @@ export const MELEE = {
     speed: 5.5,
     turn: 10,
     /** Starts the wind-up when you are this close and in sight. */
-    trigger: 2.5,
-    /** The swing: reach in metres and half-angle in radians. */
-    reach: 2.0,
-    arc: 1.0,
-    guard: "attack",
-    /** Half-angle of the guarded front. */
-    guardArc: 1.2,
-    /** World seconds of each phase. The wind-up keeps tracking you until `lock` of it is left, then commits. */
-    windup: 0.5,
-    lock: 0.35,
-    /** While tracking in the wind-up it steps in to this distance, at this share of its speed. */
-    close: 1.6,
-    step: 0.7,
+    trigger: 2.9,
+    /** The thrust: reach in metres and half-angle in radians (a spear: long and narrow; past `trigger`, so standing still where it starts is no escape). */
+    reach: 2.7,
+    arc: 0.3,
+    guard: "none",
+    /** Half-angle of the guarded front (none for the spearman). */
+    guardArc: 0,
+    /**
+     * World seconds of each phase. The wind-up keeps tracking you until `lock` of it is left, then commits. Short:
+     * a head-on rush covers about 1.35 m of it, and stops short of your cut.
+     */
+    windup: 0.27,
+    lock: 0.22,
+    /** While tracking in the wind-up it steps in to this distance, at this share of its speed (the spearman holds its ground). */
+    close: 2.9,
+    step: 0,
     swing: 0.1,
     recover: 0.8,
     /** World time (slowed with the world) or real time (never slowed). */
@@ -118,7 +125,7 @@ export const MELEE = {
   trigger: number
   reach: number
   arc: number
-  guard: "attack" | "always"
+  guard: "none" | "attack" | "always"
   guardArc: number
   windup: number
   lock: number
@@ -136,6 +143,8 @@ export const MELEE = {
  */
 export const SHOOTER_MOVE = {
   speed: 1.8,
+  /** How fast one walks in to its post (a spawn's `from`), m per world s: a quick entrance, while you take a few steps. */
+  enter: 12,
   leash: 3.5,
   /** Clearance around an ally that a line of fire must keep, in metres. */
   allyGap: 0.25
@@ -175,10 +184,10 @@ export const BOMB = {
 
 /**
  * Cover that breaks. A crate splinters after `crateHits` shots; a cracked
- * wall only gives to a brute's swing (whose blade reaches `swingBite`
- * metres past its swing into the wall) or a blast.
+ * wall only gives to a brute's thrust (whose spear drives `swingBite`
+ * metres past its reach into the wall) or a blast.
  */
-export const COVER = { crateHits: 3, swingBite: 0.4 } as const
+export const COVER = { crateHits: 3, swingBite: 0.8 } as const
 
 /**
  * Hazards: a blade's bar is `width` thick; a laser gate warns for `warn`

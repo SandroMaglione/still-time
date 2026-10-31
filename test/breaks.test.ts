@@ -43,7 +43,7 @@ test("a crate splinters after its hits; a cracked wall shrugs shots off", () => 
   assert.equal(cracked(breach.fight).length, 1)
 })
 
-test("a brute's swing breaks the cracked wall you lure it into", () => {
+test("a spearman's thrust breaks the cracked wall you lure it into", () => {
   const { fight, thumb } = fightIn("Breach")
   const wall = cracked(fight)[0]
   assert.ok(wall !== undefined)

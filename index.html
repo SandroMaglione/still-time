@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0d12" />
     <title>Still Time</title>
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preload" href="/ui/fonts/Silkscreen-Regular.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/ui/fonts/Silkscreen-Bold.ttf" as="font" type="font/ttf" crossorigin />
     <style>
@@ -62,27 +66,18 @@
         position: absolute; left: 0; right: 0; top: 0; display: flex; flex-wrap: wrap; align-items: stretch; gap: calc(var(--u) * 4);
         padding: calc(env(safe-area-inset-top) + var(--u) * 4) calc(env(safe-area-inset-right) + var(--u) * 4) 0 calc(env(safe-area-inset-left) + var(--u) * 4);
       }
-      /* One row: the room plate (name, then the freeze gauge), the clock against par, the buttons. Every panel is at least a button high and grows with its lines. */
+      /* One row: the clock against par, the buttons. (The room's name shows in the tip as an attempt starts.) Every panel is at least a button high and grows with its lines. */
       .hud-top > .panel { box-sizing: border-box; min-height: max(44px, calc(var(--u) * 23)); padding: calc(var(--u) * 3) calc(var(--u) * 5) calc(var(--u) * 4); display: flex; flex-direction: column; justify-content: center; gap: var(--u); }
-      .plate { flex: 1 1 0; min-width: 0; max-width: calc(var(--u) * 150); }
-      .plate .plate-row:first-child { gap: calc(var(--u) * 4); }
-      .plate-row { display: flex; align-items: center; gap: calc(var(--u) * 3); min-width: 0; }
-      .room-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--light); min-width: 0; }
-      .hits { color: var(--red); display: inline-flex; align-items: center; gap: var(--u); vertical-align: top; }
       .hud-buttons { display: flex; gap: calc(var(--u) * 4); margin-left: auto; }
 
-      /* The freeze gauge: how fast the world runs, frozen (one ice cell) to full speed; then the time scale. */
-      .gauge { flex: 1; display: flex; gap: var(--u); height: calc(var(--u) * 5); min-width: calc(var(--u) * 30); max-width: calc(var(--u) * 80); }
-      .gauge i { flex: 1; background: var(--ink); box-shadow: inset 0 calc(var(--u) * -1) 0 #ffffff10; }
-      .gauge i.on { background: var(--c); box-shadow: inset 0 var(--u) 0 #ffffff59, inset 0 calc(var(--u) * -1) 0 #00000059; }
-      .frozen .gauge i:first-child { background: var(--ice-lo); }
-      .pace { color: var(--gold); white-space: nowrap; font-size: var(--t0); line-height: var(--l0); }
-      .frozen .pace { color: var(--ice); }
-      .clock-panel { align-items: flex-end; min-width: calc(var(--u) * 26); white-space: nowrap; }
-      #glass { display: flex; }
+      .clock-panel { align-items: flex-end; flex: 0 0 calc(var(--u) * 42); min-width: 0; white-space: nowrap; }
       .clock { font-weight: 700; }
       .over .clock { color: var(--red); }
-      .ended .plate-row + .plate-row, .ended .clock-panel { opacity: 0.5; }
+      .ended .clock-panel, .ended .goal-panel { opacity: 0.5; }
+      /* The room's goal, live: the enemies left to cut, the exit, or holding out. */
+      .goal-panel { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+      .goal { font-weight: 700; color: var(--gold); overflow: hidden; text-overflow: ellipsis; font-size: var(--t0); line-height: var(--l1); }
+      .goal-panel.done .goal { color: var(--teal); }
       /* A survive room: the clock counts down the world seconds left to hold out, in the player's teal, gold for the last three. */
       .survive .clock { color: var(--teal); }
       .survive.closing .clock { color: var(--gold); }
@@ -106,11 +101,12 @@
       .tip-row { justify-content: center; }
       .tip {
         width: fit-content; min-width: 0; max-width: 100%;
-        display: flex; flex-direction: column; align-items: center; gap: var(--u); text-align: center; padding: calc(var(--u) * 3) calc(var(--u) * 6) calc(var(--u) * 4);
+        display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3); text-align: center; padding: calc(var(--u) * 4) calc(var(--u) * 6) calc(var(--u) * 5);
+        font-size: var(--t0); line-height: var(--l1);
         box-sizing: border-box; opacity: 0; transition: opacity 0.5s, translate 0.5s; translate: 0 calc(var(--u) * -4);
       }
       .tip.shown { opacity: 1; translate: 0 0; transition-duration: 0.2s; }
-      .tip-goal { color: var(--gold); font-weight: 700; }
+      .tip-room { color: var(--dim); }
       .tip-hint { color: var(--dim); font-size: var(--t0); line-height: var(--l0); }
 
       /* Messages: a hit, a clear and its stars, the run's end. */
@@ -136,6 +132,13 @@
       .msg-buttons { display: flex; gap: calc(var(--u) * 4); }
       .msg-cta { color: var(--light); animation: blink 1.1s steps(1) infinite; }
       .msg-cta:empty { display: none; }
+      /* Something broke: one panel over everything, and a way back. */
+      .crash { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: #0b0d12d9; }
+      .crash[hidden] { display: none; }
+      .crash .panel { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); padding: calc(var(--u) * 10) calc(var(--u) * 8); max-width: calc(var(--u) * 150); text-align: center; }
+      .crash h2 { margin: 0; font-size: var(--t2); line-height: var(--l2); color: var(--red); }
+      .cleared .msg-cta, .won .msg-cta { color: var(--gold); }
+      .msg-lines .best { color: var(--gold); animation: pop 0.35s steps(4) both; }
       .pop { animation: pop 0.24s steps(4) both; }
       @keyframes pop { 0% { transform: scale(0); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
       @keyframes rise { from { translate: 0 calc(var(--u) * 8); opacity: 0; } to { translate: 0 0; opacity: 1; } }
@@ -156,11 +159,10 @@
       .menu-page.list { justify-content: flex-start; }
       /* A cutscene: no HUD (its words are in the letterbox, drawn on the canvas). */
       body.cutscene .hud { visibility: hidden; }
-      /* The title: the first room plays itself on the canvas behind it (the attract loop), so the dim is light and the
-         logo and the buttons keep to the top and the foot of the screen, out of its way. */
+      /* The title: an empty aisle glides by on the canvas behind it, so the dim is light; the logo and the buttons sit
+         together, centred, with as much room above as below. */
       .menu.title { background: linear-gradient(#0b0d12e0, #0b0d1240 22%, #0b0d1240 70%, #0b0d12e6 100%); }
-      .menu-page.title { justify-content: space-between; }
-      .title-screen.attract { justify-content: space-between; min-height: 100%; }
+      .menu-page.title { justify-content: center; padding-bottom: calc(env(safe-area-inset-bottom) + var(--u) * 8); }
       .title-head, .title-foot { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); width: 100%; }
       .title-screen, .pause-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 6); width: 100%; max-width: calc(var(--u) * 170); }
       .logo { margin: 0; display: flex; flex-direction: column; align-items: center; margin-bottom: calc(var(--u) * 6); }
@@ -204,6 +206,9 @@
       .pause-screen .btn { width: 100%; box-sizing: border-box; }
       /* Sound and music: two on/off toggles side by side; off is a sunken, darker stone. */
       .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 4); width: 100%; }
+      .settings { display: flex; flex-direction: column; gap: calc(var(--u) * 3); width: 100%; }
+      .toggles.small { grid-template-columns: 1fr 1fr 1fr; gap: calc(var(--u) * 3); }
+      .toggles.small .btn.toggle { min-height: max(40px, calc(var(--u) * 18)); font-size: var(--t0); line-height: var(--l0); gap: calc(var(--u) * 2); padding: 0 calc(var(--u) * 2); }
       .btn.toggle { gap: calc(var(--u) * 3); padding: 0 calc(var(--u) * 4); }
       .btn.toggle.off { --f: #1d2233; --h: #262c40; --s: #161a28; color: var(--dim); }
       .toggle .state { font-size: var(--t0); line-height: var(--l0); padding: var(--u) calc(var(--u) * 2) 0; background: var(--ink); color: var(--gold); }
@@ -244,12 +249,12 @@
     <canvas id="view"></canvas>
     <div id="hud" class="hud">
       <div class="hud-top">
-        <div class="panel glass plate">
-          <div class="plate-row"><span id="room-index" class="dim"></span><span id="room" class="room-name"></span></div>
-          <div class="plate-row"><span id="glass"></span><span id="gauge" class="gauge"></span><span id="pace" class="pace"></span></div>
-        </div>
+        <span id="room" class="sr"></span>
         <div id="clock-panel" class="panel glass clock-panel">
           <span id="clock" class="clock"></span><span id="clock-sub" class="dim small clock-sub"></span>
+        </div>
+        <div id="goal-panel" class="panel glass goal-panel">
+          <span class="dim small">goal</span><span id="goal" class="goal"></span>
         </div>
         <div class="hud-buttons">
           <button id="pause" class="btn square" type="button" aria-label="Menu"></button>
@@ -268,6 +273,25 @@
         </div>
       </div>
     </div>
+    <div id="crash" class="crash" hidden>
+      <div class="panel">
+        <h2>something broke</h2>
+        <span class="dim">sorry! your progress is saved.</span>
+        <button id="crash-reload" class="btn gold big" type="button">Reload</button>
+      </div>
+    </div>
+    <script>
+      // The crash fallback: an error that leaves the game stopped (no frame drawn for a second after it) shows the
+      // panel above, rather than a frozen canvas. The page marks each frame in `window.stillTimeFrame`.
+      (() => {
+        const show = () => { document.getElementById("crash").hidden = false }
+        const check = () => setTimeout(() => { if (!(performance.now() - (window.stillTimeFrame ?? -Infinity) < 1000)) show() }, 1500)
+        window.stillTimeCrash = show
+        window.addEventListener("error", check)
+        window.addEventListener("unhandledrejection", check)
+        document.getElementById("crash-reload").addEventListener("click", () => window.location.reload())
+      })()
+    </script>
     <script type="module" src="/src/host/main.ts"></script>
   </body>
 </html>

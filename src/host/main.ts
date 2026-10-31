@@ -7,7 +7,8 @@ import { BrowserTickSource } from "@typeonce/ritmo-browser"
 import { FixedLoop, Result } from "@typeonce/ritmo"
 import { Effect, Layer, ManagedRuntime } from "effect"
 
-import { STEP, createFight, updateSchedule, type Fight, type Thumb } from "../sim/simulation.ts"
+import { STEP, createFight, updateSchedule, type Thumb } from "../sim/simulation.ts"
+import { TITLE_ROOM } from "../sim/rooms.ts"
 import { continueRoom, type Best } from "../sim/progress.ts"
 import type { FightView } from "../sim/view.ts"
 import { Camera, draw, screenToWorld, type Stick } from "./draw.ts"
@@ -20,6 +21,16 @@ import { Hud } from "./hud.ts"
 import { Guide } from "./guide.ts"
 import { Director, letterbox, onSkip, type Cue } from "./intro.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
+import { feelSettings, pulse, setFeel } from "./feel.ts"
+
+declare global {
+  interface Window {
+    /** When the page last drew a frame (`performance.now()`), for the crash fallback in index.html. */
+    stillTimeFrame?: number
+    /** Shows the crash fallback (set by index.html). */
+    stillTimeCrash?: () => void
+  }
+}
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")
 // A CPU-backed canvas: the scene is tiny (about 240 px across) and made of thousands of small draws, which a
@@ -92,13 +103,16 @@ const menu = new Menu(document.body, {
   play: (room) => {
     goTo(room)
     menu.close()
+    // The room was waiting behind the title: you appear as it shows.
+    presentation.appear()
   },
   resume: () => menu.close(),
   restart: () => {
     fight.send({ kind: "restart" })
     menu.close()
   },
-  sound: { settings: soundSettings, setSound: setSoundEnabled, setMusic: setMusicEnabled }
+  sound: { settings: soundSettings, setSound: setSoundEnabled, setMusic: setMusicEnabled },
+  feel: { settings: feelSettings, set: setFeel }
 })
 if (asked === null) menu.show("title", fight.view())
 
@@ -262,10 +276,12 @@ class Scene {
   cue: Cue | null = null
   private line = ""
   lineAt = 0
+  /** When (real s) this attempt at the scene began: its bars close in from then. */
+  private startedAt = 0
 
   private fresh(view: FightView): void {
     const key = `${view.room.index}:${view.player?.id ?? -1}`
-    if (key !== this.attempt) { this.attempt = key; this.director = new Director(); this.skipping = false }
+    if (key !== this.attempt) { this.attempt = key; this.director = new Director(); this.skipping = false; this.startedAt = this.now }
   }
 
   /** The director's push for this step (call before each tick of a cutscene room). */
@@ -316,57 +332,67 @@ class Scene {
   get age(): number {
     return this.now - this.lineAt
   }
-}
-const scene = new Scene()
 
-/**
- * The title's attract loop: the Prologue plays itself on the canvas behind the title, by its own director, over and
- * over (its words left out: the logo is there). Players see the rule before they press anything. Its own fight,
- * camera and presentation: the real run is untouched.
- */
-class Attract {
-  private push = { x: 0, y: 0 }
-  private readonly fight: Fight
-  private readonly camera = new Camera()
-  private readonly presentation = new Presentation()
-  private director = new Director()
-  private pending = 0
-  private endedFor = 0
-  private heldFor = 0
-  private lastPlayer = -1
-
-  constructor() {
-    this.fight = createFight(0, { snapshot: () => ({ x: this.push.x, y: this.push.y, tap: false }) }, { open: true })
+  /** Real s since the scene began. */
+  get opened(): number {
+    return this.now - this.startedAt
   }
 
-  /** Steps the loop by `dt` real seconds and draws it. */
+  /**
+   * Where the scene's camera looks: up the corridor ahead of you while the gunner walks in (so it enters the frame);
+   * then a two-shot of you and the gunner (a little past your midpoint, toward it, more while its "!" is up), eased
+   * slowly; once it is down, at you. It never snaps to you: the framing of a scene, not a camera that follows a thumb.
+   */
+  frameCamera(view: FightView, dt: number): void {
+    const p = view.player, gunner = view.enemies[0] ?? null
+    if (p === null) return
+    if (gunner === null) { camera.look({ x: p.x, y: p.y }, dt, SCENE_CAMERA); return }
+    if (gunner.arriving) { camera.look({ x: p.x, y: p.y - SCENE_LEAD }, dt, SCENE_CAMERA); return }
+    const toward = this.cue?.alert != null ? 0.6 : 0.5
+    camera.look({ x: p.x + (gunner.x - p.x) * toward, y: p.y + (gunner.y - p.y) * toward }, dt, SCENE_CAMERA)
+  }
+}
+const scene = new Scene()
+/** How fast (per real s) the scene's camera eases to its framing: slow, like a camera operator's. */
+const SCENE_CAMERA = 0.9
+/** How far (m) up the corridor ahead of you the scene's camera looks while the gunner walks in. */
+const SCENE_LEAD = 6
+
+/**
+ * The title's backdrop: the empty aisle (the title's own room, never played) gliding by as if walking up it, with no
+ * one in it, on and on. Its torches burn on real time. Its own fight (for the room) and camera: the real run is
+ * untouched.
+ */
+/** How fast the view climbs the aisle (metres per real s). */
+const AISLE_SPEED = 1.2
+/** How far from either end of the aisle the climb stays (metres); past the far end it starts again from the near one. */
+const AISLE_MARGIN = 14
+class Attract {
+  private readonly fight = createFight(TITLE_ROOM, { snapshot: () => ({ x: 0, y: 0, tap: false }) }, { open: true })
+  private readonly camera = new Camera()
+  private now = 0
+
+  constructor() {
+    const room = this.fight.view().room
+    this.camera.x = room.w / 2
+    this.camera.y = room.h - AISLE_MARGIN
+  }
+
+  /** Climbs by `dt` real seconds and draws it. */
   render(ctx: CanvasRenderingContext2D, cw: number, ch: number, dt: number, lit: boolean): void {
-    this.pending += dt
-    for (let n = 0; n < 5 && this.pending >= STEP.dt; n++) {
-      this.pending -= STEP.dt
-      if (this.fight.view().flow !== "playing") { this.pending = 0; break }
-      const cue = this.director.step(this.fight.view(), STEP.dt)
-      this.push = cue.push
-      // (No one taps here: each beat stands its minimum and a moment more, then moves on.)
-      this.heldFor = cue.ready ? this.heldFor + STEP.dt : 0
-      if (this.heldFor > 0.6) { this.director.advance(); this.heldFor = 0 }
-      this.fight.tick()
-      this.presentation.observe(this.fight.view())
-    }
-    // Over (cleared, or hit): a moment, then from the top.
-    if (this.fight.view().flow !== "playing") {
-      this.endedFor += dt
-      if (this.endedFor > 2) { this.fight.send({ kind: "restart" }); this.fight.tick(); this.director = new Director(); this.endedFor = 0 }
-    }
+    this.now += dt
     const view = this.fight.view()
-    this.presentation.advance(dt)
-    if (view.player?.id !== this.lastPlayer) this.camera.reset()
-    this.lastPlayer = view.player?.id ?? -1
-    this.camera.follow(view, dt)
-    draw(ctx, cw, ch, view, null, this.camera, this.presentation, lit)
+    this.camera.y -= AISLE_SPEED * dt
+    if (this.camera.y < AISLE_MARGIN) this.camera.y = view.room.h - AISLE_MARGIN
+    // No one in it; the world's clock (the torches' flicker) on real time, the light as if someone walked.
+    draw(ctx, cw, ch, { ...view, player: null, world: this.now, scale: 0.5 }, null, this.camera, null, lit)
   }
 }
 const attract = new Attract()
+/** How many steps (of 1/60 s) the world holds still when your cut lands, and how many are left of the current one. */
+const HIT_STOP_STEPS = 4
+let hitStop = 0
+let cutsSeen = 0
 await loadArt()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
@@ -376,6 +402,8 @@ FixedLoop.start({
   // A menu pauses the game.
   update: () => {
     if (menu.isOpen) return Result.success(undefined)
+    // The hit-stop: the world holds still for a beat as your cut lands.
+    if (hitStop > 0) { hitStop--; return Result.success(undefined) }
     // A cutscene: the director's hands on the thumb.
     const before = fight.view()
     if (before.room.scene && before.flow === "playing") scene.drive(before)
@@ -383,10 +411,14 @@ FixedLoop.start({
     if (result.ok) {
       presentation.observe(fight.view())
       audio.observe(fight.view())
+      if (presentation.cuts > cutsSeen) { cutsSeen = presentation.cuts; hitStop = HIT_STOP_STEPS }
+      for (const kind of presentation.takePulses()) pulse(kind)
     }
     return result
   },
   render: (frame) => {
+    // Alive: the crash fallback (in index.html) only shows when frames stop.
+    window.stillTimeFrame = performance.now()
     const view = fight.view()
     presentation.advance(frame.elapsedSeconds)
     audio.advance(frame.elapsedSeconds, menu.current, view)
@@ -407,7 +439,8 @@ FixedLoop.start({
     lastPlayer = view.player?.id ?? -1
     // The HUD: room, clock against par, the time-freeze gauge, the tip (messages are drawn with the scene, see `draw`).
     hud.update(view, frame.elapsedSeconds)
-    if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
+    if (view.room.scene) scene.frameCamera(view, frame.elapsedSeconds)
+    else if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     const k = 1 / cssPerPixel
     const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
     const dirs = [...held].filter((key) => DIRS[key] !== undefined)
@@ -415,8 +448,11 @@ FixedLoop.start({
     guide.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, guideInput)
     const drawn = draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
     // The first rooms' guide, over everything; a cutscene's letterbox and words instead.
-    if (view.room.scene) letterbox(ctx, canvas.width, canvas.height, scene.cue, scene.age, drawn.P, presentation.now, view.flow === "playing")
+    if (view.room.scene) letterbox(ctx, canvas.width, canvas.height, scene.cue, scene.age, drawn.P, presentation.now, view.flow === "playing", scene.opened)
     else guide.draw(ctx, canvas.width, canvas.height, view, drawn.P, guideInput)
   },
-  onFailure: (failure) => console.error("Slap loop stopped", failure)
+  onFailure: (failure) => {
+    console.error("Slap loop stopped", failure)
+    window.stillTimeCrash?.()
+  }
 })

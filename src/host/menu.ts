@@ -2,7 +2,7 @@
  * The menus over the game: the title (continue where you left off, or pick
  * a room), the pause panel (the in-game ☰: resume, restart, rooms, title)
  * and the room select, a grid of every room with its stars and best time.
- * The title and the pause panel carry the Sound and Music toggles.
+ * The title and the pause panel carry the Sound and Music toggles, and under them Shake, Flash and Vibrate.
  * Rooms open one by one: a locked room shows its name dimmed. Every screen
  * reaches the title, and the title's Continue goes back to the room you
  * left. The menus only read the view and call back; the game is paused
@@ -11,6 +11,7 @@
 import { continueRoom, totalStars, unlocked, type Best } from "../sim/progress.ts"
 import type { FightView } from "../sim/view.ts"
 import { ICONS, clockFace, fromHtml, pixelSvg, star } from "./ui-pixels.ts"
+import type { FeelSetting, FeelSettings } from "./feel.ts"
 
 export interface MenuActions {
   /** Plays a room (the simulation refuses a locked one). */
@@ -21,6 +22,13 @@ export interface MenuActions {
   readonly restart: () => void
   /** The sound settings, read for the toggles and written by them. */
   readonly sound: SoundToggles
+  /** Screen shake, flashes and vibration, the same way. */
+  readonly feel: FeelToggles
+}
+
+export interface FeelToggles {
+  readonly settings: () => FeelSettings
+  readonly set: (setting: FeelSetting, on: boolean) => void
 }
 
 export interface SoundToggles {
@@ -182,16 +190,17 @@ export class Menu {
     return box
   }
 
-  /** Sound and Music, each an on/off button showing its state. */
+  /** Sound and Music, each an on/off button showing its state; under them, Shake, Flash and Vibrate. */
   private toggles(): HTMLElement {
+    const box = el("div", "settings")
     const row = el("div", "toggles")
-    const toggle = (label: string, icon: (on: boolean) => string, read: () => boolean, write: (on: boolean) => void): HTMLButtonElement => {
+    const toggle = (label: string, icon: ((on: boolean) => string) | null, read: () => boolean, write: (on: boolean) => void): HTMLButtonElement => {
       const node = button("toggle")
       const paint = (): void => {
         const on = read()
         node.classList.toggle("off", !on)
         node.setAttribute("aria-pressed", String(on))
-        node.replaceChildren(fromHtml(icon(on)), label, el("span", "state", on ? "on" : "off"))
+        node.replaceChildren(...(icon === null ? [] : [fromHtml(icon(on))]), label, el("span", "state", on ? "on" : "off"))
       }
       node.addEventListener("click", () => {
         write(!read())
@@ -205,7 +214,12 @@ export class Menu {
       toggle("Sound", (on) => pixelSvg(on ? ICONS.sound : ICONS.soundOff, { outline: true, palette: on ? {} : { W: "#8996b0" } }), () => sound.settings().sound, sound.setSound),
       toggle("Music", (on) => pixelSvg(on ? ICONS.music : ICONS.musicOff, { outline: true, palette: on ? {} : { W: "#8996b0" } }), () => sound.settings().music, sound.setMusic)
     )
-    return row
+    const feel = this.actions.feel
+    const comfort = el("div", "toggles small")
+    const FEEL = [["Shake", "shake"], ["Flash", "flash"], ["Vibrate", "haptics"]] as const satisfies ReadonlyArray<readonly [string, FeelSetting]>
+    for (const [label, setting] of FEEL) comfort.append(toggle(label, null, () => feel.settings()[setting], (on) => feel.set(setting, on)))
+    box.append(row, comfort)
+    return box
   }
 
   /** The room select: an arrow home on the left, and a close back to the game when it was opened from there. */

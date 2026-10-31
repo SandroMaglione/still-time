@@ -6,7 +6,7 @@
 import { Clock, Ops } from "@typeonce/ritmo"
 
 import { unlocked } from "../progress.ts"
-import { ROOMS, type Lock, type Pillar } from "../rooms.ts"
+import { ROOMS, roomAt, type Lock, type Pillar } from "../rooms.ts"
 import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Shot, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
 import { BOMB, COVER, CROWD, LOCKS, SHOOTERS, TUNING, isMelee } from "../tuning.ts"
 import { EnemyRead, PlayerRead, RunnerRead, freshWear, roomOf } from "./queries.ts"
@@ -70,7 +70,7 @@ export const BuildRoomSystem = Game.System(
     // Several requests in one step: the last one wins.
     const asked = events.enter.all().at(-1)
     if (asked === undefined) return
-    const room = ROOMS[asked.room]
+    const room = roomAt(asked.room)
     if (room === undefined) return
     commands.despawnScope(RoomScope)
     commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: room.start.x, y: room.start.y }], [Player, { vx: 0, vy: 0 }]))
@@ -91,11 +91,12 @@ export const BuildRoomSystem = Game.System(
       } else if (kind === "stalker") {
         commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Stalk, {}]))
       } else {
-        const post = { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1 } as const
+        const post = { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1, arriving: e.from !== undefined } as const
+        const at = e.from ?? { x: e.x, y: e.y }
         // A scoped shooter starts uncharged: it must see you for a whole charge before its first shot.
         const spec = SHOOTERS[kind]
         const left = spec.scoped ? spec.period + e.delay : e.delay
-        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Reload, { left, aim: toStart }], [Post, post]))
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: at.x, y: at.y }], [Enemy, enemy], [Reload, { left, aim: toStart }], [Post, post]))
       }
     }
     // Shots already in flight as you come in (the Prologue opens on one, frozen): they hang until you move.

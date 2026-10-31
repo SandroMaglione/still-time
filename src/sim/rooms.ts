@@ -74,6 +74,11 @@ export interface EnemySpawn {
   readonly key?: number
   /** Never attacks (shooters only): First Cut's gunner, a target that only teaches you to walk into it. */
   readonly quiet?: boolean
+  /**
+   * Shooters only: it walks in from here to its post (`x`, `y`) at `SHOOTER_MOVE.enter`, on world time like everything
+   * else, and neither looks, aims nor fires until it is there (the prologue's gunner entering).
+   */
+  readonly from?: { readonly x: number; readonly y: number }
 }
 
 export interface Room {
@@ -148,17 +153,21 @@ const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
 export const ROOMS: ReadonlyArray<Room> = [
   {
     // The prologue: a cutscene, played by the page's director with the player's hands off (see `src/host/intro.ts`).
-    // A gunner up the corridor, in view from the start, fires as you walk at it; you stop short of its bullet (the
-    // world stops with you), step slowly aside, stop short of its next one, and walk in close enough to cut it.
+    // You take a few steps up the corridor; a gunner walks in from out of view, sees you, and fires as you walk at it;
+    // you stop short of its bullet (the world stops with you), step slowly aside, stop short of its next one, and walk
+    // in close enough to cut it.
     name: "Prologue",
     w: 8,
-    h: 24,
-    start: { x: 4, y: 21 },
+    // (Long: the gunner starts above the view, and there is floor behind you so the camera keeps you clear of the
+    // letterbox's bottom bar.)
+    h: 44,
+    start: { x: 4, y: 36 },
     pillars: [],
     doors: [],
     hazards: [],
-    // In sight from the start (12 m: it sees 13), its first shot a moment after you set off.
-    enemies: [{ kind: "gunner", x: 4, y: 9, delay: 0.35 }],
+    // It walks in 5 m to its post while you take about 2 m of steps (from just above the view, to well inside it, with
+    // room for its "!"), and stands about 9.5 m off (it sees 13); its first shot a moment after you set off again.
+    enemies: [{ kind: "gunner", x: 4, y: 24.5, delay: 0.35, from: { x: 4, y: 19.5 } }],
     goal: { kind: "clear" },
     par: 30,
     scene: true
@@ -192,10 +201,12 @@ export const ROOMS: ReadonlyArray<Room> = [
     enemies: [],
     goal: { kind: "exit", x: 2.5, y: 0.7, w: 3, h: 2.2 },
     par: 9,
+    // Staggered down the two walls, one every two metres, never two level with each other (the page keeps its torches
+    // and pots clear of them).
     decor: [
-      { kind: "pendulum", x: 0.4, y: 18 }, { kind: "wheel", x: 7.6, y: 17 },
-      { kind: "wheel", x: 0.4, y: 14 }, { kind: "pendulum", x: 7.6, y: 13 },
-      { kind: "pendulum", x: 0.4, y: 10 }, { kind: "wheel", x: 7.6, y: 9 }
+      { kind: "pendulum", x: 0.4, y: 18.5 }, { kind: "wheel", x: 7.6, y: 16.5 },
+      { kind: "wheel", x: 0.4, y: 14.5 }, { kind: "pendulum", x: 7.6, y: 12.5 },
+      { kind: "pendulum", x: 0.4, y: 10.5 }, { kind: "wheel", x: 7.6, y: 8.5 }
     ]
   },
   {
@@ -216,31 +227,18 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 8
   },
   {
-    name: "Duel",
-    w: 12,
-    h: 18,
-    start: { x: 6, y: 16 },
-    pillars: [crate(3, 9), crate(9, 9)],
+    // The first gunner in your hands that fires: one, in the open, two crates. Stop as it fires (its bullet stops
+    // too), step off the line, walk in, cut. No new rule: the prologue's, now yours.
+    name: "First Shot",
+    w: 10,
+    h: 20,
+    start: { x: 5, y: 18 },
+    pillars: [crate(2.8, 10.5), crate(7.2, 10.5)],
     doors: [],
-    enemies: [{ kind: "brute", x: 6, y: 4, delay: 0 }],
-    goal: CLEAR,
-    par: 4,
-    tip: "step out of the swing, then cut back in"
-  },
-  {
-    name: "Two Blades",
-    w: 14,
-    h: 22,
-    start: { x: 7, y: 20 },
-    pillars: [crate(4, 14), crate(10, 14), { x: 5, y: 7, w: 4, h: 0.8 }],
-    doors: [],
-    enemies: [
-      { kind: "brute", x: 3, y: 9, delay: 0 },
-      { kind: "brute", x: 11, y: 9, delay: 0 }
-    ],
+    enemies: [{ kind: "gunner", x: 5, y: 4, delay: 0.5 }],
     goal: CLEAR,
     par: 5,
-    tip: "two at once: take them one at a time"
+    tip: "it fires: stop, step off the line, then walk in"
   },
   {
     name: "Courtyard",
@@ -256,6 +254,78 @@ export const ROOMS: ReadonlyArray<Room> = [
     goal: CLEAR,
     par: 6,
     tip: "they only shoot what they can see"
+  },
+  {
+    name: "Duel",
+    w: 12,
+    h: 18,
+    start: { x: 6, y: 16 },
+    pillars: [crate(3, 9), crate(9, 9)],
+    doors: [],
+    enemies: [{ kind: "brute", x: 6, y: 4, delay: 0 }],
+    goal: CLEAR,
+    par: 4,
+    tip: "its spear outreaches you: let it thrust, step aside, then cut in"
+  },
+  {
+    name: "Two Spears",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [crate(4, 14), crate(10, 14), { x: 5, y: 7, w: 4, h: 0.8 }],
+    doors: [],
+    enemies: [
+      { kind: "brute", x: 3, y: 9, delay: 0 },
+      { kind: "brute", x: 11, y: 9, delay: 0 }
+    ],
+    goal: CLEAR,
+    par: 5,
+    tip: "two at once: take them one at a time"
+  },
+  {
+    name: "Splinters",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [box(4, 13), box(10, 13), box(7, 9.5), box(4, 6), box(10, 6), crate(7, 16.5)],
+    doors: [],
+    enemies: [
+      { kind: "gunner", x: 3.5, y: 2.5, delay: 0.3 },
+      { kind: "gunner", x: 10.5, y: 2.5, delay: 0.7 }
+    ],
+    goal: CLEAR,
+    par: 7,
+    tip: "wooden crates splinter under fire"
+  },
+  {
+    name: "Switchyard",
+    w: 14,
+    h: 22,
+    start: { x: 7, y: 20 },
+    pillars: [...switchyard.walls, crate(7, 12), crate(4, 16)],
+    doors: [switchyard.door],
+    plates: [{ x: 11.5, y: 14 }],
+    enemies: [{ kind: "gunner", x: 3, y: 9.5, delay: 0.5 }],
+    goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
+    par: 7,
+    tip: "step on the plate to open the gate"
+  },
+  {
+    name: "Gatehouse",
+    w: 14,
+    h: 26,
+    start: { x: 7, y: 24 },
+    pillars: [...gatehouse.walls, crate(4, 20.5), crate(10, 20.5), crate(4, 8), crate(10, 8), crate(7, 10.2)],
+    doors: [gatehouse.door],
+    enemies: [
+      // Two this side of the door, one past it: the door that opens once its side is clear, on gunners alone.
+      { kind: "gunner", x: 2.5, y: 15.5, delay: 0.4 },
+      { kind: "gunner", x: 11.5, y: 16, delay: 0.8 },
+      { kind: "gunner", x: 12, y: 2, delay: 0.6, chamber: 1 }
+    ],
+    goal: CLEAR,
+    par: 8,
+    tip: "a door opens once its side is clear"
   },
   {
     name: "Friendly Fire",
@@ -275,21 +345,20 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "any shot kills anyone it touches"
   },
   {
-    name: "Gatehouse",
+    name: "Breach",
     w: 14,
-    h: 26,
-    start: { x: 7, y: 24 },
-    pillars: [...gatehouse.walls, crate(4, 20.5), crate(10, 20.5), crate(4, 8), crate(10, 8), crate(7, 10.2)],
-    doors: [gatehouse.door],
-    enemies: [
-      { kind: "gunner", x: 2.5, y: 15.5, delay: 0.4 },
-      { kind: "brute", x: 7, y: 16, delay: 0 },
-      { kind: "gunner", x: 2, y: 2, delay: 0.6, chamber: 1 },
-      { kind: "gunner", x: 12, y: 2, delay: 1.0, chamber: 1 }
+    h: 24,
+    start: { x: 7, y: 22 },
+    pillars: [
+      // The only way out is through the cracked middle of the wall: let the spearman's thrust break it.
+      { x: 0, y: 6.6, w: 5.5, h: 0.8 }, { x: 8.5, y: 6.6, w: 5.5, h: 0.8 }, { x: 5.5, y: 6.6, w: 3, h: 0.8, breaks: "cracked" },
+      crate(3, 16), crate(11, 16)
     ],
-    goal: CLEAR,
-    par: 8,
-    tip: "a door opens once its side is clear"
+    doors: [],
+    enemies: [{ kind: "brute", x: 7, y: 12.5, delay: 0 }],
+    goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
+    par: 6,
+    tip: "lure the spear's thrust into the cracked wall"
   },
   {
     name: "Throne",
@@ -323,50 +392,16 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "catch the thief: it drops the key"
   },
   {
-    name: "Market",
-    w: 18,
-    h: 28,
-    start: { x: 9, y: 26 },
-    pillars: [
-      // A row of stalls with gaps, then the closed row that walls off the back of the market.
-      { x: 2, y: 19, w: 4, h: 1 }, { x: 7.5, y: 19, w: 3, h: 1 }, { x: 12, y: 19, w: 4, h: 1 },
-      ...market.walls,
-      crate(4, 6), crate(14, 6), crate(9, 4, 1.8)
-    ],
-    doors: [market.door],
-    enemies: [
-      { kind: "gunner", x: 3, y: 15.5, delay: 0.3 },
-      { kind: "brute", x: 9, y: 16, delay: 0 },
-      { kind: "archer", x: 2, y: 3, delay: 0.5, chamber: 1 },
-      { kind: "archer", x: 16, y: 3, delay: 0.9, chamber: 1 },
-      { kind: "gunner", x: 9, y: 1.5, delay: 0.4, chamber: 1 }
-    ],
+    name: "Watchtower",
+    w: 16,
+    h: 30,
+    start: { x: 8, y: 28 },
+    pillars: [crate(5, 24, 1.6), crate(11, 20.5, 1.6), crate(5, 16.5, 1.6), crate(11, 12.5, 1.6), crate(5, 8.5, 1.6)],
+    doors: [],
+    enemies: [{ kind: "sniper", x: 8, y: 2.5, delay: 0 }],
     goal: CLEAR,
-    par: 11,
-    tip: "archers: fast arrows, slow to reload"
-  },
-  {
-    name: "Warehouse",
-    w: 20,
-    h: 32,
-    start: { x: 10, y: 30 },
-    pillars: [
-      // Long shelves: aisles that archers watch end to end, and a thief hiding among them.
-      { x: 3.5, y: 8, w: 1, h: 16 }, { x: 8, y: 6, w: 1, h: 9 }, { x: 8, y: 17.5, w: 1, h: 8 },
-      { x: 11, y: 6, w: 1, h: 9 }, { x: 11, y: 17.5, w: 1, h: 8 }, { x: 15.5, y: 8, w: 1, h: 16 },
-      crate(6, 27), crate(14, 27),
-      ...warehouse.walls
-    ],
-    doors: [warehouse.door],
-    enemies: [
-      { kind: "runner", x: 10, y: 16, delay: 0, key: 0 },
-      { kind: "archer", x: 1.5, y: 5, delay: 0.4 },
-      { kind: "archer", x: 18.5, y: 5, delay: 0.8 },
-      { kind: "gunner", x: 14, y: 16, delay: 0.5 },
-      { kind: "brute", x: 6, y: 22, delay: 0 }
-    ],
-    goal: { kind: "exit", x: 8.5, y: 0.5, w: 3, h: 2.2 },
-    par: 12
+    par: 8,
+    tip: "the laser locks before it fires: step off the line"
   },
   {
     name: "Shieldwall",
@@ -382,93 +417,6 @@ export const ROOMS: ReadonlyArray<Room> = [
     goal: CLEAR,
     par: 9,
     tip: "the shield stops cuts and shots: go round it"
-  },
-  {
-    name: "Watchtower",
-    w: 16,
-    h: 30,
-    start: { x: 8, y: 28 },
-    pillars: [crate(5, 24, 1.6), crate(11, 20.5, 1.6), crate(5, 16.5, 1.6), crate(11, 12.5, 1.6), crate(5, 8.5, 1.6)],
-    doors: [],
-    enemies: [{ kind: "sniper", x: 8, y: 2.5, delay: 0 }],
-    goal: CLEAR,
-    par: 8,
-    tip: "the laser locks before it fires: step off the line"
-  },
-  {
-    name: "Splinters",
-    w: 14,
-    h: 22,
-    start: { x: 7, y: 20 },
-    pillars: [box(4, 13), box(10, 13), box(7, 9.5), box(4, 6), box(10, 6), crate(7, 16.5)],
-    doors: [],
-    enemies: [
-      { kind: "gunner", x: 3.5, y: 2.5, delay: 0.3 },
-      { kind: "gunner", x: 10.5, y: 2.5, delay: 0.7 }
-    ],
-    goal: CLEAR,
-    par: 7,
-    tip: "wooden crates splinter under fire"
-  },
-  {
-    name: "Breach",
-    w: 14,
-    h: 24,
-    start: { x: 7, y: 22 },
-    pillars: [
-      // The only way out is through the cracked middle of the wall: let the brute's swing break it.
-      { x: 0, y: 6.6, w: 5.5, h: 0.8 }, { x: 8.5, y: 6.6, w: 5.5, h: 0.8 }, { x: 5.5, y: 6.6, w: 3, h: 0.8, breaks: "cracked" },
-      crate(3, 16), crate(11, 16)
-    ],
-    doors: [],
-    enemies: [{ kind: "brute", x: 7, y: 12.5, delay: 0 }],
-    goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
-    par: 6,
-    tip: "lure the brute's swing into the cracked wall"
-  },
-  {
-    name: "Powder Room",
-    w: 16,
-    h: 24,
-    start: { x: 8, y: 22 },
-    pillars: [box(4, 15), box(12, 15), crate(8, 11.5, 1.4), box(4, 7), box(12, 7)],
-    doors: [],
-    enemies: [
-      { kind: "grenadier", x: 8, y: 3, delay: 0.6 },
-      { kind: "gunner", x: 3, y: 4, delay: 0.9 }
-    ],
-    goal: CLEAR,
-    par: 8,
-    tip: "the ring is the blast: be out of it when the fuse runs out"
-  },
-  {
-    name: "Switchyard",
-    w: 14,
-    h: 22,
-    start: { x: 7, y: 20 },
-    pillars: [...switchyard.walls, crate(7, 12), crate(4, 16)],
-    doors: [switchyard.door],
-    plates: [{ x: 11.5, y: 14 }],
-    enemies: [{ kind: "gunner", x: 3, y: 9.5, delay: 0.5 }],
-    goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
-    par: 7,
-    tip: "step on the plate to open the gate"
-  },
-  {
-    name: "Combination",
-    w: 16,
-    h: 24,
-    start: { x: 8, y: 22 },
-    pillars: [...combination.walls, crate(8, 15, 1.4), crate(4, 12), crate(12, 19)],
-    doors: [combination.door],
-    plates: [{ x: 13, y: 16 }, { x: 3, y: 18 }, { x: 4, y: 9 }],
-    enemies: [
-      { kind: "brute", x: 8, y: 11, delay: 0 },
-      { kind: "gunner", x: 13, y: 8.5, delay: 0.6 }
-    ],
-    goal: { kind: "exit", x: 6.5, y: 1, w: 3, h: 2.4 },
-    par: 10,
-    tip: "press the plates in order: a wrong one resets them"
   },
   {
     name: "Mill",
@@ -488,6 +436,37 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "the blades turn only while you move: time your crossing"
   },
   {
+    name: "Powder Room",
+    w: 16,
+    h: 24,
+    start: { x: 8, y: 22 },
+    pillars: [box(4, 15), box(12, 15), crate(8, 11.5, 1.4), box(4, 7), box(12, 7)],
+    doors: [],
+    enemies: [
+      { kind: "grenadier", x: 8, y: 3, delay: 0.6 },
+      { kind: "gunner", x: 3, y: 4, delay: 0.9 }
+    ],
+    goal: CLEAR,
+    par: 8,
+    tip: "the ring is the blast: be out of it when the fuse runs out"
+  },
+  {
+    name: "Combination",
+    w: 16,
+    h: 24,
+    start: { x: 8, y: 22 },
+    pillars: [...combination.walls, crate(8, 15, 1.4), crate(4, 12), crate(12, 19)],
+    doors: [combination.door],
+    plates: [{ x: 13, y: 16 }, { x: 3, y: 18 }, { x: 4, y: 9 }],
+    enemies: [
+      { kind: "brute", x: 8, y: 11, delay: 0 },
+      { kind: "gunner", x: 13, y: 8.5, delay: 0.6 }
+    ],
+    goal: { kind: "exit", x: 6.5, y: 1, w: 3, h: 2.4 },
+    par: 10,
+    tip: "press the plates in order: a wrong one resets them"
+  },
+  {
     name: "Gauntlet",
     w: 16,
     h: 26,
@@ -504,24 +483,26 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "a laser gate warns before it lights"
   },
   {
-    name: "Hold Out",
-    w: 16,
-    h: 20,
-    start: { x: 8, y: 17 },
-    pillars: [crate(3.5, 5), crate(12.5, 5), crate(3.5, 15), crate(12.5, 15)],
-    doors: [],
-    hazards: [
-      { kind: "blade", x: 8, y: 10, length: 2.6, speed: 1.3, phase: 0.4 },
-      { kind: "gate", x1: 0.2, y1: 13, x2: 15.8, y2: 13, period: 3, on: 0.4, offset: 1.5 }
+    name: "Market",
+    w: 18,
+    h: 28,
+    start: { x: 9, y: 26 },
+    pillars: [
+      // A row of stalls with gaps, then the closed row that walls off the back of the market.
+      { x: 2, y: 19, w: 4, h: 1 }, { x: 7.5, y: 19, w: 3, h: 1 }, { x: 12, y: 19, w: 4, h: 1 },
+      ...market.walls,
+      crate(4, 6), crate(14, 6), crate(9, 4, 1.8)
     ],
+    doors: [market.door],
     enemies: [
-      { kind: "gunner", x: 2, y: 2, delay: 0.8 },
-      { kind: "gunner", x: 14, y: 2, delay: 1.2 },
-      { kind: "archer", x: 8, y: 1.5, delay: 1.6 }
+      { kind: "gunner", x: 3, y: 15.5, delay: 0.3 },
+      { kind: "brute", x: 9, y: 16, delay: 0 },
+      { kind: "archer", x: 2, y: 3, delay: 0.5, chamber: 1 },
+      { kind: "archer", x: 16, y: 3, delay: 0.9, chamber: 1 }
     ],
-    goal: { kind: "survive", seconds: 9 },
-    par: 9,
-    tip: "survive 9 s: time only passes while you move"
+    goal: CLEAR,
+    par: 11,
+    tip: "archers: fast arrows, slow to reload"
   },
   {
     name: "Clockworks",
@@ -564,6 +545,50 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "a belt carries you while time stays frozen"
   },
   {
+    name: "Warehouse",
+    w: 20,
+    h: 32,
+    start: { x: 10, y: 30 },
+    pillars: [
+      // Long shelves: aisles that archers watch end to end, and a thief hiding among them.
+      { x: 3.5, y: 8, w: 1, h: 16 }, { x: 8, y: 6, w: 1, h: 9 }, { x: 8, y: 17.5, w: 1, h: 8 },
+      { x: 11, y: 6, w: 1, h: 9 }, { x: 11, y: 17.5, w: 1, h: 8 }, { x: 15.5, y: 8, w: 1, h: 16 },
+      crate(6, 27), crate(14, 27),
+      ...warehouse.walls
+    ],
+    doors: [warehouse.door],
+    enemies: [
+      { kind: "runner", x: 10, y: 16, delay: 0, key: 0 },
+      { kind: "archer", x: 1.5, y: 5, delay: 0.4 },
+      { kind: "archer", x: 18.5, y: 5, delay: 0.8 },
+      { kind: "gunner", x: 14, y: 16, delay: 0.5 },
+      { kind: "brute", x: 6, y: 22, delay: 0 }
+    ],
+    goal: { kind: "exit", x: 8.5, y: 0.5, w: 3, h: 2.2 },
+    par: 12,
+    tip: "the thief hides in the shelves; archers watch the aisles"
+  },
+  {
+    name: "Hold Out",
+    w: 16,
+    h: 20,
+    start: { x: 8, y: 17 },
+    pillars: [crate(3.5, 5), crate(12.5, 5), crate(3.5, 15), crate(12.5, 15)],
+    doors: [],
+    hazards: [
+      { kind: "blade", x: 8, y: 10, length: 2.6, speed: 1.3, phase: 0.4 },
+      { kind: "gate", x1: 0.2, y1: 13, x2: 15.8, y2: 13, period: 3, on: 0.4, offset: 1.5 }
+    ],
+    enemies: [
+      { kind: "gunner", x: 2, y: 2, delay: 0.8 },
+      { kind: "gunner", x: 14, y: 2, delay: 1.2 },
+      { kind: "archer", x: 8, y: 1.5, delay: 1.6 }
+    ],
+    goal: { kind: "survive", seconds: 9 },
+    par: 9,
+    tip: "survive 9 s: time only passes while you move"
+  },
+  {
     name: "Fortress",
     w: 22,
     h: 40,
@@ -591,3 +616,23 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 18
   }
 ]
+
+/**
+ * The title screen's room, never played and not one of ROOMS: a long empty aisle the title's backdrop climbs (no doors,
+ * no enemies, no exit; its "survive" goal never comes due). Its index is `TITLE_ROOM`.
+ */
+export const TITLE_ROOM = ROOMS.length
+const AISLE: Room = {
+  name: "Aisle",
+  w: 8,
+  h: 1000,
+  start: { x: 4, y: 998 },
+  pillars: [],
+  doors: [],
+  enemies: [],
+  goal: { kind: "survive", seconds: 1e9 },
+  par: 0
+}
+
+/** The room at `index`: one of ROOMS, or the title's aisle. */
+export const roomAt = (index: number): Room | undefined => (index === TITLE_ROOM ? AISLE : ROOMS[index])
