@@ -5,19 +5,21 @@
 import { mkdirSync } from "node:fs"
 import { chromium } from "playwright"
 
+import { ROOMS } from "../src/sim/rooms.ts"
+
 const base = process.argv[2] ?? "http://localhost:5301"
-const shots: ReadonlyArray<{ readonly name: string; readonly room: number; readonly hold?: string; readonly ms: number }> = [
-  { name: "duel", room: 1, ms: 600 },
-  { name: "gatehouse", room: 5, ms: 600 },
-  { name: "throne", room: 6, hold: "ArrowUp", ms: 900 },
-  { name: "thief", room: 7, hold: "ArrowUp", ms: 1200 },
-  { name: "shieldwall", room: 10, hold: "ArrowUp", ms: 900 },
-  { name: "watchtower", room: 11, hold: "ArrowUp", ms: 1500 },
-  { name: "powder-room", room: 14, hold: "ArrowUp", ms: 900 },
-  { name: "combination", room: 16, hold: "ArrowUp", ms: 900 },
-  { name: "mill", room: 17, hold: "ArrowUp", ms: 900 },
-  { name: "conveyor", room: 22, ms: 900 },
-  { name: "fortress", room: 23, ms: 600 }
+const shots: ReadonlyArray<{ readonly name: string; readonly room: string; readonly hold?: string; readonly ms: number }> = [
+  { name: "duel", room: "Duel", ms: 600 },
+  { name: "gatehouse", room: "Gatehouse", ms: 600 },
+  { name: "throne", room: "Throne", hold: "ArrowUp", ms: 900 },
+  { name: "thief", room: "Thief", hold: "ArrowUp", ms: 1200 },
+  { name: "shieldwall", room: "Shieldwall", hold: "ArrowUp", ms: 900 },
+  { name: "watchtower", room: "Watchtower", hold: "ArrowUp", ms: 1500 },
+  { name: "powder-room", room: "Powder Room", hold: "ArrowUp", ms: 900 },
+  { name: "combination", room: "Combination", hold: "ArrowUp", ms: 900 },
+  { name: "mill", room: "Mill", hold: "ArrowUp", ms: 900 },
+  { name: "conveyor", room: "Conveyor", ms: 900 },
+  { name: "fortress", room: "Fortress", ms: 600 }
 ]
 
 mkdirSync("output", { recursive: true })
@@ -27,7 +29,10 @@ const errors: Array<string> = []
 page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(m.text()) })
 page.on("pageerror", (e) => errors.push(String(e)))
 for (const shot of shots) {
-  await page.goto(`${base}/?room=${shot.room}`)
+  // Rooms by name, so adding a room never shifts the shots onto the wrong ones.
+  const room = ROOMS.findIndex((r) => r.name === shot.room) + 1
+  if (room === 0) throw new Error(`no room named ${shot.room}`)
+  await page.goto(`${base}/?room=${room}`)
   await page.waitForTimeout(300)
   if (shot.hold !== undefined) await page.keyboard.down(shot.hold)
   await page.waitForTimeout(shot.ms)

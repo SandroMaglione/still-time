@@ -72,11 +72,12 @@ const app = ManagedRuntime.make(progressLayer.pipe(Layer.provide(storageLayer)))
 const progress = await app.runPromise(Effect.gen(function*() { return yield* Progress }))
 const saved = await app.runPromise(progress.best)
 
-// `?room=N` opens a room straight away and `?all` opens every room (testing); otherwise the title comes first.
+// `?room=N` opens a room straight away and `?all` (or `#all`, for hosts that drop the query) opens every room
+// (testing); otherwise the title comes first.
 const params = new URLSearchParams(window.location.search)
 const asked = params.get("room")
 const thumb = new ThumbSource()
-const fight = createFight(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1), thumb, { best: saved, open: params.has("all") })
+const fight = createFight(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1), thumb, { best: saved, open: params.has("all") || window.location.hash === "#all" })
 
 /** Folds this run's bests into the device's save, in the background. */
 const save = (best: Best): void => {
