@@ -15,8 +15,8 @@ import { SHOTS, type EnemyKind, type ShotKind } from "./tuning.ts"
 
 export interface Pillar { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 
-/** A wall or crate that can break: a crate splinters under shots, a cracked wall gives to a brute's swing or a blast. */
-export type Breaks = "crate" | "cracked"
+/** Cover that can break: a wooden crate, which bursts under a shot or a blast. */
+export type Breaks = "crate"
 
 /** A piece of the room's cover: solid for good unless it `breaks`. */
 export interface Cover extends Pillar { readonly breaks?: Breaks }
@@ -344,22 +344,6 @@ export const ROOMS: ReadonlyArray<Room> = [
     goal: CLEAR,
     par: 7,
     tip: "any shot kills anyone it touches"
-  },
-  {
-    name: "Breach",
-    w: 14,
-    h: 24,
-    start: { x: 7, y: 22 },
-    pillars: [
-      // The only way out is through the cracked middle of the wall: let the spearman's thrust break it.
-      { x: 0, y: 6.6, w: 5.5, h: 0.8 }, { x: 8.5, y: 6.6, w: 5.5, h: 0.8 }, { x: 5.5, y: 6.6, w: 3, h: 0.8, breaks: "cracked" },
-      crate(3, 16), crate(11, 16)
-    ],
-    doors: [],
-    enemies: [{ kind: "brute", x: 7, y: 12.5, delay: 0 }],
-    goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
-    par: 6,
-    tip: "lure the spear's thrust into the cracked wall"
   },
   {
     name: "Throne",

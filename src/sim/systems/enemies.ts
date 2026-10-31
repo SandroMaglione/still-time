@@ -13,24 +13,10 @@ import { Ops } from "@typeonce/ritmo"
 
 import { angleDiff, canSee, segmentDistance, settle, turnToward } from "../geometry.ts"
 import { Body, Bomb, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time, Wear } from "../schema.ts"
-import type { Pillar } from "../rooms.ts"
-import { COVER, CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
+import { CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
 import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, StalkerQuery, StalkerRead, roomOf, sightWalls, wallsOf } from "./queries.ts"
 
 const playing = [Game.Condition.inState(Flow, "Playing")] as const
-
-/** Whether a swing's wedge (from `at`, facing `facing`, `reach` long, ±`arc`) reaches into a rectangle: sampled across the wedge. */
-const wedgeTouches = (p: Pillar, at: { readonly x: number; readonly y: number }, facing: number, reach: number, arc: number): boolean => {
-  for (let i = 0; i <= 8; i++) {
-    const a = facing - arc + (2 * arc * i) / 8
-    for (let j = 1; j <= 6; j++) {
-      const d = (reach * j) / 6
-      const x = at.x + Ops.cos(a) * d, y = at.y + Ops.sin(a) * d
-      if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) return true
-    }
-  }
-  return false
-}
 
 /** Seconds of world time this step: real seconds times the world speed. */
 const worldDt = (time: { readonly dt: number }, pace: { readonly scale: number }): number => time.dt * pace.scale
@@ -231,10 +217,6 @@ export const MeleeSystem = Game.System(
         }
         case "swing": {
           if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
-          // The blade bites into any cracked wall inside its wedge.
-          const wear = resources.wear.get()
-          const broken = room.pillars.map((p, i) => wear[i] !== 0 && p.breaks === "cracked" && wedgeTouches(p, at, facing, spec.reach + COVER.swingBite, spec.arc))
-          if (broken.some((b) => b)) resources.wear.set(wear.map((w, i) => (broken[i] === true ? 0 : w)))
           // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "swing", data: () => ({ left }) })

@@ -61,7 +61,7 @@ export const ShotsSystem = Game.System(
       const sr = SHOTS[s.kind].radius
       if (nx < 0 || ny < 0 || nx > room.w || ny > room.h || insidePillar(nx, ny, sr, walls)) {
         commands.despawn(entity)
-        // A crate it struck takes the hit (a cracked wall shrugs a shot off).
+        // A crate it struck takes the hit.
         const crate = room.pillars.findIndex((p, i) => p.breaks === "crate" && (wear[i] ?? 0) > 0 && pushOut(nx, ny, sr, p) !== null)
         const hits = wear[crate]
         if (crate !== -1 && hits !== undefined && hits !== null) { wear[crate] = hits - 1; worn = true }

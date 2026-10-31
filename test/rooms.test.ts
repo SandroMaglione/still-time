@@ -76,7 +76,6 @@ for (const room of ROOMS) {
       assert.ok(shut.has(plate.x, plate.y), `plate ${i} out of reach`)
     }
     for (const e of room.enemies) assert.equal(e.kind === "runner", e.key !== undefined, `a ${e.kind} with key ${e.key}: only runners carry keys`)
-    if (room.pillars.some((p) => p.breaks === "cracked")) assert.ok(room.enemies.some((e) => e.kind === "brute" || e.kind === "grenadier"), "a cracked wall needs a brute or a grenadier to break it")
     if (room.goal.kind === "clear") assert.ok(room.enemies.length > 0)
   })
 

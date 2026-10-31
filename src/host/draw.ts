@@ -515,11 +515,11 @@ const glowLayer = (ctx: CanvasRenderingContext2D): CanvasRenderingContext2D => {
   return g
 }
 
-/** Fissures on a block's front: a cracked wall shows them all (with an orange glint: it will give); a crate shows more as it splinters (`amount` 0 to 1). */
-const cracks = (ctx: CanvasRenderingContext2D, b: Pillar, P: (x: number, y: number, z?: number) => { x: number; y: number }, amount: number, cracked: boolean): void => {
+/** Fissures on a crate's front, more as it splinters (`amount` 0 to 1). */
+const cracks = (ctx: CanvasRenderingContext2D, b: Pillar, P: (x: number, y: number, z?: number) => { x: number; y: number }, amount: number): void => {
   const near = P(b.x, b.y + b.h, PILLAR_HEIGHT), right = P(b.x + b.w, b.y + b.h), ground = P(b.x, b.y + b.h)
   const x0 = Math.round(near.x), y0 = Math.round(near.y), w = Math.round(right.x) - x0, face = Math.round(ground.y) - y0
-  const count = cracked ? Math.max(2, Math.round(w / 18)) : Math.max(1, Math.round(amount * 3))
+  const count = Math.max(1, Math.round(amount * 3))
   for (let i = 0; i < count; i++) {
     const seed = decorationHash(Math.round(b.x * 10) + i, Math.round(b.y * 10), 7)
     const sx = x0 + Math.round(((i + 0.5) / count) * w) + ((seed % 5) - 2)
@@ -527,8 +527,7 @@ const cracks = (ctx: CanvasRenderingContext2D, b: Pillar, P: (x: number, y: numb
     const points = [{ x: sx, y: y0 }, { x: sx + 2, y: y0 + Math.round(face * 0.3) }, { x: sx - 1, y: y0 + Math.round(face * 0.55) }, { x: sx + 1, y: y0 + Math.round(face * 0.85) }]
     for (let k = 1; k < points.length; k++) pixelLine(ctx, points[k - 1]!, points[k]!, INK, 2)
     pixelLine(ctx, points[1]!, { x: points[1]!.x + ((seed >>> 4) % 2 === 0 ? 4 : -4), y: points[1]!.y + 3 }, INK, 1)
-    if (cracked) { ctx.fillStyle = "#e98a49"; ctx.fillRect(sx, y0 + 1, 1, 2); ctx.fillRect(points[2]!.x + 1, points[2]!.y, 1, 1) }
-    else { ctx.fillStyle = "#c6a17a"; ctx.fillRect(sx + 1, y0 + 1, 1, 1) }
+    ctx.fillStyle = "#c6a17a"; ctx.fillRect(sx + 1, y0 + 1, 1, 1)
   }
 }
 
@@ -993,7 +992,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
       }
     })
   }
-  type Box = Pillar & { readonly material: Material; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null; readonly damage: number; readonly cracked: boolean; readonly lift?: number | undefined }
+  type Box = Pillar & { readonly material: Material; readonly edge: string; readonly emblem: ((x: number, y: number) => void) | null; readonly damage: number; readonly lift?: number | undefined }
   const doorBoxes = view.doors.flatMap((d): Array<Box> => {
     if (d.open) return []
     const colour = lockColour(d.lock)
@@ -1020,13 +1019,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }
     // A time door's portcullis rises over its last few seconds (on the world clock), and is gone when it opens.
     const lift = d.lock.kind === "time" ? riseOf(d.lock.seconds, view.world) : undefined
-    return [{ x: d.x, y: d.y, w: d.w, h: d.h, material: "gate", edge: colour, emblem, damage: 0, cracked: false, lift }]
+    return [{ x: d.x, y: d.y, w: d.w, h: d.h, material: "gate", edge: colour, emblem, damage: 0, lift }]
   })
   const boxes: Array<Box> = [
-    // Wood is what breaks under fire; everything else is stone. A cracked wall shows its seams.
+    // Wood is what breaks under fire; everything else is stone.
     ...view.cover.map((c): Box => ({
-      x: c.x, y: c.y, w: c.w, h: c.h, material: c.kind === "crate" ? "wood" : "stone", edge: c.kind === "cracked" ? "#e98a49" : "#899692", emblem: null,
-      damage: c.kind === "crate" ? 1 - c.hits / c.maxHits : 0, cracked: c.kind === "cracked"
+      x: c.x, y: c.y, w: c.w, h: c.h, material: c.kind === "crate" ? "wood" : "stone", edge: "#899692", emblem: null,
+      damage: c.kind === "crate" ? 1 - c.hits / c.maxHits : 0
     })),
     ...doorBoxes
   ].sort((a, b) => a.y + a.h - (b.y + b.h))
@@ -1047,7 +1046,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   boxes.forEach((b, i) => {
     if (b.lift !== undefined) portcullis(ctx, b, P, PILLAR_HEIGHT, b.lift)
     else raisedBlock(ctx, b, P, PILLAR_HEIGHT, b.material, b.edge, view.world)
-    if (b.cracked || b.damage > 0) cracks(ctx, b, P, b.cracked ? 1 : b.damage, b.cracked)
+    if (b.damage > 0) cracks(ctx, b, P, b.damage)
     if (b.emblem !== null) {
       const c = P(b.x + b.w / 2, b.y + b.h / 2, PILLAR_HEIGHT)
       b.emblem(c.x, c.y)

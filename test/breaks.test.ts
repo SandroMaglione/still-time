@@ -1,7 +1,7 @@
 /**
- * Batch 3, played headless: crates that splinter under fire, a cracked wall
- * a brute's swing breaks, and the grenadier's bombs (thrown where you stood,
- * a fuse in world time, a blast that takes anyone in reach and breaks walls).
+ * Batch 3, played headless: crates that burst under fire, and the grenadier's
+ * bombs (thrown where you stood, a fuse in world time, a blast that takes
+ * anyone in reach and breaks crates).
  */
 import assert from "node:assert/strict"
 import { test } from "node:test"
@@ -17,9 +17,8 @@ const jiggle = (thumb: ScriptedThumb, strength = 1): (() => void) => {
 }
 
 const crates = (fight: Fight) => fight.view().cover.filter((c) => c.kind === "crate")
-const cracked = (fight: Fight) => fight.view().cover.filter((c) => c.kind === "cracked")
 
-test("a crate splinters after its hits; a cracked wall shrugs shots off", () => {
+test("a crate bursts after its hits", () => {
   const { fight, thumb } = fightIn("Splinters")
   // Shots fly in world time, which runs only while you move: step side to side while they fly.
   const wait = jiggle(thumb, 0.3)
@@ -33,14 +32,7 @@ test("a crate splinters after its hits; a cracked wall shrugs shots off", () => 
     runUntil(fight, 3000, () => !fight.view().shots.some((s) => Math.abs(s.y - cy) < 0.01), wait)
     if (n < COVER.crateHits) assert.equal(crates(fight).find((c) => c.x === target.x && c.y === target.y)?.hits, COVER.crateHits - n)
   }
-  assert.equal(crates(fight).length, before - 1, "the third hit breaks it")
-
-  const breach = fightIn("Breach")
-  const wall = cracked(breach.fight)[0]
-  assert.ok(wall !== undefined)
-  spawnShot(breach.fight, { kind: "bullet", x: wall.x + wall.w / 2, y: wall.y + wall.h + 1, vx: 0, vy: -9 })
-  runUntil(breach.fight, 3000, () => breach.fight.view().shots.length === 0, jiggle(breach.thumb, 0.3))
-  assert.equal(cracked(breach.fight).length, 1)
+  assert.equal(crates(fight).length, before - 1, "its last hit breaks it")
 })
 
 test("a wooden crate hides you from no one: the gunners fire into it at you behind it, and splinter it", () => {
@@ -56,24 +48,6 @@ test("a wooden crate hides you from no one: the gunners fire into it at you behi
   runUntil(fight, 6000, () => !standing() || fight.view().flow !== "playing", wait)
   assert.equal(fight.view().flow, "playing", "the crate took the shots")
   assert.ok(!standing(), "their shots splintered the crate")
-})
-
-test("a spearman's thrust breaks the cracked wall you lure it into", () => {
-  const { fight, thumb } = fightIn("Breach")
-  const wall = cracked(fight)[0]
-  assert.ok(wall !== undefined)
-  // Stand with your back to the cracked wall; when the swing commits, step aside.
-  placePlayer(fight, wall.x + wall.w / 2, wall.y + wall.h + 0.4)
-  let dodged = false
-  const wait = jiggle(thumb, 0.3)
-  runUntil(fight, 3000, () => cracked(fight).length === 0 || fight.view().flow !== "playing", () => {
-    const m = fight.view().enemies[0]?.melee
-    if (m?.phase === "windup" && m.locked) dodged = true
-    if (dodged) thumb.push = { x: 1, y: 0 }
-    else wait()
-  })
-  assert.equal(fight.view().flow, "playing", "you stepped out of the swing")
-  assert.equal(cracked(fight).length, 0, "the swing broke the wall")
 })
 
 test("the grenadier lobs a bomb at where you stand, and it lands lit", () => {
@@ -116,21 +90,23 @@ test("a blast takes anyone in its reach, you or an enemy, and a fuse burns in wo
   assert.equal(again.fight.view().flow, "dead")
 })
 
-test("a wall between you and a blast shields you; the blast breaks a cracked wall and a retry mends it", () => {
-  const { fight, thumb } = fightIn("Breach")
-  // Behind the solid wall's west end, within reach of a bomb on the other side.
-  placePlayer(fight, 2, 7.75)
-  spawnBomb(fight, { x: 2, y: 6.1, left: 0.1 })
-  assert.ok(Math.hypot(0, 7.75 - 6.1) < BOMB.radius)
+test("a wall between you and a blast shields you; a blast breaks a crate, and a retry mends it", () => {
+  // Time Door: south of its wall's west end, within reach of a bomb on the other side.
+  const { fight, thumb } = fightIn("Time Door")
+  placePlayer(fight, 1.2, 22.3)
+  spawnBomb(fight, { x: 1.2, y: 20.6, left: 0.1 })
+  assert.ok(Math.hypot(0, 22.3 - 20.6) < BOMB.radius)
   runUntil(fight, 600, () => fight.view().bombs.length === 0, jiggle(thumb, 0.2))
   assert.equal(fight.view().flow, "playing")
 
-  const wall = cracked(fight)[0]
-  assert.ok(wall !== undefined)
-  spawnBomb(fight, { x: wall.x + wall.w / 2, y: wall.y + wall.h + 0.5, left: 0.1 })
-  runUntil(fight, 600, () => fight.view().bombs.length === 0, jiggle(thumb, 0.2))
-  assert.equal(cracked(fight).length, 0)
-  fight.send({ kind: "restart" })
-  fight.tick()
-  assert.equal(cracked(fight).length, 1, "a retry mends the wall")
+  const splinters = fightIn("Splinters")
+  const before = crates(splinters.fight).length
+  const crate = crates(splinters.fight)[0]
+  assert.ok(crate !== undefined)
+  spawnBomb(splinters.fight, { x: crate.x + crate.w / 2, y: crate.y + crate.h + 0.5, left: 0.1 })
+  runUntil(splinters.fight, 600, () => splinters.fight.view().bombs.length === 0, jiggle(splinters.thumb, 0.2))
+  assert.equal(crates(splinters.fight).length, before - 1)
+  splinters.fight.send({ kind: "restart" })
+  splinters.fight.tick()
+  assert.equal(crates(splinters.fight).length, before, "a retry mends the crate")
 })

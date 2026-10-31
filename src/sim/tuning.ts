@@ -172,7 +172,7 @@ export const GIVE = { gunner: 0.25, archer: 0.25, thrower: 0.25, sniper: 0.25, g
  * A bomb flies (in world time) to where you stood when it was thrown, lands,
  * and burns its fuse; then its blast takes everyone within `radius` with
  * nothing solid in between (you, allies, the grenadier itself) and breaks
- * any cracked wall or crate it reaches.
+ * any crate it reaches.
  */
 export const BOMB = {
   speed: 7,
@@ -183,11 +183,9 @@ export const BOMB = {
 } as const
 
 /**
- * Cover that breaks. A crate bursts at the first shot (`crateHits`); a cracked
- * wall only gives to a brute's thrust (whose spear drives `swingBite`
- * metres past its reach into the wall) or a blast.
+ * Cover that breaks: a crate bursts at the first shot (`crateHits`), or in a blast.
  */
-export const COVER = { crateHits: 1, swingBite: 0.8 } as const
+export const COVER = { crateHits: 1 } as const
 
 /**
  * Hazards: a blade's bar is `width` thick; a laser gate warns for `warn`

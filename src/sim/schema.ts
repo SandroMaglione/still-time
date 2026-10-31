@@ -123,8 +123,7 @@ export const Run = Descriptor.ConstructedResource(codec(S.Struct({
 
 /**
  * The room's cover that can break, by pillar index: hits a crate can still
- * take, 1 for a cracked wall, 0 once broken; null for cover that never
- * breaks. A new attempt mends it all.
+ * take, 0 once broken; null for cover that never breaks. A new attempt mends it all.
  */
 export const Wear = Descriptor.ConstructedResource(codec(S.Array(S.NullOr(count))))("Slap/Wear")
 

@@ -2,7 +2,7 @@
  * Bombs, in world time: a thrown bomb flies to where you stood (stopping
  * short at a wall), lands lit, and burns its fuse; then it bursts. The blast
  * takes everyone within reach with nothing solid in between (you, any enemy,
- * the grenadier itself) and breaks every cracked wall and crate it reaches.
+ * the grenadier itself) and breaks every crate it reaches.
  */
 import { Ops } from "@typeonce/ritmo"
 

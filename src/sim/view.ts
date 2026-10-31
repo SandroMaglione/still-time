@@ -85,9 +85,9 @@ export interface ResultView {
   readonly world: number
 }
 
-/** A piece of the room's cover still standing: solid, a cracked wall, or a crate with `hits` of `maxHits` left. */
+/** A piece of the room's cover still standing: solid, or a crate with `hits` of `maxHits` left. */
 export interface CoverView extends Pillar {
-  readonly kind: "solid" | "cracked" | "crate"
+  readonly kind: "solid" | "crate"
   readonly hits: number
   readonly maxHits: number
 }
@@ -306,7 +306,7 @@ export const FightViewInspector = Game.Inspector(
     const cover = room.pillars.flatMap((c, i): Array<CoverView> => {
       const hits = wear[i] ?? null
       if (hits === 0) return []
-      const kind = c.breaks === "crate" ? "crate" : c.breaks === "cracked" ? "cracked" : "solid"
+      const kind = c.breaks === "crate" ? "crate" : "solid"
       return [{ x: c.x, y: c.y, w: c.w, h: c.h, kind, hits: hits ?? 1, maxHits: kind === "crate" ? COVER.crateHits : 1 }]
     })
     const missed = plates.missed !== null && time.step - plates.missed < LOCKS.missSteps

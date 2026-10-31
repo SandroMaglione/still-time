@@ -66,6 +66,6 @@ export const wallsOf = (room: Room, open: ReadonlyArray<boolean>, wear: Readonly
  */
 export const sightWalls = (walls: ReadonlyArray<Cover>): ReadonlyArray<Cover> => walls.filter((p) => p.breaks !== "crate")
 
-/** Wear a fresh room starts with, by pillar: a crate's hits, a cracked wall's one, null for cover that never breaks. */
+/** Wear a fresh room starts with, by pillar: a crate's hits, null for cover that never breaks. */
 export const freshWear = (room: Room, crateHits: number): Array<number | null> =>
-  room.pillars.map((p) => (p.breaks === "crate" ? crateHits : p.breaks === "cracked" ? 1 : null))
+  room.pillars.map((p) => (p.breaks === "crate" ? crateHits : null))
