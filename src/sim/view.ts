@@ -51,6 +51,8 @@ export interface EnemyView {
   readonly sealed: boolean
   /** Wears a crown: downing it opens its chamber's captain door. */
   readonly captain: boolean
+  /** A shut door waits on its chamber being cleared: it wears that door's pip, gone with it. */
+  readonly holdsDoor: boolean
   /** Never attacks: a target, drawn without threat marks. */
   readonly quiet: boolean
   /** Still walking in to its post (a shooter's entrance): it has not noticed you yet. */
@@ -215,6 +217,7 @@ export const FightViewInspector = Game.Inspector(
     const sees = (at: { x: number; y: number }): boolean => player !== null && canSee(at.x, at.y, player.x, player.y, TUNING.sight, walls)
     const shut = room.doors.filter((_, i) => open[i] !== true)
     const sealed = (at: { x: number; y: number }): boolean => player !== null && shut.length > 0 && !clearLine(at.x, at.y, player.x, player.y, shut)
+    const held = new Set(shut.flatMap((d) => (d.lock.kind === "clear" ? [d.lock.chamber] : [])))
     const shooters = queries.shooters.each().flatMap(({ entity, data }): Array<EnemyView> => {
       const { kind, captain, quiet } = data.enemy.get()
       if (!isShooter(kind)) return []
@@ -234,7 +237,7 @@ export const FightViewInspector = Game.Inspector(
         aim,
         sees: seesYou,
         sealed: sealed(at),
-        captain, quiet, arriving, key: null,
+        captain, quiet, arriving, key: null, holdsDoor: held.has(data.enemy.get().chamber),
         melee: null,
         laser: quiet ? null : laser
       }]
@@ -247,7 +250,7 @@ export const FightViewInspector = Game.Inspector(
         id: entity.id, kind: "stalker", x: at.x, y: at.y, radius: STALKER.radius, charge: still,
         aim: player === null ? Math.PI / 2 : Ops.atan2(player.y - at.y, player.x - at.x),
         sees: true, sealed: sealed(at),
-        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, arriving: false, key: null, melee: null, laser: null
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, holdsDoor: held.has(data.enemy.get().chamber), arriving: false, key: null, melee: null, laser: null
       }
     })
     const runners = queries.runners.each().map(({ entity, data }): EnemyView => {
@@ -257,7 +260,7 @@ export const FightViewInspector = Game.Inspector(
         aim: player === null ? Math.PI / 2 : Ops.atan2(at.y - player.y, at.x - player.x),
         sees: sees(at),
         sealed: sealed(at),
-        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, arriving: false, key: data.carry.get().key,
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, holdsDoor: held.has(data.enemy.get().chamber), arriving: false, key: data.carry.get().key,
         melee: null,
         laser: null
       }
@@ -279,7 +282,7 @@ export const FightViewInspector = Game.Inspector(
         aim: facing,
         sees: sees(at),
         sealed: sealed(at),
-        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, arriving: false, key: null,
+        captain: data.enemy.get().captain, quiet: data.enemy.get().quiet, holdsDoor: held.has(data.enemy.get().chamber), arriving: false, key: null,
         melee: {
           phase: blade._tag, progress, locked: blade._tag === "windup" && blade.left <= spec.lock, lockShare: spec.lock / spec.windup,
           reach: spec.reach, arc: spec.arc, guardArc: spec.guardArc, guarding, shield: spec.guard === "always"

@@ -101,6 +101,10 @@ test("a door holds until its chamber is clear, then opens", () => {
   const door = () => fight.view().doors[0]
   assert.equal(door()?.open, false)
   assert.equal(door()?.waiting, 2)
+  // Each enemy the door waits on wears its pip; the one past the door does not.
+  const holding = () => fight.view().enemies.filter((e) => e.holdsDoor).length
+  assert.equal(holding(), 2)
+  assert.ok(fight.view().enemies.every((e) => e.holdsDoor === (e.y > 13)))
   // Walking into the shut door: it is a wall.
   placePlayer(fight, 7, 14.5)
   thumb.push = { x: 0, y: -1 }
@@ -110,9 +114,11 @@ test("a door holds until its chamber is clear, then opens", () => {
   cutDown(fight, (e) => e.kind === "gunner" && e.y > 13 && e.x > 7)
   assert.equal(door()?.open, false)
   assert.equal(door()?.waiting, 1)
+  assert.equal(holding(), 1, "a pip goes with each one cut")
   cutDown(fight, (e) => e.kind === "gunner" && e.y > 13)
   assert.equal(door()?.open, true)
   assert.equal(fight.view().flow, "playing", "the far chamber still stands")
+  assert.equal(holding(), 0, "the door is open: no pips left")
 })
 
 test("downing the captain opens its gate, and the exit clears the room with guards still up", () => {

@@ -111,6 +111,12 @@ const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   }
 }
 
+/** One enemy a chamber door still waits on: a red square, on the door and over the enemy's head. Centred on (x, y). */
+const doorPip = (ctx: CanvasRenderingContext2D, x: number, y: number): void => {
+  const px = Math.round(x), py = Math.round(y)
+  ctx.fillStyle = "#171c2e"; ctx.fillRect(px - 2, py - 2, 5, 5)
+  ctx.fillStyle = "#ce4655"; ctx.fillRect(px - 1, py - 1, 3, 3)
+}
 /** A crown glyph in screen pixels, its base centred on (x, y). */
 const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void => sprite(ctx, "crown", x, y + 3)
 
@@ -805,6 +811,12 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         if (e.captain) {
           sprite(ctx, "crown", ground.x, ground.y - 17)
         }
+        // The pip of the door it holds shut (the same square the door shows, one per enemy it waits on), floating
+        // over its head: down it, and the pip goes, from here and from the door.
+        if (e.holdsDoor && view.flow === "playing") {
+          const bob = Math.round(Math.sin((presentation?.now ?? view.world) * 3 + e.id) * 1.5)
+          for (const c of [ctx, glow]) doorPip(c, ground.x, ground.y - (e.captain ? 40 : 34) + bob)
+        }
       }
     })
   }
@@ -1002,9 +1014,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         // One pip per enemy the door still waits on.
         const n = d.waiting, gap = u * 0.24
         for (let i = 0; i < n; i++) {
-          const px = Math.round(x + (i - (n - 1) / 2) * gap), py = Math.round(y)
-          ctx.fillStyle = "#171c2e"; ctx.fillRect(px - 2, py - 2, 5, 5)
-          ctx.fillStyle = "#ce4655"; ctx.fillRect(px - 1, py - 1, 3, 3)
+          doorPip(ctx, x + (i - (n - 1) / 2) * gap, y)
         }
       }
     }
