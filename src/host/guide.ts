@@ -5,9 +5,8 @@
  *
  * Crossing (the first room in your hands): a hand shows the gesture, the hold as plainly as the slide ("press
  * anywhere / and hold", "now slide / and keep holding", "you're moving / keep holding"); then "now let go / watch the bolts" until you have stood a moment ("they stopped / with you");
- * then "they hang. look. / cross between them". Time Door
- * (the clock): the door ("the door opens with time"; "it waits for you" while you stand at it; "it takes time to
- * open" over its timer), then "nothing moves / until you do" along the clockwork stretch. First Cut (the cut): "get close / walk into the ring" to the first gunner (none fire); its door opens
+ * then "they hang. look. / cross between them". First Cut (the cut): "get close / walk into the ring" to the first
+ * gunner (none fire); its door opens
  * on two more; each one cut pops "CUT!" over it. Each guide's "got it" stays through the room's clear.
  */
 import { TUNING } from "../sim/tuning.ts"
@@ -46,10 +45,6 @@ const moving = (s: Sense): boolean => s.speed > 0.15
 /** Walking at all, however slowly (a small slide counts). */
 const walking = (s: Sense): boolean => s.speed > 0.01
 const ended = (s: Sense): boolean => s.view.flow === "cleared" || s.view.flow === "won"
-/** Every time door open. */
-const doorsOpen = (s: Sense): boolean => s.view.doors.every((d) => d.lock.kind !== "time" || d.open)
-/** At a shut door (within a couple of metres of its face). */
-const atShutDoor = (s: Sense): boolean => s.view.player !== null && s.view.doors.some((d) => !d.open && Math.abs(s.view.player!.y - (d.y + d.h)) < 2.2)
 
 // Crossing: two streams of bolts across the hall; they fly while you walk and hang while you stand.
 const CROSSING: ReadonlyArray<Step> = [
@@ -79,22 +74,6 @@ const CROSSING: ReadonlyArray<Step> = [
   }
 ]
 
-// Time Door: first the door, whose portcullis rises only as time runs (only while you move); then the clockwork
-// stretch: nothing moves until you do, and everything moves when you walk.
-const DOOR: ReadonlyArray<Step> = [
-  {
-    title: (s) => (atShutDoor(s) && !moving(s) ? "IT WAITS FOR YOU" : "THE DOOR OPENS WITH TIME"),
-    sub: (s) => (moving(s) ? "KEEP MOVING" : "MOVE: TIME RUNS"),
-    colour: (s) => (moving(s) ? GOLD : WHITE),
-    ok: doorsOpen, need: 0
-  },
-  {
-    title: (s) => (moving(s) ? "EVERYTHING MOVES" : "NOTHING MOVES"), sub: (s) => (moving(s) ? "WITH YOU" : "UNTIL YOU DO"),
-    colour: (s) => (moving(s) ? GOLD : WHITE),
-    ok: ended, need: 0
-  }
-]
-
 // The gunners never fire here: the one thing to learn is to get close. One in the first chamber; its door then opens
 // on two more.
 const CUT: ReadonlyArray<Step> = [
@@ -112,7 +91,6 @@ const CUT: ReadonlyArray<Step> = [
 /** The guided rooms, by name: their steps and the "got it" that stays through the clear. */
 const GUIDES: Record<string, { readonly steps: ReadonlyArray<Step>; readonly done: readonly [string, string] }> = {
   "Crossing": { steps: CROSSING, done: ["GOT IT!", "YOU CHOOSE WHEN"] },
-  "Time Door": { steps: DOOR, done: ["GOT IT!", "YOU MOVE, TIME MOVES"] },
   "First Cut": { steps: CUT, done: ["GOT IT!", "CLOSE = CUT"] }
 }
 const stepsFor = (room: string): ReadonlyArray<Step> => GUIDES[room]?.steps ?? []

@@ -784,7 +784,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Everything standing, painted back to front; crates and walls by the box rule.
   type Thing = { readonly x: number; readonly y: number; readonly paint: () => void }
   const actors: Array<Thing> = []
-  // The room's clockwork decoration (Time Door): lanterns swinging and wheels turning on the world clock.
+  // A room's clockwork decoration: lanterns swinging and wheels turning on the world clock.
   for (const d of ROOMS[view.room.index]?.decor ?? []) {
     actors.push({ x: d.x, y: d.y, paint: () => (d.kind === "pendulum" ? pendulum(ctx, P, d.x, d.y, view.world) : wheel(ctx, P, d.x, d.y, view.world)) })
   }

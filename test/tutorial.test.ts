@@ -1,7 +1,7 @@
 /**
  * The first rooms, played headless, one lesson each: the Prologue the rule itself (a cutscene: a bullet that stops
- * when you stop, played by the page's director), Crossing choosing when (streams of bolts you cross between), Time Door the clock
- * (doors whose timers run only while you move), First Cut the cut (gunners that never fire).
+ * when you stop, played by the page's director), Crossing choosing when (streams of bolts you cross between),
+ * First Cut the cut (gunners that never fire).
  */
 import assert from "node:assert/strict"
 import { test } from "node:test"
@@ -129,36 +129,6 @@ test("Crossing: the bolts hold their place while you stand, fly while you walk, 
   assert.equal(fight.view().hits, 0)
 })
 
-test("Time Door: one time door opens only as the world clock runs (only while you move)", () => {
-  const { fight, thumb } = fightIn("Time Door")
-  assert.equal(fight.view().room.index, 2, "it is the third room")
-  assert.equal(fight.view().hazards.length, 0)
-  const doors = fight.view().doors
-  assert.equal(doors.length, 1, "one door")
-  const lock = doors[0]!.lock
-  assert.ok(lock.kind === "time" && lock.seconds > 0, "a time door")
-  // Standing still, two real seconds: the world does not run and the door stays shut.
-  runUntil(fight, 120, () => false)
-  assert.equal(fight.view().doors[0]?.open, false, "still, the door waits")
-  // Up to it, then pushing into it is standing still: the clock does not run, and it stays shut.
-  const face = doors[0]!.y + doors[0]!.h
-  runUntil(fight, 600, () => fight.view().player!.y < face + 0.4, () => { thumb.push = { x: 0, y: -1 } })
-  const before = fight.view().world
-  runUntil(fight, 120, () => false, () => { thumb.push = { x: 0, y: -1 } })
-  assert.ok(fight.view().world - before < 0.3, "pushing into the door does not run the clock")
-  assert.equal(fight.view().doors[0]?.open, false)
-  // Stepping side to side at it runs the clock: it opens, and the exit is reached.
-  let flip = 1
-  runUntil(fight, 4000, () => fight.view().flow !== "playing", () => {
-    const p = fight.view().player!
-    const blocked = !fight.view().doors[0]!.open && p.y - face < 0.6
-    flip = -flip
-    thumb.push = blocked ? { x: flip, y: 0 } : { x: 0, y: -1 }
-  })
-  assert.equal(fight.view().flow, "cleared")
-  assert.ok(lock.kind === "time" && fight.view().world >= lock.seconds - 1e-9)
-})
-
 /** Walks at the nearest enemy not shut away behind a door, until the room ends or the step budget runs out. */
 const chase = (fight: ReturnType<typeof fightIn>["fight"], thumb: ReturnType<typeof fightIn>["thumb"], until: () => boolean, max = 1500): void => {
   runUntil(fight, max, () => until() || fight.view().flow !== "playing", () => {
@@ -173,7 +143,7 @@ const chase = (fight: ReturnType<typeof fightIn>["fight"], thumb: ReturnType<typ
 
 test("First Cut: three gunners that never fire; cut the first, its door opens on two more; cut them and the room clears", () => {
   const { fight, thumb } = fightIn("First Cut")
-  assert.equal(fight.view().room.index, 3, "it is the fourth room")
+  assert.equal(fight.view().room.index, 2, "it is the third room")
   assert.deepEqual(fight.view().enemies.map((e) => e.kind), ["gunner", "gunner", "gunner"])
   assert.ok(fight.view().enemies.every((e) => e.quiet), "none of them attacks")
   assert.equal(fight.view().room.goal.kind, "clear")

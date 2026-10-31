@@ -34,7 +34,7 @@ const charge = (name: string, trials = 20): { readonly won: number; readonly los
   return { won, lost }
 }
 
-for (const name of ["First Shot", "Courtyard", "Duel", "Two Spears", "Friendly Fire", "Gatehouse"]) {
+for (const name of ["First Shot", "Cover", "Courtyard", "Duel", "Two Spears", "Friendly Fire", "Gatehouse"]) {
   test(`${name}: a charger who never stops to look loses every time`, () => {
     const r = charge(name)
     assert.equal(r.won, 0, `the charger cleared ${name} ${r.won} of ${r.won + r.lost} times: the room no longer needs the rule`)

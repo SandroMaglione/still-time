@@ -133,9 +133,6 @@ const gate = (w: number, y: number, at: number, gap: number, lock: Lock, thick =
 
 const CLEAR = { kind: "clear" } as const
 
-// Time Door's one door across its corridor: it opens once the world clock has run its seconds.
-// (Near the start: a walk runs the clock as fast as it goes, so a short door must be close to be met still shut.)
-const timeDoor = gate(8, 21, 4, 3, { kind: "time", seconds: 3 })
 // First Cut's door between its two chambers: it opens when the first chamber's gunner is down.
 const cutDoor = gate(12, 12, 6, 3, { kind: "clear", chamber: 0 })
 
@@ -189,29 +186,7 @@ export const ROOMS: ReadonlyArray<Room> = [
     par: 14
   },
   {
-    // The third lesson, the clock. A corridor: first a door a few steps ahead whose portcullis rises as time runs
-    // (only while you move: three seconds of it); then a stretch of lanterns swinging and wheels turning on the world
-    // clock, still until you move, all moving together as you walk, to the exit.
-    name: "Time Door",
-    w: 8,
-    h: 30,
-    start: { x: 4, y: 27 },
-    pillars: [...timeDoor.walls],
-    doors: [timeDoor.door],
-    hazards: [],
-    enemies: [],
-    goal: { kind: "exit", x: 2.5, y: 0.7, w: 3, h: 2.2 },
-    par: 9,
-    // Staggered down the two walls, one every two metres, never two level with each other (the page keeps its torches
-    // and pots clear of them).
-    decor: [
-      { kind: "pendulum", x: 0.4, y: 18.5 }, { kind: "wheel", x: 7.6, y: 16.5 },
-      { kind: "wheel", x: 0.4, y: 14.5 }, { kind: "pendulum", x: 7.6, y: 12.5 },
-      { kind: "pendulum", x: 0.4, y: 10.5 }, { kind: "wheel", x: 7.6, y: 8.5 }
-    ]
-  },
-  {
-    // The fourth lesson: the cut, with gunners that never fire. One in the first chamber: walk up to it and it's cut;
+    // The third lesson: the cut, with gunners that never fire. One in the first chamber: walk up to it and it's cut;
     // the door behind it opens on the second chamber, with two more to cut.
     name: "First Cut",
     w: 12,
@@ -242,6 +217,20 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "it fires: stop, step off the line, then walk in"
   },
   {
+    // Sight, with one gunner: it stands just past a wall across the room. Walk up behind the wall unseen, then round
+    // one end, close to it: one shot to stop for, then the cut. Courtyard then has two.
+    name: "Cover",
+    w: 10,
+    h: 22,
+    start: { x: 5, y: 20 },
+    pillars: [{ x: 2, y: 9.5, w: 6, h: 0.8 }],
+    doors: [],
+    enemies: [{ kind: "gunner", x: 5, y: 6, delay: 0.6 }],
+    goal: CLEAR,
+    par: 5,
+    tip: "it only shoots what it can see: walk up behind the wall"
+  },
+  {
     name: "Courtyard",
     w: 14,
     h: 24,
@@ -254,7 +243,7 @@ export const ROOMS: ReadonlyArray<Room> = [
     ],
     goal: CLEAR,
     par: 6,
-    tip: "they only shoot what they can see"
+    tip: "two now: keep a crate between you and one"
   },
   {
     name: "Duel",

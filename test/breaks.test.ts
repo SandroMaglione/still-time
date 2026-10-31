@@ -94,11 +94,11 @@ test("a blast takes anyone in its reach, you or an enemy, and a fuse burns in wo
 })
 
 test("a wall between you and a blast shields you; a blast breaks a crate, and a retry mends it", () => {
-  // Time Door: south of its wall's west end, within reach of a bomb on the other side.
-  const { fight, thumb } = fightIn("Time Door")
-  placePlayer(fight, 1.2, 22.3)
-  spawnBomb(fight, { x: 1.2, y: 20.6, left: 0.1 })
-  assert.ok(Math.hypot(0, 22.3 - 20.6) < BOMB.radius)
+  // First Cut: south of its wall's west end, within reach of a bomb on the other side.
+  const { fight, thumb } = fightIn("First Cut")
+  placePlayer(fight, 1.2, 13.3)
+  spawnBomb(fight, { x: 1.2, y: 11.6, left: 0.1 })
+  assert.ok(Math.hypot(0, 13.3 - 11.6) < BOMB.radius)
   runUntil(fight, 600, () => fight.view().bombs.length === 0, jiggle(thumb, 0.2))
   assert.equal(fight.view().flow, "playing")
 
