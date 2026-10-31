@@ -73,6 +73,11 @@
       .clock-panel { align-items: flex-end; flex: 0 0 calc(var(--u) * 42); min-width: 0; white-space: nowrap; }
       .clock { font-weight: 700; }
       .over .clock { color: var(--red); }
+      /* The world's speed, live, under the clock: empty while you stand (the world waits), full at your top speed (real time).
+         Ice at a crawl, gold once the world is really running: the same colours as the sign over your head. */
+      .speed { display: block; width: calc(var(--u) * 32); height: calc(var(--u) * 2); background: var(--ink); box-shadow: 0 0 0 var(--u) var(--stone-lo); margin-top: var(--u); }
+      .speed i { display: block; height: 100%; width: 0; background: var(--gold); }
+      .speed.still i { background: var(--ice-lo); }
       .ended .clock-panel, .ended .goal-panel { opacity: 0.5; }
       /* The room's goal, live: the enemies left to cut, the exit, or holding out. */
       .goal-panel { flex: 1 1 0; min-width: 0; white-space: nowrap; }
@@ -297,6 +302,7 @@
         <span id="room" class="sr"></span>
         <div id="clock-panel" class="panel glass clock-panel">
           <span id="clock" class="clock"></span><span id="clock-sub" class="dim small clock-sub"></span>
+          <span id="speed" class="speed still" aria-hidden="true"><i id="speed-fill"></i></span>
         </div>
         <div id="goal-panel" class="panel glass goal-panel">
           <span class="dim small">goal</span><span id="goal" class="goal"></span>

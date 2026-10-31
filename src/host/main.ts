@@ -84,15 +84,16 @@ const app = ManagedRuntime.make(progressLayer.pipe(Layer.provide(storageLayer)))
 const progress = await app.runPromise(Effect.gen(function*() { return yield* Progress }))
 const saved = await app.runPromise(progress.best)
 
-// `?room=N` opens a room straight away and `?all` (or `#all`, for hosts that drop the query) opens every room
-// (testing); otherwise the title comes first.
+// `?room=N` opens a room straight away (testing); otherwise the title comes first. Every room is open from the start
+// (the jam's judges play a few minutes each, and a lock would hide the later rooms): the order is still the path, as
+// PLAY continues at the first room not cleared and the room select marks it NEXT.
 const params = new URLSearchParams(window.location.search)
 const asked = params.get("room")
 const thumb = new ThumbSource()
 // Every thumb the simulation reads is recorded for the attempt's replay (see `replay.ts`).
 const replay = new Replay()
 const recorded = { snapshot: () => { const t = thumb.snapshot(); replay.record(t); return t } }
-const fight = createFight(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1), recorded, { best: saved, open: params.has("all") || window.location.hash === "#all" })
+const fight = createFight(asked === null ? continueRoom(saved) : Math.max(0, Number(asked) - 1), recorded, { best: saved, open: true })
 /** The attempt under way (room and player), to snapshot each new one for its replay. */
 let replayAttempt = ""
 

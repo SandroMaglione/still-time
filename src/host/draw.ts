@@ -110,6 +110,8 @@ const crownGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void =
 
 /** Ambient light: cool and dim while time is frozen, warmer as the world runs. */
 const AMBIENT_FROZEN: Rgb = [64, 76, 116], AMBIENT_RUNNING: Rgb = [96, 86, 76]
+/** The cast frozen time puts over the whole frame (a `color` blend): a thin, cold blue-grey. */
+const FROZEN_CAST = "#6b7ea3"
 
 /** A sprite filled with one colour, cached per sprite and colour (CPU-backed, like the scene). */
 const tints = new Map<string, HTMLCanvasElement>()
@@ -1078,15 +1080,17 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     }, glow.canvas)
   } else discardLights(ctx)
 
-  // Frozen time drains the world of colour; only what can hurt you (shots, lines, lasers) and your own glow keep theirs.
-  // Moving floods it back. The emissive layer is laid back over the grey, so threats stay vivid.
+  // Frozen time drains the world of colour and chills what is left: the frame takes on one cold blue-grey (its hue and
+  // thin saturation, at the scene's own light), so a still frame reads as ice, never as mud; only what can hurt you
+  // (shots, lines, lasers) and your own glow keep their colour. Moving floods it back. The emissive layer is laid back
+  // over the cold, so threats stay vivid.
   if (view.flow === "playing") {
     const still = 1 - speedOf(view)
     if (still > 0.05) {
       ctx.save()
-      ctx.globalCompositeOperation = "saturation"
+      ctx.globalCompositeOperation = "color"
       ctx.globalAlpha = Math.min(1, still * 0.9)
-      ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, cw, ch)
+      ctx.fillStyle = FROZEN_CAST; ctx.fillRect(0, 0, cw, ch)
       ctx.restore()
       ctx.drawImage(glow.canvas, 0, 0)
     }

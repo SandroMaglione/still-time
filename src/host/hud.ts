@@ -8,7 +8,7 @@
  * borders stay crisp.
  */
 import type { FightView, HitBy, PlateView, ResultView } from "../sim/view.ts"
-import { CLEAR_PANEL_AT, starPopAt, type Presentation } from "./fx.ts"
+import { CLEAR_PANEL_AT, speedOf, starPopAt, type Presentation } from "./fx.ts"
 import { ICONS, fromHtml, pixelSvg, star } from "./ui-pixels.ts"
 
 /** Seconds a tip stays up at most, and the world seconds of moving that dismiss it. */
@@ -85,6 +85,8 @@ export class Hud {
   private readonly clock = byId("clock")
   private readonly clockPanel = byId("clock-panel")
   private readonly clockSub = byId("clock-sub")
+  private readonly speed = byId("speed")
+  private readonly speedFill = byId("speed-fill")
   private readonly goalPanel = byId("goal-panel")
   private readonly goal = byId("goal")
   private readonly platesRow = byId("plates-row")
@@ -149,6 +151,11 @@ export class Hud {
     this.set(this.clock, view.world.toFixed(1))
     this.set(this.clockSub, `/${view.room.par}s`)
     this.clockPanel.classList.toggle("over", view.world > view.room.par)
+    // The world's speed under it: the share of real time it runs at, which is how fast you walk (empty while you stand).
+    const speed = view.flow === "playing" ? speedOf(view) : 0
+    const fill = `${Math.round(speed * 100)}%`
+    if (this.text.get(this.speedFill) !== fill) { this.text.set(this.speedFill, fill); this.speedFill.style.width = fill }
+    this.speed.classList.toggle("still", speed < 0.15)
     // The goal, live: how many are left to cut, or the exit.
     const standing = view.enemies.length
     this.set(this.goal, goal.kind === "exit" ? "reach the exit" : standing === 0 ? "all down" : `cut ${standing} more`)

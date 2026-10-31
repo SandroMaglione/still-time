@@ -11,7 +11,7 @@ pnpm shots    # phone-size screenshots into output/ (with pnpm dev running)
 
 Controls: drag anywhere to move; let go and time stops; tap to continue. ☰ opens the rooms. On desktop: arrows or WASD, space to continue, R to restart, M or Escape for the rooms, 1–9 and 0 to jump to rooms 1–10, `[` and `]` for the previous and next room (open rooms only).
 
-Rooms open one by one; progress (each room's best stars and time) is saved in the browser's local storage under `still-time/`. For testing: `?room=N` opens a room straight away (skipping the title), `?all` (or `#all`, where the host drops query strings) opens every room.
+Every room is open from the start (PLAY continues at the first one not cleared); progress (each room's best stars and time) is saved in the browser's local storage under `still-time/`. For testing: `?room=N` opens a room straight away (skipping the title).
 
 `pnpm build` writes `dist/` with relative paths. `pnpm package` builds and zips it into `output/still-time-itch.zip` (`index.html` at the zip's root): upload that to itch.io as an HTML game, viewport 720×1280, mobile friendly, with the fullscreen button.
 

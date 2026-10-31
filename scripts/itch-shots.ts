@@ -1,8 +1,8 @@
 /**
  * The itch.io page assets, from the running game (`pnpm exec vite --port 5310` first):
- * portrait screenshots (720×1280), the cover (630×500), and the whole Prologue
+ * portrait screenshots (720×1280), the cover (630×500), and the Prologue (alert to cut)
  * as a GIF (240×427, the canvas's own pixels).
- * Usage: node scripts/itch-shots.ts [baseUrl] [--only=shots,cover,gif] [--shot=cut,...] [--fps=15] [--colours=48]
+ * Usage: node scripts/itch-shots.ts [baseUrl] [--only=shots,cover,gif,gif-play] [--shot=cut,...] [--fps=15] [--colours=48]
  *
  * Every moment is staged by reading the live fight (keys held until the view
  * shows the moment, then let go: time freezes on it), so it lands on the same
@@ -10,14 +10,13 @@
  */
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { chromium, type Browser, type Page } from "playwright"
 
 const base = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "http://localhost:5310"
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7).split(",") ?? ["shots", "gif", "cover"]
 const assets = "assets/itch", drafts = "output/itch"
-const coverCrop = { x: 88, y: 188 }
-const coverUnit = Number(process.argv.find((a) => a.startsWith("--unit="))?.slice(7) ?? 3)
+const coverPick = process.argv.find((a) => a.startsWith("--cover="))?.slice(8) ?? "a"
 const clearRoom = process.argv.find((a) => a.startsWith("--clear="))?.slice(8) ?? "Watchtower"
 const clearTargets = [{ x: 8, y: 2.5 }]
 const clearWait = Number(process.argv.find((a) => a.startsWith("--wait="))?.slice(7) ?? 3500)
@@ -148,7 +147,7 @@ const at = (room: string): string => {
 }
 try {
   // Screenshots: the jam's portrait target, 360×640 CSS at 2× (3 device px to the canvas's pixel). Each moment is
-  // steered by `steer` and frozen by letting go (time runs at ×0.04 while you stand). `--shot=a,b` takes only some.
+  // steered by `steer` and frozen by letting go (time stops while you stand). `--shot=a,b` takes only some.
   if (only.includes("shots")) {
     const pick = process.argv.find((a) => a.startsWith("--shot="))?.slice(7).split(",") ?? null
     const phone = { width: 360, height: 640 }
@@ -160,13 +159,6 @@ try {
       await page.screenshot({ path: `${assets}/screenshot-${name}.png` })
       await page.close()
     }
-    /** Steer at `target` until `stop` holds, then stand: the frame freezes. Anything else is a failed take. */
-    const freeze = async (page: Page, target: { x: number; y: number }, stop: string, settle = 350, limit = 6000, orbit = 0): Promise<void> => {
-      const outcome = await steer(page, target, stop, limit, orbit)
-      if (outcome !== "stop") throw new Error(`ended in a ${outcome.slice(0, 40)}`)
-      await page.waitForTimeout(settle)
-    }
-    const near = (r: number, n: number): string => `(v) => v.shots.filter((s) => Math.hypot(s.x - v.player.x, s.y - v.player.y) < ${r}).length >= ${n} && v.shots.every((s) => Math.hypot(s.x - v.player.x, s.y - v.player.y) > 0.75)`
     /** Hold `keys` until `until` (a function of the view, as source) holds or the scene leaves play; then let go. */
     const holdUntil = async (page: Page, keys: string, until: string, timeout = 8000): Promise<void> => {
       const list = keys.split("+")
@@ -174,24 +166,31 @@ try {
       await page.waitForFunction(`(() => { const v = stillTimeFight.view(); return v.flow !== "playing" || (${until})(v) })()`, undefined, { polling: "raf", timeout })
       for (const k of list) await page.keyboard.up(k)
     }
-    const nearest = "(v) => Math.min(99, ...v.shots.map((s) => Math.hypot(s.x - v.player.x, s.y - v.player.y)))"
+    // Running: the Belfry's clock rings stacked up while you stood, then a push up the room, shot with the key still held
+    // (time runs, so the floor is warm and the bullets stream).
+    await shot("1-running-belfry", "Belfry", async (page) => {
+      await page.waitForTimeout(8000)
+      await page.keyboard.down("ArrowUp")
+      await page.waitForTimeout(650)
+    })
+    // The hit: walk straight at the First Shot's gunner (the charge it is built to punish), the hit card naming the rule.
+    if (pick === null || pick.some((p) => "3-hit".includes(p))) {
+      const page = await open(browser, at("First Shot"), phone, 2)
+      await holdUntil(page, "ArrowUp", "(v) => v.flow === 'dead'")
+      await page.waitForFunction("stillTimeFight.view().flow === 'dead'", undefined, { timeout: 4000 })
+      await page.waitForTimeout(900)
+      await page.screenshot({ path: `${assets}/screenshot-3-hit.png` })
+      await page.close()
+    }
     // A spearman's thrust: walk straight up between the two; both thrust as you pass, and you let go on the first.
-    await shot("2-spear-thrust", "Two Spears", async (page) => {
+    // (A sniper's locked laser was tried here: its dots read too faint on a still.)
+    await shot("4-spear-thrust", "Two Spears", async (page) => {
       await page.keyboard.down("ArrowUp")
       await page.waitForFunction(() => {
         const v = (window as unknown as { stillTimeFight: { view: () => { flow: string; enemies: ReadonlyArray<{ melee: { phase: string; progress: number } | null }> } } }).stillTimeFight.view()
         return v.flow !== "playing" || v.enemies.some((e) => e.melee?.phase === "swing" && e.melee.progress > 0.3)
       }, undefined, { polling: "raf", timeout: 8000 })
       await page.keyboard.up("ArrowUp")
-      await page.waitForTimeout(350)
-    })
-    // The cut: the slash still on the air, the gunner going down.
-    await shot("3-cut", "Powder Room", (page) => freeze(page, { x: 3, y: 4 }, `(v) => v.slashes.some((s) => s.age < 0.15 && !s.blocked)`, 120))
-    // A busy room, bullets frozen mid-air: the Belfry's clock tower and its two spearmen; its rings stack up while you stand, then you walk
-    // in between the spears and let go as one winds up.
-    await shot("4-busy-belfry", "Belfry", async (page) => {
-      await page.waitForTimeout(8000)
-      await holdUntil(page, "ArrowUp", `(v) => v.enemies.some((e) => e.melee?.phase === "windup" && e.melee.progress > 0.6)`)
       await page.waitForTimeout(350)
     })
     // The clear: the room cut clean, the clear card over your run replayed behind it.
@@ -203,47 +202,104 @@ try {
       await page.waitForFunction("stillTimeFight.view().flow === 'cleared'", undefined, { timeout: 8000 })
       await page.waitForTimeout(clearWait)
     })
+    // The rooms: a run part-way through (best stars and times saved), the select over the title's attract loop.
+    if (pick === null || pick.some((p) => "6-rooms".includes(p))) {
+      const page = await browser.newPage({ viewport: phone, deviceScaleFactor: 2 })
+      const best = Object.fromEntries(names.slice(0, 19).map((n, i) => [n, { stars: [3, 3, 2, 3, 3, 1, 3, 2, 3, 3, 3, 2, 3, 3, 2, 3, 1, 3, 2][i] ?? 3, world: 2.1 + ((i * 7) % 9) * 0.73 }]))
+      await page.addInitScript((save) => { localStorage.setItem("still-time/progress", save) }, JSON.stringify({ version: 1, best }))
+      await page.goto(base)
+      await page.waitForSelector(".logo")
+      await page.evaluate(() => document.fonts.ready)
+      await page.waitForTimeout(1200)
+      await page.getByRole("button", { name: "Rooms" }).first().click()
+      await page.waitForTimeout(800)
+      await page.screenshot({ path: `${assets}/screenshot-6-rooms.png` })
+      await page.close()
+    }
   }
 
-  // The cover (630×500): the Prologue's first beat, from the GIF's take, at 5× nearest-neighbour (a bullet stopped
-  // in the gold ring, the hero a step short of it) on the right, fading into the game's ink; the
-  // title's own logo, big, on the left, on the HUD panels' navy (the page round itch's grid is near black: the
-  // ink would melt into it). One frozen moment, dark and sparse, against a grid of busy painted art.
-  // (Run after the GIF: it reads the take's still.)
+  // The cover (630×500): a real room mid-run (the Prologue is grey by design, and a still frame goes cold), so the
+  // floor is warm and the hero leaves teal afterimages. The canvas is read on the frame a shot first comes near
+  // you, keys still held, HUD hidden; a crop of it fills the whole cover at a whole-number scale, nearest-neighbour.
+  // The title's own logo sits over it, a margin in, on a soft ink gradient (no box). Three drafts go to output/itch;
+  // `coverPick` is copied to the store. `crop` is in the canvas's pixels (240 wide), `unit` the logo's pixel.
   if (only.includes("cover")) {
-    const still = `${drafts}/gif-frames/still.png`
-    assert(existsSync(still), "no Prologue still: run --only=gif first")
-    // 64×100 of the canvas's pixels round the ring and the hero, at 5×.
-    ffmpeg(["-i", still, "-vf", `crop=64:100:${coverCrop.x}:${coverCrop.y},scale=320:500:flags=neighbor`, `${drafts}/cover-scene.png`])
-    const scene = readFileSync(`${drafts}/cover-scene.png`).toString("base64")
-    const page = await open(browser, base, { width: 630, height: 500 }, 1)
-    await page.evaluate(({ scene, u }) => {
-      const logo = document.querySelector(".logo")!.cloneNode(true) as HTMLElement
-      logo.querySelector(".clock-face")?.remove()
-      const style = document.createElement("style")
-      style.textContent = `
-        .cover { position: fixed; inset: 0; width: 630px; height: 500px; z-index: 100; background: #171c2e; overflow: hidden; }
-        .cover, .cover *, .cover *::before { animation: none !important; }
-        .cover img { position: absolute; right: 0; top: 0; width: 320px; height: 500px; image-rendering: pixelated; }
-        .cover .fade { position: absolute; right: 0; top: 0; width: 320px; height: 500px;
-          background: linear-gradient(90deg, #171c2e 0, #171c2e00 34%), linear-gradient(#171c2e90 0, #171c2e00 18%, #171c2e00 82%, #171c2ea0 100%); }
-        .cover .logo { position: absolute; left: 34px; top: 100px; margin: 0; align-items: flex-start; --u: ${u}px; z-index: 2; }
-        .cover .logo-time { margin-top: calc(var(--u) * 6); margin-left: calc(var(--u) * 14); }
-        .cover .strap { position: absolute; z-index: 2; left: 36px; top: 340px; --u: 2px; color: var(--light); font-size: 23px; line-height: 32px; letter-spacing: 0; }
-        .cover .strap b { color: var(--teal); font-weight: 400; }`
-      const box = document.createElement("div")
-      box.className = "cover"
-      box.innerHTML = `<img src="data:image/png;base64,${scene}"><div class="fade"></div><div class="strap">Time moves only<br><b>when you move</b></div>`
-      box.prepend(logo)
-      document.head.append(style); document.body.append(box)
-    }, { scene, u: coverUnit })
-    await page.evaluate(() => document.fonts.ready)
-    await page.waitForTimeout(300)
-    await page.screenshot({ path: `${assets}/cover.png`, clip: { x: 0, y: 0, width: 630, height: 500 } })
-    await page.close()
+    type Cover = { room: string; keys: string; near: number; wait: number; crop: { x: number; y: number }; scale: number; title: "left" | "top"; unit: number }
+    const covers: Record<string, Cover> = {
+      // Courtyard, running up and right: a gunner above, its shot on the way down at you, a crate and torches beside.
+      a: { room: "Courtyard", keys: "ArrowUp+ArrowRight", near: 3.5, wait: 700, crop: { x: 2, y: 110 }, scale: 3, title: "left", unit: 3 },
+      // Belfry, after the clock has stacked its ring: both brutes lunging at you, the title over the dark floor above.
+      b: { room: "Belfry", keys: "ArrowUp", near: 5, wait: 8000, crop: { x: 15, y: 98 }, scale: 3, title: "top", unit: 3 },
+      // The Courtyard moment again, closer (4×): the hero bigger in the jam's half-size grid.
+      c: { room: "Courtyard", keys: "ArrowUp+ArrowRight", near: 3.5, wait: 700, crop: { x: 45, y: 122 }, scale: 4, title: "left", unit: 3 }
+    }
+    for (const [name, cover] of Object.entries(covers)) {
+      const page = await browser.newPage({ viewport: { width: 240, height: 427 }, deviceScaleFactor: 1 })
+      page.on("pageerror", (e) => errors.push(String(e)))
+      await expose(page)
+      await page.goto(at(cover.room))
+      await page.waitForFunction(() => (window as unknown as { stillTimeFight?: { view: () => { flow: string } } }).stillTimeFight?.view().flow === "playing")
+      await page.addStyleTag({ content: "#hud { display: none !important; }" })
+      await page.waitForTimeout(cover.wait)
+      const frame = await page.evaluate(async ({ keys, near }) => {
+        type Body = { readonly x: number; readonly y: number }
+        const fight = (window as unknown as { stillTimeFight: { view: () => { flow: string; player: Body | null; shots: ReadonlyArray<Body> } } }).stillTimeFight
+        const canvas = document.querySelector("canvas")!, list = keys.split("+")
+        for (const k of list) window.dispatchEvent(new KeyboardEvent("keydown", { key: k, code: k }))
+        const began = performance.now()
+        const data = await new Promise<string>((resolve) => {
+          const tick = (): void => {
+            const v = fight.view(), me = v.player
+            if (v.flow !== "playing" || me === null || performance.now() - began > 5000) { resolve(""); return }
+            if (v.shots.some((s) => Math.hypot(s.x - me.x, s.y - me.y) < near)) { resolve(canvas.toDataURL()); return }
+            requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        })
+        for (const k of list) window.dispatchEvent(new KeyboardEvent("keyup", { key: k, code: k }))
+        return data
+      }, { keys: cover.keys, near: cover.near })
+      await page.close()
+      assert(frame !== "", `no cover moment in ${cover.room}`)
+      writeFileSync(`${drafts}/cover-${name}-frame.png`, Buffer.from(frame.split(",")[1]!, "base64"))
+      const w = Math.ceil(630 / cover.scale), h = Math.ceil(500 / cover.scale)
+      ffmpeg(["-i", `${drafts}/cover-${name}-frame.png`, "-vf", `crop=${w}:${h}:${cover.crop.x}:${cover.crop.y},scale=${w * cover.scale}:${h * cover.scale}:flags=neighbor,crop=630:500:0:0`, `${drafts}/cover-${name}-scene.png`])
+      const scene = readFileSync(`${drafts}/cover-${name}-scene.png`).toString("base64")
+      const card = await open(browser, base, { width: 630, height: 500 }, 1)
+      await card.evaluate(({ scene, u, title }) => {
+        const logo = document.querySelector(".logo")!.cloneNode(true) as HTMLElement
+        logo.querySelector(".clock-face")?.remove()
+        const left = title === "left"
+        const style = document.createElement("style")
+        style.textContent = `
+          .cover { position: fixed; inset: 0; width: 630px; height: 500px; z-index: 100; background: #0b0d12; overflow: hidden; }
+          .cover, .cover *, .cover *::before { animation: none !important; }
+          .cover img { position: absolute; left: 0; top: 0; width: 630px; height: 500px; image-rendering: pixelated; }
+          .cover .shade { position: absolute; inset: 0; background: ${left
+            ? "radial-gradient(ellipse 300px 250px at 215px 225px, #0b0d12f2 0, #0b0d12d0 45%, #0b0d1200 100%), linear-gradient(90deg, #0b0d12a0 0, #0b0d1200 55%)"
+            : "radial-gradient(ellipse 380px 180px at 315px 100px, #0b0d12f2 0, #0b0d12d0 45%, #0b0d1200 100%), linear-gradient(#0b0d12b0 0, #0b0d1200 50%)"}; }
+          .cover .block { position: absolute; z-index: 2; display: flex; flex-direction: column; ${left ? "left: 72px; top: 92px; align-items: flex-start;" : "left: 0; right: 0; top: 16px; align-items: center;"} }
+          .cover .logo { position: relative; margin: 0; align-items: flex-start; --u: ${u}px; }
+          .cover .logo-time { margin-top: calc(var(--u) * 6); margin-left: calc(var(--u) * 14); }
+          .cover .strap { --u: 2px; margin-top: ${left ? 34 : 6}px; ${left ? "margin-left: 2px;" : "text-align: center;"} color: var(--light); font-size: 23px; line-height: 32px; letter-spacing: 0; text-shadow: 0 2px 0 #0b0d12; }
+          .cover .strap b { color: var(--teal); font-weight: 400; }`
+        const box = document.createElement("div")
+        box.className = "cover"
+        box.innerHTML = `<img src="data:image/png;base64,${scene}"><div class="shade"></div><div class="block"><div class="strap">Time moves only<br>when <b>you</b> move</div></div>`
+        box.querySelector(".block")!.prepend(logo)
+        document.head.append(style); document.body.append(box)
+      }, { scene, u: cover.unit, title: cover.title })
+      await card.evaluate(() => document.fonts.ready)
+      await card.waitForTimeout(300)
+      await card.screenshot({ path: `${drafts}/cover-${name}.png`, clip: { x: 0, y: 0, width: 630, height: 500 } })
+      await card.close()
+    }
+    writeFileSync(`${assets}/cover.png`, readFileSync(`${drafts}/cover-${coverPick}.png`))
+    assert(statSync(`${assets}/cover.png`).size < 2_900_000, "the cover is over itch's 3 MB")
   }
 
-  // The GIF: the whole Prologue, from the hero appearing to "now it's your turn" after the cut. The director plays
+  // The GIF: the Prologue from the gunner's alert (the freeze lands 2.5 s in, before a judge scrolls past) to the cut,
+  // looping back to the alert. The director plays
   // it; each beat with words is tapped through once it has been up long enough to read.
   // Frames come from the DevTools screencast, each kept for as long as it was on screen, at the canvas's own pixels
   // (240×427): doubled, 20 s would be over 3 MB.
@@ -304,15 +360,109 @@ try {
     // The first beat, as a screenshot: the bullet stopped in its gold ring, "when you stop, time stops."
     const still = kept.reduce((a, f) => Math.abs(f.at - span.hold - 1) < Math.abs(a.at - span.hold - 1) ? f : a)
     writeFileSync(`${frames}/still.png`, Buffer.from(still.data, "base64"))
-    ffmpeg(["-i", `${frames}/still.png`, "-vf", "scale=720:1281:flags=neighbor,crop=720:1280:0:0", `${assets}/screenshot-1-prologue-stop.png`])
+    ffmpeg(["-i", `${frames}/still.png`, "-vf", "scale=720:1281:flags=neighbor,crop=720:1280:0:0", `${assets}/screenshot-2-prologue-stop.png`])
     console.log(`GIF take: ${(span.to - span.from).toFixed(1)} s, ${kept.length} frames`)
     ffmpeg(["-f", "concat", "-safe", "0", "-i", `${frames}/list.txt`, "-vf",
-      `fps=${gifFps},split[s0][s1];[s0]palettegen=max_colors=${gifColours}:stats_mode=diff[p];[s1][p]paletteuse=dither=none:diff_mode=rectangle`,
+      `trim=start=${(span.hold - span.from - 2.6).toFixed(2)}:end=${(span.to - span.from - HOLD).toFixed(2)},setpts=PTS-STARTPTS,fps=${gifFps},split[s0][s1];[s0]palettegen=max_colors=${gifColours}:stats_mode=diff[p];[s1][p]paletteuse=dither=none:diff_mode=rectangle`,
       "-loop", "0", `${assets}/still-time.gif`])
     // gifsicle (if installed) trims each frame to what changed; itch takes images up to 3 MB.
     spawnSync("gifsicle", ["-O3", "--batch", `${assets}/still-time.gif`])
     const size = statSync(`${assets}/still-time.gif`).size
     assert(size < 2_900_000, `the GIF is ${(size / 1e6).toFixed(2)} MB: over itch's 3 MB, try --fps= or --colours=`)
+  }
+
+  // The play GIF (under 5 s, 360 wide): the Courtyard's flip in one loop. Run up and right under the two gunners
+  // (the floor warm, the speed bar gold, their shots streaming), let go among the shots (the frame cold, the bullets
+  // hanging), then dash through the gaps and cut the right-hand one. A dry run first, so the take is only recorded
+  // once it is known to work. A 240×427 window at 1.5×: the screencast is 360 wide as it comes, HUD included.
+  if (only.includes("gif-play")) {
+    const frames = `${drafts}/gif-play-frames`, out = `${assets}/still-time-play.gif`
+    rmSync(frames, { recursive: true, force: true }); mkdirSync(frames, { recursive: true })
+    const url = at("Courtyard")
+    const page = await browser.newPage({ viewport: { width: 240, height: 427 }, deviceScaleFactor: 1.5 })
+    page.on("pageerror", (e) => errors.push(String(e)))
+    await expose(page)
+    const ready = async (): Promise<void> => {
+      await page.goto(url)
+      await page.waitForFunction(() => (window as unknown as { stillTimeFight?: { view: () => { flow: string } } }).stillTimeFight?.view().flow === "playing")
+      await page.evaluate(() => document.fonts.ready)
+      await page.waitForTimeout(700)
+    }
+    /** Hold `keys` until the world clock reads `until` and `also` (a function of the view, as source) holds. */
+    const hold = async (keys: string, until: number, also = "() => true"): Promise<void> => {
+      const list = keys.split("+")
+      for (const k of list) await page.keyboard.down(k)
+      await page.waitForFunction(`(() => { const v = stillTimeFight.view(); return v.flow !== "playing" || (v.world >= ${until} && (${also})(v)) })()`, undefined, { polling: "raf", timeout: 8000 })
+      for (const k of list) await page.keyboard.up(k)
+    }
+    const marks = { stop: 0, cut: 0 }
+    // A hit can be tapped away (a key's release retries) before `stage` looks: watch every frame for one.
+    const died = (): Promise<boolean> => page.evaluate(() => (window as unknown as { stillTimeDied?: boolean }).stillTimeDied === true)
+    const run = async (): Promise<void> => {
+      await page.evaluate(() => {
+        const w = window as unknown as { stillTimeDied?: boolean; stillTimeFight: { view: () => { flow: string } } }
+        w.stillTimeDied = false
+        const watch = (): void => { if (w.stillTimeFight.view().flow === "dead") w.stillTimeDied = true; else requestAnimationFrame(watch) }
+        watch()
+      })
+      await hold("ArrowUp", 0.6)
+      // Let go with shots in the air near you: the frozen crossfire.
+      await hold("ArrowRight", 1.4, "(v) => v.shots.length >= 2")
+      marks.stop = Date.now() / 1000
+      await page.waitForTimeout(1000)
+      const outcome = await steer(page, { x: 11.5, y: 12 })
+      if (outcome !== "cut") throw new Error(`the dash ended in a ${outcome.slice(0, 40)}`)
+      marks.cut = Date.now() / 1000
+      await page.waitForTimeout(700)
+      if (await died()) throw new Error("hit after the cut")
+    }
+    await ready()
+    await stage(page, url, run)
+    // The take, retried (fresh load) if it ends in a hit after all.
+    const cdp = await page.context().newCDPSession(page)
+    let captured: Array<{ data: string; at: number }> = []
+    cdp.on("Page.screencastFrame", (f) => {
+      captured.push({ data: f.data, at: f.metadata.timestamp ?? Date.now() / 1000 })
+      void cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => undefined)
+    })
+    let span = { from: 0, to: 0 }
+    for (let attempt = 0; ; attempt++) {
+      assert(attempt < 6, "could not record the play GIF without a hit")
+      await ready()
+      captured = []
+      await cdp.send("Page.startScreencast", { format: "png", maxWidth: 360, maxHeight: 641, everyNthFrame: 1 })
+      await page.waitForTimeout(150)
+      const from = Date.now() / 1000
+      let failure = ""
+      await run().catch((e: unknown) => { failure = String(e) })
+      await cdp.send("Page.stopScreencast")
+      if (failure === "" && !(await hit(page))) { span = { from, to: Date.now() / 1000 }; break }
+      console.log(`retrying the play take: ${failure === "" ? "hit" : failure}`)
+    }
+    await page.close()
+    // Open just before the stop (about 1.3 s of running), close shortly after the cut: under 5 s in all.
+    const start = Math.max(span.from, marks.stop - 1.3), end = Math.min(span.to, marks.cut + 0.6, start + 4.9)
+    const kept = captured.filter((f) => f.at >= start - 0.1 && f.at <= end)
+    assert(kept.length > 20, `only ${kept.length} screencast frames`)
+    const list: Array<string> = []
+    kept.forEach((f, i) => {
+      const file = `${String(i).padStart(4, "0")}.png`
+      writeFileSync(`${frames}/${file}`, Buffer.from(f.data, "base64"))
+      const next = kept[i + 1]?.at ?? end
+      list.push(`file '${file}'`, `duration ${Math.max(0.01, next - f.at).toFixed(3)}`)
+    })
+    list.push(`file '${String(kept.length - 1).padStart(4, "0")}.png'`)
+    writeFileSync(`${frames}/list.txt`, list.join("\n"))
+    // The take opens 0.9 s in (the room's tip chip fades out over that long), the HUD row is cropped off (its text is
+    // unreadable at the canvas's own pixels), and the frames come back to the canvas's pixels (3 device px each) then
+    // doubled, nearest-neighbour, so every game pixel stays a crisp 2×2.
+    ffmpeg(["-f", "concat", "-safe", "0", "-i", `${frames}/list.txt`, "-vf",
+      `trim=start=${Math.max(0, start - kept[0]!.at + 0.9).toFixed(2)}:end=${(end - kept[0]!.at).toFixed(2)},setpts=PTS-STARTPTS,fps=15,scale=240:427:flags=neighbor,crop=240:320:0:54,scale=480:640:flags=neighbor,split[s0][s1];[s0]palettegen=max_colors=96:stats_mode=diff[p];[s1][p]paletteuse=dither=none:diff_mode=rectangle`,
+      "-loop", "0", out])
+    spawnSync("gifsicle", ["-O3", "--batch", out])
+    const size = statSync(out).size
+    assert(size < 2_900_000, `the play GIF is ${(size / 1e6).toFixed(2)} MB: over itch's 3 MB`)
+    console.log(`play GIF: ${(end - start).toFixed(1)} s, stop at ${(marks.stop - start).toFixed(1)} s, cut at ${(marks.cut - start).toFixed(1)} s`)
   }
 } finally {
   await browser.close()
