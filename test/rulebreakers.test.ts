@@ -74,6 +74,13 @@ test("the stalker moves only while you stand still", () => {
   assert.ok(s0 !== undefined && s1 !== undefined && Math.hypot(s1.x - s0.x, s1.y - s0.y) < 0.05, "it waits while you move")
 })
 
+test("the stalker comes round cover: with a crate between you, standing still, it still reaches you", () => {
+  // Night Watch: a crate stands square between its post and your start.
+  const { fight } = fightIn("Night Watch")
+  runUntil(fight, 60 * 15, () => fight.view().flow !== "playing")
+  assert.deepEqual(fight.view().death, { by: "touch" })
+})
+
 test("the stalker strikes from just past your cut if you stand still; rushing it, one cut downs it", () => {
   const { fight } = fightIn("Stalker")
   runUntil(fight, 1200, () => fight.view().flow !== "playing")
@@ -92,12 +99,12 @@ test("the stalker strikes from just past your cut if you stand still; rushing it
 
 test("a belt carries you while time stays frozen", () => {
   const { fight } = fightIn("Conveyor")
-  // On the lower belt, which runs west, clear of its crates.
-  placePlayer(fight, 15, 16.7)
+  // On the bottom of the ring, which runs west.
+  placePlayer(fight, 10, 19)
   runUntil(fight, 60, () => fight.view().flow !== "playing")
   const me = fight.view().player
   assert.ok(me !== null)
-  assert.ok(Math.abs(15 - me.x - BELT.speed) < 0.1, `carried ${(15 - me.x).toFixed(2)} m in a second`)
+  assert.ok(Math.abs(10 - me.x - BELT.speed) < 0.1, `carried ${(10 - me.x).toFixed(2)} m in a second`)
   assert.ok(fight.view().world < 0.1, `with ${fight.view().world.toFixed(3)} world s gone`)
   assert.ok(fight.view().scale < 0.05, "time stays frozen")
 })

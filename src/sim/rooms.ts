@@ -516,27 +516,28 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "it moves only while you stand still"
   },
   {
-    // Shooters make you stop and look; here the places to stop are on the belts. Two belts run across the room, and
-    // the crates to hide behind stand on them: stand still in cover and the belt carries you out of it, the world
-    // still frozen, into the open or into a bullet hanging in the air. Clear the room.
+    // A ring of belts turning clockwise, wall to wall, round a gunner in the middle; a thrower waits past it at the top.
+    // Cross the belt in, cut the gunner, cross out and up. Stand still on the ring and it carries you round, the world
+    // still frozen, out of cover or into a bullet hanging in the air. (Narrow, so the whole ring is on screen.)
     name: "Conveyor",
-    w: 16,
-    h: 24,
-    start: { x: 8, y: 22 },
-    pillars: [crate(8, 19.5), crate(4, 15.5), crate(12, 15.5), crate(6, 9.5), crate(11, 9.5)],
+    w: 11,
+    h: 26,
+    start: { x: 5.5, y: 24 },
+    pillars: [crate(5.5, 21.5), crate(4.2, 12.4), crate(2.8, 4.5), crate(8.2, 4.5)],
     doors: [],
     belts: [
-      { x: 0, y: 14.5, w: 16, h: 2.4, dx: -1, dy: 0 },
-      { x: 0, y: 8.5, w: 16, h: 2.4, dx: 1, dy: 0 }
+      { x: 0, y: 8, w: 9, h: 2, dx: 1, dy: 0 },
+      { x: 9, y: 8, w: 2, h: 10, dx: 0, dy: 1 },
+      { x: 2, y: 18, w: 9, h: 2, dx: -1, dy: 0 },
+      { x: 0, y: 10, w: 2, h: 10, dx: 0, dy: -1 }
     ],
     enemies: [
-      { kind: "gunner", x: 3, y: 4, delay: 0.6 },
-      { kind: "gunner", x: 13, y: 5.5, delay: 0.9 },
-      { kind: "thrower", x: 8, y: 2.5, delay: 1.2 }
+      { kind: "gunner", x: 6.5, y: 14.5, delay: 0.8 },
+      { kind: "thrower", x: 5.5, y: 2.5, delay: 1.2 }
     ],
     goal: CLEAR,
-    par: 9,
-    tip: "the belts never stop: stand still on one and it carries you"
+    par: 7,
+    tip: "the ring never stops: stand still on it and it carries you round"
   },
   {
     // The Crossing grown up: three lanes of bolts at different beats, under a sniper's eye. Look before every step.

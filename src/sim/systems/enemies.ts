@@ -11,7 +11,7 @@
  */
 import { Ops } from "@typeonce/ritmo"
 
-import { angleDiff, canSee, distanceTo, segmentDistance, settle, turnToward } from "../geometry.ts"
+import { angleDiff, canSee, clearLine, distanceTo, segmentDistance, settle, turnToward } from "../geometry.ts"
 import { Body, Bomb, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time, Wear } from "../schema.ts"
 import { BOMB, CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
 import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, StalkerQuery, StalkerRead, roomOf, sightWalls, wallsOf } from "./queries.ts"
@@ -323,7 +323,19 @@ export const StalkersSystem = Game.System(
       if (still >= STALKER.wakes && d <= STALKER.reach) { events.hit.emit({ by: "touch" }); continue }
       if (step === 0 || d === 0) continue
       const move = Math.min(step, d - TUNING.player.radius - STALKER.radius)
-      data.body.set(settle(at.x + ((me.x - at.x) / d) * move, at.y + ((me.y - at.y) / d) * move, STALKER.radius, room.w, room.h, walls))
+      // Round cover, not into it: of `STALKER.ways` directions, the one whose landing `STALKER.look` ahead is nearest
+      // you, a clear line from there to you counting for much (so a crate between you sends it round its edge).
+      const toYou = Ops.atan2(me.y - at.y, me.x - at.x)
+      let best = toYou, score = Infinity
+      for (let i = 0; i < STALKER.ways; i++) {
+        const a = toYou + (i % 2 === 0 ? 1 : -1) * Math.ceil(i / 2) * (Math.PI * 2 / STALKER.ways)
+        // (Walked there in short steps, so it cannot tunnel through a crate to its far side.)
+        let land = at
+        for (let k = 0; k < 5; k++) land = settle(land.x + Ops.cos(a) * STALKER.look / 5, land.y + Ops.sin(a) * STALKER.look / 5, STALKER.radius, room.w, room.h, walls)
+        const s = Ops.hypot(me.x - land.x, me.y - land.y) - (clearLine(land.x, land.y, me.x, me.y, walls) ? STALKER.look * 2 : 0)
+        if (s < score - 1e-6) { score = s; best = a }
+      }
+      data.body.set(settle(at.x + Ops.cos(best) * move, at.y + Ops.sin(best) * move, STALKER.radius, room.w, room.h, walls))
     }
   }
 )

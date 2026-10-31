@@ -243,7 +243,11 @@ export const LOCKS = {
  * `wakes` still: hesitate near it and it takes you; rush it at a hard push
  * and it stays frozen for your cut, which downs it like anyone.
  */
-export const STALKER = { radius: 0.4, speed: 2.4, reach: 1.35, wakes: 0.5 } as const
+export const STALKER = {
+  radius: 0.4, speed: 2.4, reach: 1.35, wakes: 0.5,
+  /** How it steers round cover: this many ways weighed, each landing this far ahead (m). */
+  ways: 16, look: 1.5
+} as const
 
 /** Conveyor belts carry you at `speed` (real m/s) along them, whether or not you push, so time stays frozen while you ride. */
 export const BELT = { speed: 2.6 } as const
