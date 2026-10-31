@@ -25,7 +25,7 @@ export interface MeleeView {
   /** Half-angle of the guarded front, and whether it is up now. */
   readonly guardArc: number
   readonly guarding: boolean
-  /** True for a shield always up (the shield-bearer), false for a guard raised only to attack. */
+  /** True for a shield always up (the shield-bearer): the only guarded front. */
   readonly shield: boolean
 }
 
@@ -276,7 +276,7 @@ export const FightViewInspector = Game.Inspector(
       const phaseLength = { idle: 1, chase: 1, windup: spec.windup, swing: spec.swing, recover: spec.recover, } as const satisfies Record<MeleePhase, number>
       const left = blade._tag === "idle" || blade._tag === "chase" ? 0 : blade.left
       const progress = left === 0 ? 0 : Math.max(0, Math.min(1, 1 - left / phaseLength[blade._tag]))
-      const guarding = spec.guard === "always" || blade._tag === "windup" || blade._tag === "swing"
+      const guarding = spec.guard === "always"
       return [{
         id: entity.id, kind, x: at.x, y: at.y, radius: spec.radius,
         charge: blade._tag === "windup" ? progress : 0,

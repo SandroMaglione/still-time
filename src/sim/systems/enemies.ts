@@ -139,7 +139,7 @@ export const MeleeSystem = Game.System(
   {
     when: playing,
     queries: { players: PlayerRead, shooters: ShooterRead, melee: MeleeQuery, runners: RunnerRead, stalkers: StalkerRead },
-    resources: { ...fightResources, wear: Game.System.writeResource(Wear) },
+    resources: fightResources,
     events: { hit: Game.System.writeEvent(PlayerHit) }
   },
   ({ queries, resources, events }) => {
@@ -148,6 +148,8 @@ export const MeleeSystem = Game.System(
     const room = roomOf(resources.run.get().room)
     const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const dt = worldDt(resources.time.get(), resources.pace.get())
+    // How still you stand: 0 at a full push, 1 frozen (a clockwork's blow takes only the still).
+    const still = 1 - Math.max(0, Math.min(1, (resources.pace.get().scale - TUNING.slow) / (1 - TUNING.slow)))
     const r = TUNING.player.radius
     const allies = [
       ...queries.shooters.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
@@ -221,12 +223,12 @@ export const MeleeSystem = Game.System(
           else {
             data.blade.transition({ from: "windup", to: "swing", data: { left: spec.swing } })
             // The strike lands the step it starts: a rush that would reach your cut this step meets the blade first.
-            if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
+            if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc && still >= spec.still) events.hit.emit({ by: "swing" })
           }
           break
         }
         case "swing": {
-          if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
+          if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc && still >= spec.still) events.hit.emit({ by: "swing" })
           // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "swing", data: () => ({ left }) })

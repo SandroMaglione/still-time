@@ -68,9 +68,10 @@ export const SHOOTERS = {
  * The melee family: each walks at you with a weapon held in front. Close
  * enough, it stops, winds up (tracking you, then committed for the last
  * `lock`), strikes a wedge in front of it, and recovers. Its front may be
- * guarded within `guardArc` of its facing: never (`guard: "none"`), while it
- * attacks (`"attack"`), or always (`"always"`, the shield-bearer). A guarded
- * front stops your cut and any shot; any other blow downs it.
+ * guarded within `guardArc` of its facing: never (`guard: "none"`), or always
+ * (`"always"`, the shield-bearer). A guarded front stops your cut and any
+ * shot; any other blow downs it. (A front guarded only while it attacked was
+ * cut: a head-on cut that bounced read as a bug.)
  *
  * - brute: the spearman. Unguarded, but its spear outreaches your cut: it
  *   starts its thrust from `trigger`, and the wind-up is short, so rushing it
@@ -78,7 +79,9 @@ export const SHOOTERS = {
  *   `TUNING.player.speed` metres per world second) to reach it before the
  *   thrust lands. Step off the narrow line, then cut in while it recovers.
  * - clockwork: a slow brass brute whose `clock` is real time: it walks,
- *   winds up and swings at its own pace however still you stand.
+ *   winds up and swings at its own pace however still you stand, and its
+ *   blow takes you only if you are standing still (`still`). Unguarded:
+ *   keep moving, walk in, cut it. Stopping near it is what kills you.
  * - shield-bearer: slow and slow to turn (circling it within 3 m at full
  *   speed outpaces its turn), its shield always up: go round it.
  */
@@ -108,15 +111,18 @@ export const MELEE = {
     swing: 0.1,
     recover: 0.8,
     /** World time (slowed with the world) or real time (never slowed). */
-    clock: "world"
+    clock: "world",
+    /** How still you must be (0 moving, 1 frozen) for its blow to take you: 0, any blow does. */
+    still: 0
   },
   shield: {
     radius: 0.5, speed: 2.6, turn: 1.5, trigger: 2.0, reach: 1.7, arc: 0.8, guard: "always", guardArc: 1.25,
-    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9, clock: "world"
+    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9, clock: "world", still: 0
   },
+  /** Keeps real time, so it walks and swings while you stand still; but its blow only takes you standing still. Unguarded: keep moving and cut it. */
   clockwork: {
-    radius: 0.46, speed: 1.6, turn: 3, trigger: 2.2, reach: 1.8, arc: 0.9, guard: "attack", guardArc: 1.2,
-    windup: 0.8, lock: 0.45, close: 1.4, step: 0.5, swing: 0.12, recover: 1, clock: "real"
+    radius: 0.46, speed: 1.6, turn: 3, trigger: 2.2, reach: 1.8, arc: 0.9, guard: "none", guardArc: 0,
+    windup: 0.8, lock: 0.45, close: 1.4, step: 0.5, swing: 0.12, recover: 1, clock: "real", still: 0.5
   }
 } as const satisfies Record<MeleeKind, {
   radius: number
@@ -125,7 +131,7 @@ export const MELEE = {
   trigger: number
   reach: number
   arc: number
-  guard: "none" | "attack" | "always"
+  guard: "none" | "always"
   guardArc: number
   windup: number
   lock: number
@@ -134,6 +140,7 @@ export const MELEE = {
   swing: number
   recover: number
   clock: "world" | "real"
+  still: number
 }>
 
 /**

@@ -44,7 +44,7 @@ export const ShotsSystem = Game.System(
         return [{
           id: m.entity.id, at: m.data.body.get(), radius: radiusOf(kind),
           struck: (from: number): BlowResult => {
-            const result = blow(kind, m.data.blade.get()._tag, m.data.melee.get().facing, from)
+            const result = blow(kind, m.data.melee.get().facing, from)
             if (result === "down") commands.despawn(m.entity)
             return result
           }

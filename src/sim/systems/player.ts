@@ -104,7 +104,7 @@ export const CutSystem = Game.System(
       const at = data.body.get()
       const kind = data.enemy.get().kind
       if (!inReach(at) || !isMelee(kind)) continue
-      if (blow(kind, data.blade.get()._tag, data.melee.get().facing, Ops.atan2(me.y - at.y, me.x - at.x)) === "guarded") continue
+      if (blow(kind, data.melee.get().facing, Ops.atan2(me.y - at.y, me.x - at.x)) === "guarded") continue
       commands.despawn(entity)
       cutAt(at)
     }

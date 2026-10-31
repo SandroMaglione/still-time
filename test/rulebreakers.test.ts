@@ -7,7 +7,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Fight } from "../src/sim/simulation.ts"
-import { BELT, STALKER, TUNING } from "../src/sim/tuning.ts"
+import { BELT, MELEE_KINDS, STALKER, TUNING } from "../src/sim/tuning.ts"
+import { blow } from "../src/sim/systems/blows.ts"
 import type { EnemyView } from "../src/sim/view.ts"
 import { fightIn, placePlayer, pushToward, runUntil, type ScriptedThumb } from "./helpers.ts"
 
@@ -37,16 +38,39 @@ test("the clockwork keeps real time: it closes in while you stand still, where a
   assert.ok(b0 - distance(duel, find(duel, "brute")) < 0.3, "a brute barely moves in the same still second")
 })
 
-test("the brute's dodge beats the clockwork: back off when its swing commits, close in otherwise", () => {
+test("the clockwork has no guard: rush it head-on and one cut downs it, its swing never landing", () => {
   const { fight, thumb } = fightIn("Clockworks")
   runUntil(fight, 4000, () => fight.view().flow !== "playing", () => {
     const c = find(fight, "clockwork")
-    const m = c?.melee
-    if (c === undefined || m === null || m === undefined) return
-    thumb.push = pushToward(fight, c.x, c.y, (m.phase === "windup" && m.locked) || m.phase === "swing")
+    if (c !== undefined) thumb.push = pushToward(fight, c.x, c.y)
   })
   assert.equal(fight.view().flow, "cleared")
   assert.equal(fight.view().hits, 0)
+})
+
+test("the clockwork's swing takes you only if you stand still: keep moving through it and you live", () => {
+  // Standing still in its reach: its blade, on its own clock, comes down on you.
+  const still = fightIn("Clockworks")
+  const c0 = find(still.fight, "clockwork")
+  assert.ok(c0 !== undefined)
+  placePlayer(still.fight, c0.x, c0.y + 1.6)
+  runUntil(still.fight, 600, () => still.fight.view().flow !== "playing")
+  assert.equal(still.fight.view().flow, "dead")
+  assert.deepEqual(still.fight.view().death, { by: "swing" })
+
+  // Moving in its reach (side to side at a full push, out of your cut's range) through its whole swing: no hit.
+  const moving = fightIn("Clockworks")
+  const c1 = find(moving.fight, "clockwork")
+  assert.ok(c1 !== undefined)
+  placePlayer(moving.fight, c1.x, c1.y + 1.6)
+  let swung = false
+  const wait = jiggle(moving.thumb)
+  runUntil(moving.fight, 600, () => moving.fight.view().flow !== "playing" || (swung && find(moving.fight, "clockwork")?.melee?.phase === "recover"), () => {
+    if (find(moving.fight, "clockwork")?.melee?.phase === "swing") swung = true
+    wait()
+  })
+  assert.ok(swung, "it swung")
+  assert.equal(moving.fight.view().flow, "playing")
 })
 
 test("the stalker moves only while you stand still", () => {
@@ -90,4 +114,12 @@ test("a belt carries you while time stays frozen", () => {
   assert.ok(Math.abs(24 - me.y - BELT.speed) < 0.1, `carried ${(24 - me.y).toFixed(2)} m in a second`)
   assert.ok(fight.view().world < 0.1, `with ${fight.view().world.toFixed(3)} world s gone`)
   assert.ok(fight.view().scale < 0.05, "time stays frozen")
+})
+
+test("only the shield-bearer turns a head-on cut: every other melee enemy falls to a blow from its front", () => {
+  for (const kind of MELEE_KINDS) {
+    // Facing you (east), struck from the east: the blow comes from straight ahead.
+    assert.equal(blow(kind, 0, 0), kind === "shield" ? "guarded" : "down", kind)
+    assert.equal(blow(kind, 0, Math.PI), "down", `${kind} from behind`)
+  }
 })

@@ -8,12 +8,11 @@ import { MELEE, type MeleeKind } from "../tuning.ts"
 export type BlowResult = "guarded" | "down"
 
 /** Whether a melee enemy's front is up now, against a blow coming from angle `from` (from its centre). */
-export const guards = (kind: MeleeKind, phase: string, facing: number, from: number): boolean => {
+export const guards = (kind: MeleeKind, facing: number, from: number): boolean => {
   const spec = MELEE[kind]
-  const up = spec.guard === "always" || (spec.guard === "attack" && (phase === "windup" || phase === "swing"))
-  return up && Math.abs(angleDiff(from, facing)) <= spec.guardArc
+  return spec.guard === "always" && Math.abs(angleDiff(from, facing)) <= spec.guardArc
 }
 
-/** A blow from angle `from` on a melee enemy of `kind`, in `phase`, facing `facing`. */
-export const blow = (kind: MeleeKind, phase: string, facing: number, from: number): BlowResult =>
-  guards(kind, phase, facing, from) ? "guarded" : "down"
+/** A blow from angle `from` on a melee enemy of `kind`, facing `facing`. */
+export const blow = (kind: MeleeKind, facing: number, from: number): BlowResult =>
+  guards(kind, facing, from) ? "guarded" : "down"

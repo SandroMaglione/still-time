@@ -499,7 +499,7 @@ export const ROOMS: ReadonlyArray<Room> = [
     enemies: [{ kind: "clockwork", x: 7, y: 4, delay: 0 }],
     goal: CLEAR,
     par: 5,
-    tip: "clockwork keeps its own time: standing still won't slow it"
+    tip: "it keeps its own time: stand still near it and it takes you. keep moving"
   },
   {
     name: "Stalker",
