@@ -110,6 +110,9 @@
       @font-face { font-family: "SilkscreenNow"; src: url("/ui/fonts/Silkscreen-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
       .loader { position: fixed; inset: 0; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--ink); }
       .loading .loader { display: flex; }
+      /* Only a slow load shows it: for the first second the screen stays plain dark, so a quick load never flashes it. */
+      .loader-stage, .loader-text { animation: loader-in 0.3s ease-out 1s both; }
+      @keyframes loader-in { from { opacity: 0; } to { opacity: 1; } }
       .loader-stage { position: relative; width: 200px; height: 84px; }
       /* The light the hero carries in the game, so it never vanishes into the dark. */
       .loader-stage::before { content: ""; position: absolute; inset: -40px -30px -20px; background: radial-gradient(ellipse at 50% 60%, #c6dcef33 0%, #64b6b31a 40%, transparent 70%); }
