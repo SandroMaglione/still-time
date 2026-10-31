@@ -105,6 +105,30 @@
       .tip-room { color: var(--dim); }
       .tip-hint { color: var(--dim); font-size: var(--t0); line-height: var(--l0); }
 
+      /* The loading screen, up before anything else (the page alone): the hero running back and forth, its afterimages
+         trailing, and "loading" under it. Gone once the art has loaded (main.ts drops body.loading). */
+      @font-face { font-family: "SilkscreenNow"; src: url("/ui/fonts/Silkscreen-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+      .loader { position: fixed; inset: 0; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--ink); }
+      .loading .loader { display: flex; }
+      .loader-stage { position: relative; width: 200px; height: 84px; }
+      /* The light the hero carries in the game, so it never vanishes into the dark. */
+      .loader-stage::before { content: ""; position: absolute; inset: -40px -30px -20px; background: radial-gradient(ellipse at 50% 60%, #c6dcef33 0%, #64b6b31a 40%, transparent 70%); }
+      .loader-shadow { position: absolute; left: 50%; bottom: 4px; width: 40px; height: 8px; margin-left: -20px; border-radius: 50%; background: #00000066; animation: loader-run 1.8s linear infinite; }
+      .loader-runner { position: absolute; left: 50%; bottom: 8px; width: 72px; height: 72px; margin-left: -36px; animation: loader-run 1.8s linear infinite; }
+      .loader-runner img { display: block; width: 72px; height: 72px; image-rendering: pixelated; animation: loader-hop 0.3s steps(2) infinite; }
+      .loader-runner.ghost img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(135deg); }
+      .loader-runner.ghost.g1 { opacity: 0.45; animation-delay: -0.07s; }
+      .loader-runner.ghost.g2 { opacity: 0.2; animation-delay: -0.14s; }
+      .loader-text { font-family: "SilkscreenNow", ui-monospace, monospace; font-size: 16px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+      .loader-text i { font-style: normal; animation: blink 1.2s steps(1) infinite; }
+      .loader-text i:nth-child(2) { animation-delay: 0.2s; }
+      .loader-text i:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes loader-run {
+        0% { transform: translateX(-62px) scaleX(1); } 47% { transform: translateX(62px) scaleX(1); }
+        50% { transform: translateX(62px) scaleX(-1); } 97% { transform: translateX(-62px) scaleX(-1); } 100% { transform: translateX(-62px) scaleX(1); }
+      }
+      @keyframes loader-hop { 0% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
       /* While the game loads, its HUD (written in this page, so up before anything else) stays hidden: an empty frame of
          panels with no room under it reads as broken. */
       .loading .hud { visibility: hidden; }
@@ -255,6 +279,15 @@
     </style>
   </head>
   <body class="loading">
+    <div class="loader" aria-label="Loading">
+      <div class="loader-stage">
+        <div class="loader-shadow"></div>
+        <div class="loader-runner ghost g2"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAB30lEQVR4Ab3BMYrbQABA0T+2G4PBrIpMMyrcpDKjVldQoVMERO6gxluoyBW0VwhpVBhyArcW6lWMmkkhwsLWEwksEEayvSGb9/hoggdIpR0XtikF7yC4QyrtgjCiZ+qK1hoGtikFdyy5QSrtgjBi8Pr7F+vNlvVmy3qzZblcH95e7TM3LJkhlXae9Nk+faJn6opr682W5XJ9eHu1z8xYcIO/29MzdcUcT/pIpR0zVtxh6gp/t+fa+XTkESsmSKVdEEYMzqcjf2vBg+I8I84zBnGeEecZPU/6SKUdE1bMMHXFWJGkjBVJyiNWzGitwZM+vSCMmGLqil5rDXMEM6TSjo4nfW5praFnm1IwQUilHR3blIILqbSjE+cZRZIS5xlziiTFNqVghqAjlXZxnlEkKYM4z+gVSco9tikFMwQXUmlHJ84zBkWSEoQRPVNXTGmtoWebUjBBcEUq7bgIwoiBqSvGWmsYeNKn11qDbUrByIIrtikF/9CCCbYpBRfn05Gev9vj7/a01tBaw6MEM6TSjncIwoixn9+/CToLZtimFLzD+XTkx8sXDoevnE9HBivu8KTPoLUG25SCjlTaedKn11rDmG1KwcWCD7biDn+3Z9Baw1hrDWObp89CKu34n/4ALn+tifi3VWoAAAAASUVORK5CYII=" /></div>
+        <div class="loader-runner ghost g1"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAB30lEQVR4Ab3BMYrbQABA0T+2G4PBrIpMMyrcpDKjVldQoVMERO6gxluoyBW0VwhpVBhyArcW6lWMmkkhwsLWEwksEEayvSGb9/hoggdIpR0XtikF7yC4QyrtgjCiZ+qK1hoGtikFdyy5QSrtgjBi8Pr7F+vNlvVmy3qzZblcH95e7TM3LJkhlXae9Nk+faJn6opr682W5XJ9eHu1z8xYcIO/29MzdcUcT/pIpR0zVtxh6gp/t+fa+XTkESsmSKVdEEYMzqcjf2vBg+I8I84zBnGeEecZPU/6SKUdE1bMMHXFWJGkjBVJyiNWzGitwZM+vSCMmGLqil5rDXMEM6TSjo4nfW5praFnm1IwQUilHR3blIILqbSjE+cZRZIS5xlziiTFNqVghqAjlXZxnlEkKYM4z+gVSco9tikFMwQXUmlHJ84zBkWSEoQRPVNXTGmtoWebUjBBcEUq7bgIwoiBqSvGWmsYeNKn11qDbUrByIIrtikF/9CCCbYpBRfn05Gev9vj7/a01tBaw6MEM6TSjncIwoixn9+/CToLZtimFLzD+XTkx8sXDoevnE9HBivu8KTPoLUG25SCjlTaedKn11rDmG1KwcWCD7biDn+3Z9Baw1hrDWObp89CKu34n/4ALn+tifi3VWoAAAAASUVORK5CYII=" /></div>
+        <div class="loader-runner"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAB30lEQVR4Ab3BMYrbQABA0T+2G4PBrIpMMyrcpDKjVldQoVMERO6gxluoyBW0VwhpVBhyArcW6lWMmkkhwsLWEwksEEayvSGb9/hoggdIpR0XtikF7yC4QyrtgjCiZ+qK1hoGtikFdyy5QSrtgjBi8Pr7F+vNlvVmy3qzZblcH95e7TM3LJkhlXae9Nk+faJn6opr682W5XJ9eHu1z8xYcIO/29MzdcUcT/pIpR0zVtxh6gp/t+fa+XTkESsmSKVdEEYMzqcjf2vBg+I8I84zBnGeEecZPU/6SKUdE1bMMHXFWJGkjBVJyiNWzGitwZM+vSCMmGLqil5rDXMEM6TSjo4nfW5praFnm1IwQUilHR3blIILqbSjE+cZRZIS5xlziiTFNqVghqAjlXZxnlEkKYM4z+gVSco9tikFMwQXUmlHJ84zBkWSEoQRPVNXTGmtoWebUjBBcEUq7bgIwoiBqSvGWmsYeNKn11qDbUrByIIrtikF/9CCCbYpBRfn05Gev9vj7/a01tBaw6MEM6TSjncIwoixn9+/CToLZtimFLzD+XTkx8sXDoevnE9HBivu8KTPoLUG25SCjlTaedKn11rDmG1KwcWCD7biDn+3Z9Baw1hrDWObp89CKu34n/4ALn+tifi3VWoAAAAASUVORK5CYII=" /></div>
+      </div>
+      <div class="loader-text">loading<i>.</i><i>.</i><i>.</i></div>
+    </div>
     <canvas id="view"></canvas>
     <div id="hud" class="hud">
       <div class="hud-top">
