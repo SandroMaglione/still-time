@@ -91,11 +91,12 @@ export const BuildRoomSystem = Game.System(
       } else if (kind === "stalker") {
         commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Stalk, {}]))
       } else {
-        const post = { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1 } as const
+        const post = { hx: e.x, hy: e.y, seen: null, strafe: e.x < room.w / 2 ? 1 : -1, arriving: e.from !== undefined } as const
+        const at = e.from ?? { x: e.x, y: e.y }
         // A scoped shooter starts uncharged: it must see you for a whole charge before its first shot.
         const spec = SHOOTERS[kind]
         const left = spec.scoped ? spec.period + e.delay : e.delay
-        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: e.x, y: e.y }], [Enemy, enemy], [Reload, { left, aim: toStart }], [Post, post]))
+        commands.spawnIn(RoomScope, Game.Command.spawn([Body, { x: at.x, y: at.y }], [Enemy, enemy], [Reload, { left, aim: toStart }], [Post, post]))
       }
     }
     // Shots already in flight as you come in (the Prologue opens on one, frozen): they hang until you move.

@@ -74,6 +74,13 @@ export const ShootersSystem = Game.System(
       const shot = fires === "bomb" ? null : SHOTS[fires]
       const at = data.body.get()
       const post = data.post.get()
+      // Still walking in: straight to its post, nothing else (its reload waits).
+      if (post.arriving) {
+        const dx = post.hx - at.x, dy = post.hy - at.y, d = Ops.hypot(dx, dy), step = SHOOTER_MOVE.enter * dt
+        if (d <= step) { data.body.set({ x: post.hx, y: post.hy }); data.post.set({ ...post, arriving: false }) }
+        else data.body.set({ x: at.x + (dx / d) * step, y: at.y + (dy / d) * step })
+        continue
+      }
       const sees = canSee(at.x, at.y, me.x, me.y, spec.sight, walls)
       const reload = data.reload.get()
       // A scoped shooter's aim stops following you for the last `lock` of its charge.
@@ -101,7 +108,7 @@ export const ShootersSystem = Game.System(
         if (blocked) strafe = strafe === 1 ? -1 : 1
       } else if (blocked && Ops.hypot(to.x - at.x, to.y - at.y) < stepLen * 0.3) strafe = strafe === 1 ? -1 : 1
       if (to !== at) data.body.set(to)
-      data.post.set({ hx: post.hx, hy: post.hy, seen, strafe })
+      data.post.set({ hx: post.hx, hy: post.hy, seen, strafe, arriving: false })
       // Reload runs always; a shot needs sight and a clear line, and a short reaction after you step out of cover.
       // A scoped shooter charges only while it sees you with a clear line (an ally in the way holds it): losing sight of you starts it over.
       // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion: no whole step to end on
@@ -214,7 +221,11 @@ export const MeleeSystem = Game.System(
           // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "windup", data: () => ({ left }) })
-          else data.blade.transition({ from: "windup", to: "swing", data: { left: spec.swing } })
+          else {
+            data.blade.transition({ from: "windup", to: "swing", data: { left: spec.swing } })
+            // The strike lands the step it starts: a rush that would reach your cut this step meets the blade first.
+            if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
+          }
           break
         }
         case "swing": {

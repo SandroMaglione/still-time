@@ -70,6 +70,14 @@ export class Camera {
     this.y += (ty - this.y) * k
   }
 
+  /** Eases toward a floor point instead of the player (a cutscene's framing: no one steers this camera). */
+  look(at: { readonly x: number; readonly y: number }, dt: number, rate = 3): void {
+    if (!this.placed) { this.x = at.x; this.y = at.y; this.placed = true; return }
+    const k = 1 - Math.exp(-dt * rate)
+    this.x += (at.x - this.x) * k
+    this.y += (at.y - this.y) * k
+  }
+
   /** Snaps to the player next frame: on a new room. */
   reset(): void {
     this.placed = false
@@ -173,14 +181,16 @@ const disc = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
 }
 /** The thumb-stick as it looks under your finger and in the lesson: a ring where you pressed, and a knob on a line to it. */
 export const thumbPad = (ctx: CanvasRenderingContext2D, base: { readonly x: number; readonly y: number }, knob: { readonly x: number; readonly y: number }, reach: number): void => {
-  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, INK, 3)
-  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, "#7fd8ff", 1)
-  disc(ctx, base.x, base.y, 2, "#7fd8ff")
-  pixelLine(ctx, base, knob, INK, 3)
-  pixelLine(ctx, base, knob, "#7fd8ff", 1)
-  disc(ctx, knob.x, knob.y, 6, INK)
-  disc(ctx, knob.x, knob.y, 5, "#e8f6ff")
-  disc(ctx, knob.x - 1, knob.y - 1, 2, "#ffffff")
+  // Soft, half see-through and in muted teal-grey: it says where your thumb is without pulling the eye off the room.
+  ctx.save()
+  ctx.globalAlpha = 0.45
+  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, INK, 2)
+  pixelArc(ctx, base, reach, reach, 0, Math.PI * 2, "#6f97ad", 1, true)
+  disc(ctx, base.x, base.y, 2, "#6f97ad")
+  pixelLine(ctx, base, knob, "#6f97ad", 1)
+  disc(ctx, knob.x, knob.y, 5, INK)
+  disc(ctx, knob.x, knob.y, 4, "#a9c3d1")
+  ctx.restore()
 }
 /** How far (0 to 1) a time door's portcullis has risen: over the last DOOR_RISE world seconds before it opens. */
 const DOOR_RISE = 3
@@ -695,8 +705,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         ring(0, Math.PI * 2, m.phase === "recover" ? "#edc66c" : "#947058", 1, m.phase !== "recover")
       }
     }
-    // Your cut's reach.
-    if (view.player !== null) {
+    // Your cut's reach (not in a cutscene: nothing there says the character is yours).
+    if (view.player !== null && !view.room.scene) {
       pixelArc(ctx, P(view.player.x, view.player.y), view.player.attackRange * erx, view.player.attackRange * ery, 0, Math.PI * 2, view.scale < 0.15 ? "#64b6b3" : "#647373", 1, true)
     }
     ctx.restore()
@@ -729,7 +739,9 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     actors.push({
       x: e.x, y: e.y, paint: () => {
         const ground = P(e.x, e.y)
-        const resting = view.flow !== "playing" && e.melee !== null ? { ...e, melee: { ...e.melee, phase: "idle" as const, progress: 0 } } : e
+        // Once the room is over, weapons rest; except the blow that hit you, held at full length on the hit screen.
+        const struck = view.flow === "dead" && e.melee !== null && e.melee.phase === "swing"
+        const resting = view.flow !== "playing" && e.melee !== null ? { ...e, melee: { ...e.melee, phase: struck ? "swing" as const : "idle" as const, progress: struck ? 1 : 0 } } : e
         combatActor(ctx, resting, ground, view.flow === "playing" ? presentation?.firing(e, view.world) ?? -1 : -1)
         if (view.flow === "playing" && e.melee !== null) attackWave(ctx, e, P(e.x, e.y, 0.45), e.melee.reach * erx, e.melee.reach * ery)
         if (e.captain) {
@@ -822,7 +834,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
         const y = ground.y - bob
         // Over your head, where the eyes are: a pause sign while the world waits, a play sign as soon as it runs at
         // all (a slow walk included). On the glow layer too, so frozen time does not grey it.
-        if (view.flow === "playing") for (const c of [ctx, glow]) paceSign(c, ground.x, y - 38, view.scale > view.slow)
+        if (view.flow === "playing" && !view.room.scene) for (const c of [ctx, glow]) paceSign(c, ground.x, y - 38, view.scale > view.slow)
         if (k > 0.3) {
           // The aura: a 1 px electric outline that flickers, thicker and steadier the faster you go.
           const strength = (k - 0.3) / 0.7, frame = Math.floor((presentation?.now ?? view.world) * 24)

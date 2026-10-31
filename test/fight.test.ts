@@ -73,7 +73,7 @@ test("a shooter steps aside instead of shooting through an ally", () => {
   assert.equal(fight.view().enemies.filter((e) => e.kind === "gunner").length, 2, "no gunner shot another")
 })
 
-test("a brute's swing kills you if you rush its guarded front", () => {
+test("a spearman's thrust kills you if you rush it head-on: its reach is past your cut", () => {
   const { fight, thumb } = fightIn("Duel")
   let closest = 99
   runUntil(fight, 900, () => fight.view().flow !== "playing", () => {
@@ -87,7 +87,7 @@ test("a brute's swing kills you if you rush its guarded front", () => {
   assert.ok(closest >= TUNING.player.radius + 0.48 - 0.06, `walked into the brute: ${closest}`)
 })
 
-test("stepping out of the swing and cutting back in from the front kills a brute", () => {
+test("stepping back off the thrust, then cutting in while it recovers, kills a spearman", () => {
   const { fight, thumb } = fightIn("Duel")
   let phase: "approach" | "dodge" | "cut" = "approach"
   runUntil(fight, 900, () => fight.view().flow !== "playing", () => {
@@ -137,7 +137,7 @@ test("clearing a room waits for a tap, then opens the next", () => {
   thumb.tap()
   fight.tick()
   assert.equal(fight.view().flow, "playing")
-  assert.equal(fight.view().room.name, "Two Blades")
+  assert.equal(fight.view().room.name, "Two Spears")
 })
 
 test("a fight saved mid-room restores to the same moment", () => {

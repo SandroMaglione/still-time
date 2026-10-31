@@ -107,7 +107,7 @@ test("a door holds until its chamber is clear, then opens", () => {
   runUntil(fight, 40, () => fight.view().flow !== "playing")
   assert.ok((fight.view().player?.y ?? 0) >= 13.4 + TUNING.player.radius - 0.01, `walked through the door to ${fight.view().player?.y}`)
   thumb.push = { x: 0, y: 0 }
-  cutDown(fight, (e) => e.kind === "brute")
+  cutDown(fight, (e) => e.kind === "gunner" && e.y > 13 && e.x > 7)
   assert.equal(door()?.open, false)
   assert.equal(door()?.waiting, 1)
   cutDown(fight, (e) => e.kind === "gunner" && e.y > 13)

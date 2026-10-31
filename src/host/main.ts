@@ -275,10 +275,12 @@ class Scene {
   cue: Cue | null = null
   private line = ""
   lineAt = 0
+  /** When (real s) this attempt at the scene began: its bars close in from then. */
+  private startedAt = 0
 
   private fresh(view: FightView): void {
     const key = `${view.room.index}:${view.player?.id ?? -1}`
-    if (key !== this.attempt) { this.attempt = key; this.director = new Director(); this.skipping = false }
+    if (key !== this.attempt) { this.attempt = key; this.director = new Director(); this.skipping = false; this.startedAt = this.now }
   }
 
   /** The director's push for this step (call before each tick of a cutscene room). */
@@ -329,8 +331,31 @@ class Scene {
   get age(): number {
     return this.now - this.lineAt
   }
+
+  /** Real s since the scene began. */
+  get opened(): number {
+    return this.now - this.startedAt
+  }
+
+  /**
+   * Where the scene's camera looks: up the corridor ahead of you while the gunner walks in (so it enters the frame);
+   * then a two-shot of you and the gunner (a little past your midpoint, toward it, more while its "!" is up), eased
+   * slowly; once it is down, at you. It never snaps to you: the framing of a scene, not a camera that follows a thumb.
+   */
+  frameCamera(view: FightView, dt: number): void {
+    const p = view.player, gunner = view.enemies[0] ?? null
+    if (p === null) return
+    if (gunner === null) { camera.look({ x: p.x, y: p.y }, dt, SCENE_CAMERA); return }
+    if (gunner.arriving) { camera.look({ x: p.x, y: p.y - SCENE_LEAD }, dt, SCENE_CAMERA); return }
+    const toward = this.cue?.alert != null ? 0.6 : 0.5
+    camera.look({ x: p.x + (gunner.x - p.x) * toward, y: p.y + (gunner.y - p.y) * toward }, dt, SCENE_CAMERA)
+  }
 }
 const scene = new Scene()
+/** How fast (per real s) the scene's camera eases to its framing: slow, like a camera operator's. */
+const SCENE_CAMERA = 0.9
+/** How far (m) up the corridor ahead of you the scene's camera looks while the gunner walks in. */
+const SCENE_LEAD = 6
 
 /**
  * The title's backdrop: the empty aisle (the title's own room, never played) gliding by as if walking up it, with no
@@ -413,7 +438,8 @@ FixedLoop.start({
     lastPlayer = view.player?.id ?? -1
     // The HUD: room, clock against par, the time-freeze gauge, the tip (messages are drawn with the scene, see `draw`).
     hud.update(view, frame.elapsedSeconds)
-    if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
+    if (view.room.scene) scene.frameCamera(view, frame.elapsedSeconds)
+    else if (view.flow === "playing") camera.follow(view, frame.elapsedSeconds)
     const k = 1 / cssPerPixel
     const pixelStick = stick === null ? null : { ox: stick.ox * k, oy: stick.oy * k, x: stick.x * k, y: stick.y * k, reach: stick.reach * k }
     const dirs = [...held].filter((key) => DIRS[key] !== undefined)
@@ -421,7 +447,7 @@ FixedLoop.start({
     guide.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, guideInput)
     const drawn = draw(ctx, canvas.width, canvas.height, view, pixelStick, camera, presentation, lit)
     // The first rooms' guide, over everything; a cutscene's letterbox and words instead.
-    if (view.room.scene) letterbox(ctx, canvas.width, canvas.height, scene.cue, scene.age, drawn.P, presentation.now, view.flow === "playing")
+    if (view.room.scene) letterbox(ctx, canvas.width, canvas.height, scene.cue, scene.age, drawn.P, presentation.now, view.flow === "playing", scene.opened)
     else guide.draw(ctx, canvas.width, canvas.height, view, drawn.P, guideInput)
   },
   onFailure: (failure) => {

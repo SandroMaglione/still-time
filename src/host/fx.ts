@@ -113,8 +113,8 @@ export class Presentation {
       this.running = false; this.runFrom = -1
       // A new attempt (a room entered, a retry, a restart) teaches the move again.
       this.deadAt = null; this.clearedAt = null; this.vanish = null; this.cutAt = null
-      // ...and you appear, ninja-style (not in a cutscene, which has its own opening).
-      this.appearedAt = view.player !== null && view.flow === "playing" && !view.room.scene ? this.now : null
+      // ...and you appear, ninja-style.
+      this.appearedAt = view.player !== null && view.flow === "playing" ? this.now : null
       this.previous = view
       return
     }

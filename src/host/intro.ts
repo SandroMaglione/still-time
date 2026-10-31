@@ -3,7 +3,9 @@
  * the view (not a timeline), so the page and a headless test play it the same way. Each beat with words holds,
  * the world frozen, until you tap (`advance`), for as long as you like; "tap to continue" shows at once:
  *
- * 1. A gunner up the corridor sees you as you walk at it, and fires. You walk on at the bullet (ringed in gold) and
+ * 0. You appear (the clear's vanish played backwards) and take a few steps up the corridor; as you walk (the world
+ *    runs with you), a gunner walks in from out of view to its post, and stops as you stop. It notices you: a "!".
+ * 1. It fires as you walk at it. You walk on at the bullet (ringed in gold) and
  *    ease to a stop just short of it: "when you stop, / time stops." (tap)
  * 2. A slow step aside and the bullet crawls past: "move slowly, / and it crawls." (tap)
  * 3. On toward the gunner; it fires again, and you stop short of that one too, held longer: "it waits / as long as
@@ -33,14 +35,20 @@ export interface Cue {
   readonly ring: { readonly x: number; readonly y: number } | null
   readonly waiting: boolean
   readonly ready: boolean
+  /** The gunner noticing you: where its "!" pops, and how long ago (real s) it popped. */
+  readonly alert: { readonly x: number; readonly y: number; readonly age: number } | null
 }
 
-type Phase = "advance" | "stop1" | "dodge1" | "passed1" | "stop2" | "dodge" | "close" | "turn" | "over"
+type Phase = "appear" | "enter" | "notice" | "advance" | "stop1" | "dodge1" | "passed1" | "stop2" | "dodge" | "close" | "turn" | "over"
 
 /** Distance (m) along the bullet's line it stops at, short of it: far enough for the slow step aside to clear it. */
 const STOP = 1.3
 /** Walking share toward the gunner: an unhurried walk. */
 const WALK = 0.6
+/** Real s you stand while you appear, then while the gunner's "!" shows, before the walk. */
+const APPEAR = 0.8, NOTICE = 0.9
+/** Walking share while the gunner walks in: a few unhurried steps up the corridor. */
+const STROLL = 0.4
 /** Within this of the gunner (m), the closing beat. */
 const CLOSE = 2.8
 const LINES = {
@@ -70,7 +78,7 @@ const lineOf = (s: Shot, p: { readonly x: number; readonly y: number }): { reado
 }
 
 export class Director {
-  private phase: Phase = "advance"
+  private phase: Phase = "appear"
   /** The shot being stopped for or stepped round. */
   private bullet: number | null = null
   private stops = 0
@@ -97,7 +105,7 @@ export class Director {
     if (this.tapped && ready) { this.tapped = false; this.heldFor = 0; this.phase = next; return null }
     // (A tap before the beat has stood is let go: it does not count later.)
     this.tapped = false
-    return { push: STILL, line, ring, waiting: true, ready }
+    return { push: STILL, line, ring, waiting: true, ready, alert: null }
   }
 
   /** The cue for one step of `dt` real seconds. */
@@ -109,7 +117,7 @@ export class Director {
   }
 
   private decide(view: FightView, dt: number, depth: number): Cue {
-    const go = (push: Cue["push"], line: Line | null = null, ring: Cue["ring"] = null): Cue => ({ push, line, ring, waiting: false, ready: false })
+    const go = (push: Cue["push"], line: Line | null = null, ring: Cue["ring"] = null, alert: Cue["alert"] = null): Cue => ({ push, line, ring, waiting: false, ready: false, alert })
     if (depth > 4) return go(STILL)
     const again = (): Cue => this.decide(view, 0, depth + 1)
     if (view.flow === "cleared" || view.flow === "won") {
@@ -136,6 +144,23 @@ export class Director {
     }
     const passed = (s: Shot | null): boolean => s === null || lineOf(s, p).along < -0.5
     switch (this.phase) {
+      case "appear":
+        // You appear where you stand; nothing moves until you have.
+        this.heldFor += dt
+        if (this.heldFor < APPEAR) return go(STILL)
+        this.heldFor = 0; this.phase = "enter"
+        return again()
+      case "enter":
+        // A few steps up; the world runs with them, and the gunner walks in to its post.
+        if (gunner !== null && gunner.arriving) return go({ x: 0, y: -pushFor(STROLL) })
+        this.phase = "notice"
+        return again()
+      case "notice": {
+        // The gunner sees you: "!" over it. Then the walk, and its shot.
+        this.heldFor += dt
+        if (this.heldFor >= NOTICE) { this.heldFor = 0; this.phase = "advance"; return again() }
+        return go(STILL, null, null, gunner === null ? null : { x: gunner.x, y: gunner.y, age: this.heldFor })
+      }
       case "advance": {
         if (gunner === null) return go(STILL)
         const dx = gunner.x - p.x, dy = gunner.y - p.y, d = Math.hypot(dx, dy) || 1
@@ -181,9 +206,11 @@ export class Director {
   }
 }
 
-const INK = "#171c2e", GOLD = "#edc66c", WHITE = "#f4efda", DIM = "#8996b0"
-/** The bars' share of the screen's height. */
-const BAR = 0.13
+const INK = "#171c2e", GOLD = "#edc66c", WHITE = "#f4efda", DIM = "#8996b0", RED = "#ce4655"
+/** The top bar's share of the screen's height, and the bottom bar's (taller: it holds the words, with room round them). */
+const BAR = 0.13, BOTTOM_BAR = 0.2
+/** The words' block: two 16 px lines, then "tap to continue" (8 px); its height in px. */
+const WORDS = 60
 
 /** Whether a press at canvas y `y` lands on the top bar (where "skip" is). */
 export const onSkip = (y: number, ch: number): boolean => y < Math.round(ch * BAR)
@@ -200,9 +227,19 @@ const text = (ctx: CanvasRenderingContext2D, value: string, x: number, y: number
   ctx.restore()
 }
 
-/** The letterbox: the bars, the subtitle (fading in, `age` real s after it changed), "tap to continue", "skip", and the ring. */
-export const letterbox = (ctx: CanvasRenderingContext2D, cw: number, ch: number, cue: Cue | null, age: number, P: Project, now: number, skip: boolean): void => {
-  const bar = Math.round(ch * BAR)
+/** How long (real s) the bars take to close in as the scene starts. */
+const BARS_IN = 0.45
+
+/**
+ * The letterbox: a softer, desaturated grade over the scene (a cutscene's look, not play's), the bars (closing in
+ * over `BARS_IN` as the scene starts, `opened` real s ago), the subtitle (fading in, `age` real s after it changed),
+ * "tap to continue", "skip", the "!" and the ring.
+ */
+export const letterbox = (ctx: CanvasRenderingContext2D, cw: number, ch: number, cue: Cue | null, age: number, P: Project, now: number, skip: boolean, opened: number): void => {
+  const close = Math.min(1, opened / BARS_IN), k = 1 - (1 - close) ** 3
+  const bar = Math.round(ch * BAR * k), bottom = Math.round(Math.max(Math.round(ch * BOTTOM_BAR), WORDS + 32) * k)
+  grade(ctx, cw, ch, k)
+  if (cue?.alert != null) alertMark(ctx, P(cue.alert.x, cue.alert.y, 0.6), cue.alert.age)
   if (cue?.ring != null) {
     const at = P(cue.ring.x, cue.ring.y, 0.6)
     const r = 8 + Math.round((Math.sin(now * 5) + 1) * 1.5)
@@ -210,21 +247,50 @@ export const letterbox = (ctx: CanvasRenderingContext2D, cw: number, ch: number,
     pixelArc(ctx, at, r, r, 0, Math.PI * 2, GOLD, 1)
   }
   ctx.fillStyle = "#06070a"
-  ctx.fillRect(0, 0, cw, bar); ctx.fillRect(0, ch - bar, cw, bar)
-  if (skip) {
-    // A plate to press: the whole top bar takes it.
-    const w = 40, h = 16, left = cw - w - 8, top = Math.round(bar / 2) - 8
+  ctx.fillRect(0, 0, cw, bar); ctx.fillRect(0, ch - bottom, cw, bottom)
+  if (skip && close >= 1) {
+    // A plate to press, centred: the whole top bar takes it.
+    const w = 40, h = 16, left = Math.round(cw / 2 - w / 2), top = Math.round(bar / 2) - 8
     ctx.fillStyle = "#29334b"; ctx.fillRect(left, top, w, h)
     ctx.fillStyle = "#465477"; ctx.fillRect(left, top, w, 1)
     text(ctx, "SKIP", left + w / 2, top + 4, 8, DIM, 1)
   }
-  if (cue?.line != null) {
+  if (cue?.line != null && close >= 1) {
     const alpha = Math.min(1, age / 0.35)
-    const top = ch - bar + Math.round((bar - 52) / 2)
+    // Centred in the bottom bar, with room above and below.
+    const top = ch - bottom + Math.round((bottom - WORDS) / 2)
     text(ctx, cue.line[0], cw / 2, top, 16, WHITE, alpha)
     text(ctx, cue.line[1], cw / 2, top + 20, 16, GOLD, alpha)
     // While the beat holds: what to do, blinking, once the words are in.
     // (Always there while a tap would take it, pulsing gently: a blink read as "not yet".)
-    if (cue.ready) text(ctx, "TAP TO CONTINUE", cw / 2, top + 44, 8, DIM, 0.65 + 0.35 * Math.sin(now * 4))
+    if (cue.ready) text(ctx, "TAP TO CONTINUE", cw / 2, top + 50, 8, DIM, 0.65 + 0.35 * Math.sin(now * 4))
   }
+}
+
+/** The "!" over an enemy that has seen you: it pops up big, settles, and bobs. */
+const alertMark = (ctx: CanvasRenderingContext2D, at: { readonly x: number; readonly y: number }, age: number): void => {
+  const pop = age < 0.12 ? age / 0.12 * 1.4 : age < 0.22 ? 1.4 - (age - 0.12) / 0.1 * 0.4 : 1
+  const x = Math.round(at.x), y = Math.round(at.y - 22 - Math.sin(age * 9) * (age > 0.22 ? 1 : 0))
+  const h = Math.round(9 * pop), w = Math.max(2, Math.round(3 * pop))
+  ctx.fillStyle = INK
+  ctx.fillRect(x - Math.ceil(w / 2) - 1, y - h - 1, w + 2, h + 2)
+  ctx.fillRect(x - Math.ceil(w / 2) - 1, y + 2, w + 2, w + 2)
+  ctx.fillStyle = age < 0.08 ? WHITE : RED
+  ctx.fillRect(x - Math.ceil(w / 2), y - h, w, h)
+  ctx.fillRect(x - Math.ceil(w / 2), y + 3, w, w)
+}
+
+/** The cutscene's grade, at `k` (0 to 1) of its strength: the colour drained by a third, the edges darkened. */
+const grade = (ctx: CanvasRenderingContext2D, cw: number, ch: number, k: number): void => {
+  if (k <= 0) return
+  ctx.save()
+  ctx.globalCompositeOperation = "saturation"
+  ctx.globalAlpha = 0.35 * k
+  ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, cw, ch)
+  ctx.restore()
+  const r = Math.hypot(cw, ch) / 2
+  const edge = ctx.createRadialGradient(cw / 2, ch / 2, r * 0.45, cw / 2, ch / 2, r)
+  edge.addColorStop(0, "rgba(6,7,10,0)")
+  edge.addColorStop(1, `rgba(6,7,10,${(0.45 * k).toFixed(3)})`)
+  ctx.fillStyle = edge; ctx.fillRect(0, 0, cw, ch)
 }

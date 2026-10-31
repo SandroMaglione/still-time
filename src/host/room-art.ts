@@ -131,12 +131,17 @@ interface RoomDressing {
   readonly banners: ReadonlyArray<Point>
 }
 const frames = new WeakMap<Projection, RoomDressing>()
+/** How far (m, along the wall) torches and pots keep from a room's decoration: a lantern swings below its hook. */
+const DECOR_ROOM = 1.6
 
 /** Static dressing in floor metres. Missing quarter lights are supplied by side-wall sconces. */
 export const roomDressing = (view: FightView): RoomDressing => {
   const { w, h, index, pillars } = view.room
   const braziers = new Map<string, Point>(), torches: Array<WallTorch> = [], banners: Array<Point> = []
   const launchers = (ROOMS[index]?.hazards ?? []).flatMap((hz) => (hz.kind === "bolt" ? [hz] : []))
+  // The room's own decorations (lanterns, wheels) hang on the side walls: torches and pots keep clear of them.
+  const decor = ROOMS[index]?.decor ?? []
+  const byDecor = (x: number, y: number, room: number): boolean => decor.some((d) => Math.abs(d.x - x) < 1 && Math.abs(d.y - y) < room)
   const free = (p: Point): boolean => p.x >= 0.5 && p.x <= w - 0.5 && p.y >= 0.6 && p.y <= h - 0.5 && ![...pillars, ...view.doors].some(b => p.x > b.x - 0.45 && p.x < b.x + b.w + 0.45 && p.y > b.y - 0.45 && p.y < b.y + b.h + 0.45)
   for (const b of pillars) {
     if (b.w >= 2 || b.h >= 2) continue
@@ -159,15 +164,24 @@ export const roomDressing = (view: FightView): RoomDressing => {
   for (let y = 1.7, section = 0; y < h - 0.6; section++) {
     const hash = decorationHash(section, 31, index)
     const x = section % 2 === 0 ? 0.3 : w - 0.3
-    // The wall is the bullet launcher's there.
-    if (!launchers.some((l) => Math.abs(l.x1 - x) < 1 && Math.abs(l.y1 - y) < 1.4)) torches.push({ x, y, seed: hash })
+    // The wall is the bullet launcher's (or a decoration's) there.
+    if (!launchers.some((l) => Math.abs(l.x1 - x) < 1 && Math.abs(l.y1 - y) < 1.4) && !byDecor(x, y, DECOR_ROOM)) torches.push({ x, y, seed: hash })
     y += 2.8 + hash % 15 / 10
+  }
+  // Between two decorations on one wall, a torch: lantern, torch, wheel, torch... down the wall, none on another.
+  for (const side of [0, 1]) {
+    const ys = decor.filter((d) => (d.x < w / 2 ? 0 : 1) === side).map((d) => d.y).sort((a, b) => a - b)
+    for (let i = 1; i < ys.length; i++) {
+      const y = (ys[i - 1]! + ys[i]!) / 2
+      torches.push({ x: side === 0 ? 0.3 : w - 0.3, y, seed: decorationHash(side, Math.round(y * 10), index) })
+    }
   }
   const quarter = (p: Point): number => (p.x >= w / 2 ? 1 : 0) + (p.y >= h / 2 ? 2 : 0)
   const lit = new Set([...torches, ...braziers.values()].map(quarter))
   for (let q = 0; q < 4; q++) if (!lit.has(q)) {
     const seed = decorationHash(q, 45, index)
-    torches.push({ x: q % 2 === 0 ? 0.3 : w - 0.3, y: h * (q < 2 ? 0.25 : 0.75) + (seed % 5 - 2) * 0.1, seed })
+    const at = { x: q % 2 === 0 ? 0.3 : w - 0.3, y: h * (q < 2 ? 0.25 : 0.75) + (seed % 5 - 2) * 0.1 }
+    if (!byDecor(at.x, at.y, DECOR_ROOM)) torches.push({ ...at, seed })
   }
   return { braziers, torches, banners }
 }
@@ -222,9 +236,11 @@ export const roomWalls = (ctx: CanvasRenderingContext2D, view: FightView, P: Pro
     const p = P(at.x, at.y)
     sprite(ctx, index % 3 === 0 ? "banner-red" : "banner-moss", p.x, p.y - 1)
   }
+  const decor = ROOMS[index]?.decor ?? []
   for (let y = 2; y < h - 1; y += 4.1) {
-    const hash = decorationHash(0, Math.floor(y), index), at = P(hash % 2 === 0 ? 0.55 : w - 0.55, y)
-    if (hash % 3 === 0) sprite(ctx, "pots", at.x, at.y)
+    const hash = decorationHash(0, Math.floor(y), index), x = hash % 2 === 0 ? 0.55 : w - 0.55, at = P(x, y)
+    // (Not under a lantern or a wheel.)
+    if (hash % 3 === 0 && !decor.some((d) => Math.abs(d.x - x) < 1 && Math.abs(d.y - y) < DECOR_ROOM)) sprite(ctx, "pots", at.x, at.y)
   }
 }
 

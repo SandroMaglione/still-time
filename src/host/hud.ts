@@ -55,7 +55,7 @@ type Message =
  */
 const LESSON: Record<HitBy, readonly [string, string]> = {
   shot: ["you were moving. so was it.", "stand still: it stops. then step aside"],
-  swing: ["you were moving. so was it.", "stand still: watch the swing. step out, then cut in"],
+  swing: ["you were moving. so was it.", "stand still: read its reach. step off the line, then cut in"],
   hazard: ["you were moving. so was it.", "stand still: it stops. find the gap, then go"],
   blast: ["the fuse burns while you move.", "stand still: read its ring, then get out of it"],
   touch: ["it creeps while you stand still.", "no hesitating near it: rush it at full speed"]

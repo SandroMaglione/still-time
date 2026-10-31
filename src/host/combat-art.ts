@@ -27,11 +27,14 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   const recoil = fired >= 0 && fired < 0.16 ? Math.sin(Math.PI * clamp(fired / 0.16)) : 0
   const windup = m?.phase === "windup" ? m.progress : 0
   const swinging = m?.phase === "swing"
-  const lean = Math.round((swinging ? Math.sin(m.progress * Math.PI) * 2 : -windup) * side - Math.cos(enemy.aim) * recoil)
+  const lunge = enemy.kind === "brute" ? (swinging ? 3 : m?.phase === "windup" ? -2 * smooth(m.progress * 1.4) : 0) : null
+  const lean = Math.round((lunge !== null ? lunge * Math.cos(enemy.aim) : (swinging ? Math.sin(m.progress * Math.PI) * 2 : -windup) * side) - Math.cos(enemy.aim) * recoil)
   const sink = m?.phase === "windup" ? 1 : 0
   const screenAngle = Math.atan2(Math.sin(enemy.aim) * 0.78, Math.cos(enemy.aim))
+  // The spearman's spear points where it faces (no sweep): it thrusts along the line instead.
+  const spear = enemy.kind === "brute"
   let angle = screenAngle
-  if (m !== null) angle += (m.phase === "windup" ? -1.5 * smooth(m.progress) : m.phase === "swing" ? -1.5 + 2.8 * smooth(m.progress) : m.phase === "recover" ? 1.3 * (1 - smooth(m.progress)) : 0.45) * side
+  if (m !== null && !spear) angle += (m.phase === "windup" ? -1.5 * smooth(m.progress) : m.phase === "swing" ? -1.5 + 2.8 * smooth(m.progress) : m.phase === "recover" ? 1.3 * (1 - smooth(m.progress)) : 0.45) * side
   const follow = enemy.kind === "thrower" && fired >= 0 && fired < 0.15 ? Math.sin(fired / 0.15 * Math.PI) * 3 : 0
   const knifeRaise = enemy.kind === "thrower" && enemy.charge > 0.7 ? -3 : 0
   const hold = { x: ground.x + side * 5 - Math.cos(screenAngle) * recoil * 2 + lean + Math.cos(screenAngle) * follow, y: ground.y - 6 + sink - Math.sin(screenAngle) * recoil + knifeRaise + Math.sin(screenAngle) * follow }
@@ -41,7 +44,18 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   }
   const weapon = (): void => {
     if (enemy.kind === "runner" || enemy.kind === "stalker") return
-    if (m !== null) {
+    if (m !== null && spear) {
+      // A long spear along its facing: drawn back in the wind-up, driven forward in the thrust, eased back after.
+      // The load: drawn far back (easing in, so it settles back and holds there); the thrust: snapping out past full
+      // length at once (ease-out); the recovery: hauled slowly back to guard.
+      const out = (k: number): number => 1 - (1 - clamp(k)) ** 3
+      const t = m.phase === "windup" ? -9 * smooth(m.progress * 1.4) : m.phase === "swing" ? -9 + 27 * out(m.progress * 1.6) : m.phase === "recover" ? 18 * (1 - smooth(m.progress)) : 0
+      stroke(point(-9 + t), point(17 + t), "#947058", 1)
+      stroke(point(16 + t, -2), point(16 + t, 2), STEEL)
+      stroke(point(17 + t), point(23 + t), STEEL, 2)
+      pixelLine(ctx, point(18 + t, -1), point(23 + t, 0), IVORY)
+      pixelLine(ctx, point(-7 + t, 1), point(-5 + t, 1), "#ce4655", 2)
+    } else if (m !== null) {
       stroke(point(-2), point(2), "#947058", 2)
       stroke(point(1, -3), point(1, 3), GOLD)
       stroke(point(2), point(11), STEEL, 2)
@@ -158,6 +172,14 @@ export const muzzle = (ctx: CanvasRenderingContext2D, at: Point, angle: number, 
 export const attackWave = (ctx: CanvasRenderingContext2D, enemy: EnemyView, centre: Point, rx: number, ry: number): void => {
   const m = enemy.melee
   if (m?.phase !== "swing") return
+  if (enemy.kind === "brute") {
+    // The spear's thrust: a straight streak out to its full reach.
+    const end = { x: centre.x + Math.cos(enemy.aim) * rx, y: centre.y + Math.sin(enemy.aim) * ry }
+    const from = { x: centre.x + (end.x - centre.x) * 0.25 * m.progress, y: centre.y + (end.y - centre.y) * 0.25 * m.progress }
+    pixelLine(ctx, from, end, INK, 4)
+    pixelLine(ctx, from, end, IVORY, 2)
+    return
+  }
   const side = Math.cos(enemy.aim) < 0 ? -1 : 1
   const edge = enemy.aim + (m.progress * 2 - 1) * m.arc * side
   const tail = edge - 0.65 * side

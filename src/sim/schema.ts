@@ -53,12 +53,13 @@ export const Reload = Descriptor.ConstructedComponent(codec(S.Struct({ left: S.N
   meta: { left: { unit: "s", range: [0, 3], hint: "World seconds (slowed with the world) until the next shot." }, aim: { unit: "rad" } }
 })
 
-/** A shooter's footing: its post, where it last saw you (once it has), and which way it sidesteps. */
+/** A shooter's footing: its post, where it last saw you (once it has), which way it sidesteps, and whether it is still walking in to its post. */
 export const Post = Descriptor.ConstructedComponent(codec(S.Struct({
   hx: S.Number,
   hy: S.Number,
   seen: S.NullOr(point),
-  strafe: S.Literals([1, -1])
+  strafe: S.Literals([1, -1]),
+  arriving: S.Boolean
 })))("Slap/Post", { meta: { hx: { unit: "m" }, hy: { unit: "m" } } })
 
 /** A melee enemy's body: where its blade faces, and its walking pace as a share of top speed. */

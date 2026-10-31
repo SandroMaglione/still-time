@@ -16,15 +16,25 @@ const still = (fight: ReturnType<typeof fightIn>["fight"], thumb: ReturnType<typ
   runUntil(fight, steps, () => false)
 }
 
-test("Prologue: the gunner is in sight from the start, and holds its fire while you stand", () => {
+test("Prologue: the gunner walks in only while you walk, then sees you, and holds its fire while you stand", () => {
   const { fight, thumb } = fightIn("Prologue")
   assert.equal(fight.view().room.index, 0, "it is the first room")
   assert.ok(fight.view().room.scene, "a cutscene")
-  assert.deepEqual(fight.view().enemies.map((e) => [e.kind, e.quiet]), [["gunner", false]])
+  assert.deepEqual(fight.view().enemies.map((e) => [e.kind, e.quiet, e.arriving]), [["gunner", false, true]])
+  const gunner = () => fight.view().enemies[0]!
+  const at = { x: gunner().x, y: gunner().y }
+  still(fight, thumb, 300)
+  assert.deepEqual({ x: gunner().x, y: gunner().y }, at, "frozen: it waits to walk in")
+  assert.equal(gunner().sees, false, "walking in, it has not noticed you")
+  // A few steps up: the world runs, and it walks in to its post.
+  thumb.push = { x: 0, y: -0.5 }
+  runUntil(fight, 600, () => !gunner().arriving)
+  thumb.push = { x: 0, y: 0 }
+  const me = fight.view().player!
+  assert.ok(36 - me.y < 3.5, `you took only a few steps (${(36 - me.y).toFixed(2)} m)`)
+  assert.ok(gunner().sees, "at its post, it sees you")
   still(fight, thumb, 600)
   assert.equal(fight.view().shots.length, 0, "frozen: it cannot fire")
-  assert.equal(fight.view().world, 0)
-  assert.ok(fight.view().enemies[0]!.sees, "it sees you from where you start")
 })
 
 test("Prologue: each beat holds; the gunner fires, you stop short of its shot twice, step aside, get close and cut, unhit", () => {
