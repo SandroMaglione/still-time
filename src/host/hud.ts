@@ -1,8 +1,7 @@
 /**
  * The page's heads-up display over the canvas, in DOM and CSS (cheap next to
- * canvas draws): the clock against par (or, in a survive room, the world
- * seconds left to hold out), the pressing order of numbered plates, the
- * room's goal (live: how many are left to cut, the exit, or holding out), the
+ * canvas draws): the clock against par, the pressing order of numbered
+ * plates, the room's goal (live: how many are left to cut, or the exit), the
  * room's tip (its number and name, then its hint; it fades once you move),
  * and the messages (a hit, a clear with its stars, the run's end).
  * Every size is a whole number of UI pixels (`--u`), so the pixel font and
@@ -15,8 +14,6 @@ import { ICONS, fromHtml, pixelSvg, star } from "./ui-pixels.ts"
 /** Seconds a tip stays up at most, and the world seconds of moving that dismiss it. */
 const TIP_SECONDS = 7
 const TIP_MOVED = 0.25
-/** World seconds left in a survive room when the countdown turns gold. */
-const CLOSING = 3
 
 /** The ordered plates in pressing order (door by door), or none: an unordered plate needs no count. */
 const orderedPlates = (view: FightView): Array<PlateView> =>
@@ -140,17 +137,14 @@ export class Hud {
     // The room's name and the hits taken in it, for screen readers and the screenshot scripts that wait on it (not shown:
     // the name shows in the tip as an attempt starts).
     this.set(this.room, view.room.name + (view.hits > 0 ? ` ✕${view.hits}` : ""))
-    // The attempt's clock in world seconds against par: it only runs while you move. A survive room counts down instead.
+    // The attempt's clock in world seconds against par: it only runs while you move.
     const goal = view.room.goal
-    const left = goal.kind === "survive" ? Math.max(0, goal.seconds - view.world) : 0
-    this.set(this.clock, goal.kind === "survive" ? left.toFixed(1) : view.world.toFixed(1))
-    this.set(this.clockSub, goal.kind === "survive" ? "survive" : `/${view.room.par}s`)
-    this.clockPanel.classList.toggle("survive", goal.kind === "survive")
-    this.clockPanel.classList.toggle("closing", goal.kind === "survive" && left <= CLOSING)
-    this.clockPanel.classList.toggle("over", goal.kind !== "survive" && view.world > view.room.par)
-    // The goal, live: how many are left to cut, the exit, or holding out.
+    this.set(this.clock, view.world.toFixed(1))
+    this.set(this.clockSub, `/${view.room.par}s`)
+    this.clockPanel.classList.toggle("over", view.world > view.room.par)
+    // The goal, live: how many are left to cut, or the exit.
     const standing = view.enemies.length
-    this.set(this.goal, goal.kind === "exit" ? "reach the exit" : goal.kind === "survive" ? "hold out" : standing === 0 ? "all down" : `cut ${standing} more`)
+    this.set(this.goal, goal.kind === "exit" ? "reach the exit" : standing === 0 ? "all down" : `cut ${standing} more`)
     this.goalPanel.classList.toggle("done", goal.kind === "clear" && standing === 0)
 
     // Numbered plates: which are pressed and which comes next (the plates themselves can be off screen).
@@ -234,11 +228,7 @@ export class Hud {
       return span
     }
     const small = (text: string): HTMLElement => Object.assign(document.createElement("span"), { className: "dim small", textContent: text })
-    // A survive room ends on its time, so par says nothing there: what you held out, and the hits it cost.
-    if (view.room.goal.kind === "survive") {
-      add("line", `${view.room.goal.seconds}s`).prepend(small("survived"))
-      add("line dim small", view.hits === 0 ? "no hits" : `${view.hits} ${view.hits === 1 ? "hit" : "hits"}`)
-    } else {
+    {
       const over = result.world > view.room.par
       // The time counts up as the stars pop in.
       const time = Object.assign(document.createElement("span"), { textContent: "0.0s" })
@@ -249,10 +239,9 @@ export class Hud {
     // Against your best before this clear: a new best says so; otherwise the best to beat.
     const before = this.bestBefore
     if (before !== null) {
-      const timed = view.room.goal.kind !== "survive"
-      const better = result.stars > before.stars || (timed && result.world < before.world - 0.05)
+      const better = result.stars > before.stars || result.world < before.world - 0.05
       if (better) add("line best", "new best!").style.animationDelay = `${COUNT_UP.toFixed(2)}s`
-      else if (timed) add("line dim small", `best ${before.world.toFixed(1)}s`)
+      else add("line dim small", `best ${before.world.toFixed(1)}s`)
     }
     if (won) {
       const stars = view.best.reduce((n, b) => n + (b?.stars ?? 0), 0)

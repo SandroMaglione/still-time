@@ -55,8 +55,8 @@ export type Hazard =
 
 export interface Door extends Pillar { readonly lock: Lock }
 
-/** Down every enemy, reach the exit, or last `seconds` of world time (which only pass while you move). */
-export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar) | { readonly kind: "survive"; readonly seconds: number }
+/** Down every enemy, or reach the exit. */
+export type Goal = { readonly kind: "clear" } | ({ readonly kind: "exit" } & Pillar)
 
 /** A shot already in the air as you come into the room, with its own velocity (metres per world second). */
 export interface ShotSpawn { readonly kind: ShotKind; readonly x: number; readonly y: number; readonly vx: number; readonly vy: number }
@@ -143,9 +143,11 @@ const gatehouse = gate(14, 12.6, 7, 3, { kind: "clear", chamber: 0 })
 const throne = gate(16, 3.6, 8, 3, { kind: "captain", chamber: 0 })
 const thief = gate(16, 3.6, 8, 3, { kind: "key", key: 0 })
 const market = gate(18, 12, 9, 3, { kind: "clear", chamber: 0 }, 1)
-const warehouse = gate(20, 3.2, 10, 3, { kind: "key", key: 0 })
 const switchyard = gate(14, 6, 7, 3, { kind: "plates", plates: [0], ordered: false })
 const combination = gate(16, 6, 8, 3, { kind: "plates", plates: [0, 1, 2], ordered: true })
+const conveyorGate = gate(14, 4.5, 12, 3, { kind: "plates", plates: [0], ordered: false })
+const warehouseDoor = gate(20, 4, 10, 3, { kind: "key", key: 0 })
+const grinderGate = gate(16, 6, 8, 3, { kind: "plates", plates: [0], ordered: false })
 const fortressYard = gate(22, 26, 11, 4, { kind: "clear", chamber: 0 }, 1)
 const fortressKeep = gate(22, 10, 11, 3, { kind: "key", key: 0 }, 1)
 const fortressThrone = gate(22, 2.4, 11, 3, { kind: "captain", chamber: 2 })
@@ -515,64 +517,123 @@ export const ROOMS: ReadonlyArray<Room> = [
     tip: "it moves only while you stand still"
   },
   {
+    // Three belts make a route, up, across and up again, through two lanes of bolts: on a belt the world waits, so you
+    // ride through a lane untouched. The gate at the top opens from a plate off the belts, on a lane, under two gunners.
     name: "Conveyor",
-    w: 12,
-    h: 30,
-    start: { x: 6, y: 28 },
-    pillars: [crate(2, 21), crate(10, 15), crate(2, 9)],
-    doors: [],
-    belts: [{ x: 5, y: 4, w: 2, h: 22, dx: 0, dy: -1 }],
-    enemies: [
-      { kind: "gunner", x: 1.5, y: 17, delay: 0.4 },
-      { kind: "gunner", x: 10.5, y: 10, delay: 0.8 }
+    w: 14,
+    h: 28,
+    start: { x: 2, y: 25.5 },
+    pillars: [...conveyorGate.walls, crate(9.5, 17)],
+    doors: [conveyorGate.door],
+    belts: [
+      { x: 1, y: 13, w: 2, h: 13.5, dx: 0, dy: -1 },
+      { x: 1, y: 11, w: 12, h: 2, dx: 1, dy: 0 },
+      { x: 11, y: 5.3, w: 2, h: 5.7, dx: 0, dy: -1 }
     ],
-    goal: { kind: "exit", x: 4.5, y: 0.6, w: 3, h: 2.4 },
-    par: 6,
-    tip: "a belt carries you while time stays frozen"
+    plates: [{ x: 6.5, y: 7.6 }],
+    hazards: [...stream(14 - MUZZLE, 20, 0, 20, 0.8), ...stream(MUZZLE, 7.6, 14, 7.6, 0.9)],
+    enemies: [
+      { kind: "gunner", x: 7, y: 23, delay: 0.5 },
+      { kind: "gunner", x: 4, y: 2.2, delay: 0.8 }
+    ],
+    goal: { kind: "exit", x: 10.8, y: 0.6, w: 2.4, h: 2.2 },
+    par: 7,
+    tip: "a belt carries you while the world waits"
   },
   {
+    // The Crossing grown up: three lanes of bolts at different beats, under a sniper's eye. Look before every step.
+    name: "Crossfire",
+    w: 14,
+    h: 28,
+    start: { x: 7, y: 26 },
+    pillars: [crate(3.5, 23.5), crate(10.5, 17.5), crate(3.5, 11.5), crate(10.5, 5.5)],
+    doors: [],
+    hazards: [...stream(MUZZLE, 20.5, 14, 20.5, 0.9), ...stream(14 - MUZZLE, 14.5, 0, 14.5, 0.7, 0.3), ...stream(MUZZLE, 8.5, 14, 8.5, 1.1, 0.5)],
+    enemies: [{ kind: "sniper", x: 7, y: 2.5, delay: 0.5 }],
+    goal: CLEAR,
+    par: 8,
+    tip: "bolts below, a sniper above: look before every step"
+  },
+  {
+    // The stalker creeps while you stand still; the gunners fire while you move. Every look costs you, and so does
+    // every step: plan from cover, then go.
+    name: "Night Watch",
+    w: 16,
+    h: 24,
+    start: { x: 8, y: 22 },
+    pillars: [crate(5, 17), crate(11, 17), crate(8, 11, 1.4), crate(4, 6), crate(12, 6)],
+    doors: [],
+    enemies: [
+      { kind: "stalker", x: 8, y: 3, delay: 0 },
+      { kind: "gunner", x: 2.5, y: 11, delay: 0.6 },
+      { kind: "gunner", x: 13.5, y: 11, delay: 1 }
+    ],
+    goal: CLEAR,
+    par: 8,
+    tip: "it creeps while you stand still; they fire while you move"
+  },
+  {
+    // The clock tower with two spearmen at its foot. Its rings take anyone: lure the spears into a ring's path.
+    name: "Belfry",
+    w: 16,
+    h: 24,
+    start: { x: 8, y: 22 },
+    pillars: [crate(4, 17), crate(12, 17), crate(8, 15, 1.4), crate(3.5, 9), crate(12.5, 9)],
+    doors: [],
+    enemies: [
+      { kind: "clockwork", x: 8, y: 5, delay: 1.5 },
+      { kind: "brute", x: 4.5, y: 12, delay: 0 },
+      { kind: "brute", x: 11.5, y: 12, delay: 0 }
+    ],
+    goal: CLEAR,
+    par: 7,
+    tip: "its rings take anyone: lure the spears into them"
+  },
+  {
+    // Shelves across the room in switchbacks: the thief runs laps round them, an archer watches down each row, and
+    // a spearman keeps the key door. Work up row by row; corner the thief against a shelf, not in the open.
     name: "Warehouse",
     w: 20,
-    h: 32,
-    start: { x: 10, y: 30 },
+    h: 30,
+    start: { x: 4, y: 27.5 },
     pillars: [
-      // Long shelves: aisles that archers watch end to end, and a thief hiding among them.
-      { x: 3.5, y: 8, w: 1, h: 16 }, { x: 8, y: 6, w: 1, h: 9 }, { x: 8, y: 17.5, w: 1, h: 8 },
-      { x: 11, y: 6, w: 1, h: 9 }, { x: 11, y: 17.5, w: 1, h: 8 }, { x: 15.5, y: 8, w: 1, h: 16 },
-      crate(6, 27), crate(14, 27),
-      ...warehouse.walls
+      { x: 0, y: 22, w: 15.5, h: 1 }, { x: 4.5, y: 16, w: 15.5, h: 1 }, { x: 0, y: 10, w: 15.5, h: 1 },
+      crate(8, 19.5), crate(12, 13.5), crate(6, 13.5), crate(5, 7.5),
+      ...warehouseDoor.walls
     ],
-    doors: [warehouse.door],
+    doors: [warehouseDoor.door],
     enemies: [
-      { kind: "runner", x: 10, y: 16, delay: 0, key: 0 },
-      { kind: "archer", x: 1.5, y: 5, delay: 0.4 },
-      { kind: "archer", x: 18.5, y: 5, delay: 0.8 },
-      { kind: "gunner", x: 14, y: 16, delay: 0.5 },
-      { kind: "brute", x: 6, y: 22, delay: 0 }
+      { kind: "runner", x: 10, y: 13.5, delay: 0, key: 0 },
+      { kind: "archer", x: 1.5, y: 19.5, delay: 0.6 },
+      { kind: "archer", x: 18.5, y: 13.5, delay: 0.9 },
+      { kind: "gunner", x: 17, y: 25.5, delay: 0.7 },
+      { kind: "brute", x: 14, y: 7, delay: 0 }
     ],
     goal: { kind: "exit", x: 8.5, y: 0.5, w: 3, h: 2.2 },
-    par: 12,
-    tip: "the thief hides in the shelves; archers watch the aisles"
+    par: 16,
+    tip: "the thief runs laps round the shelves: cut it off"
   },
   {
-    name: "Hold Out",
+    // Two blades turn in front of the gate; its plate lies past them, and a grenadier lobs bombs where you are going.
+    // Blades and bombs share one clock: yours.
+    name: "Grinder",
     w: 16,
-    h: 20,
-    start: { x: 8, y: 17 },
-    pillars: [crate(3.5, 5), crate(12.5, 5), crate(3.5, 15), crate(12.5, 15)],
-    doors: [],
+    h: 26,
+    start: { x: 8, y: 24 },
+    pillars: [...grinderGate.walls, crate(3, 19), crate(13, 19)],
+    doors: [grinderGate.door],
+    plates: [{ x: 13.5, y: 9 }],
     hazards: [
-      { kind: "blade", x: 8, y: 10, length: 2.6, speed: 1.3, phase: 0.4 },
-      { kind: "gate", x1: 0.2, y1: 13, x2: 15.8, y2: 13, period: 3, on: 0.4, offset: 1.5 }
+      { kind: "blade", x: 5, y: 14, length: 2.7, speed: 1.3, phase: 0 },
+      { kind: "blade", x: 11, y: 13, length: 2.7, speed: -1.6, phase: 0.8 }
     ],
     enemies: [
-      { kind: "gunner", x: 2, y: 2, delay: 0.8 },
-      { kind: "gunner", x: 14, y: 2, delay: 1.2 },
-      { kind: "archer", x: 8, y: 1.5, delay: 1.6 }
+      { kind: "grenadier", x: 3, y: 9, delay: 1 },
+      { kind: "gunner", x: 8, y: 2.5, delay: 0.8 }
     ],
-    goal: { kind: "survive", seconds: 9 },
-    par: 9,
-    tip: "survive 9 s: time only passes while you move"
+    goal: { kind: "exit", x: 6.5, y: 0.8, w: 3, h: 2.4 },
+    par: 8,
+    tip: "blades, bombs and the plate: all on your clock"
   },
   {
     name: "Fortress",
@@ -605,7 +666,7 @@ export const ROOMS: ReadonlyArray<Room> = [
 
 /**
  * The title screen's room, never played and not one of ROOMS: a long empty aisle the title's backdrop climbs (no doors,
- * no enemies, no exit; its "survive" goal never comes due). Its index is `TITLE_ROOM`.
+ * no enemies; its exit lies outside the room, so it never comes due). Its index is `TITLE_ROOM`.
  */
 export const TITLE_ROOM = ROOMS.length
 const AISLE: Room = {
@@ -616,7 +677,7 @@ const AISLE: Room = {
   pillars: [],
   doors: [],
   enemies: [],
-  goal: { kind: "survive", seconds: 1e9 },
+  goal: { kind: "exit", x: -10, y: -10, w: 1, h: 1 },
   par: 0
 }
 

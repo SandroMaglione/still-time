@@ -214,7 +214,7 @@ export const starsFor = (hits: number, world: number, par: number): number => 1 
 /**
  * The clock of the attempt runs in world seconds, so it only moves while you
  * do. A hit ends the attempt (remembering what hit you, for the page to name the rule); the room's goal (every
- * enemy down, you on its exit, or the stretch survived) clears it, scores it, and keeps the room's best.
+ * enemy down, or you on its exit) clears it, scores it, and keeps the room's best.
  */
 export const OutcomeSystem = Game.System(
   "Slap/Outcome",
@@ -240,14 +240,12 @@ export const OutcomeSystem = Game.System(
     const me = queries.players.each()[0]?.data.body.get()
     const goal = room.goal
     const done = goal.kind === "clear" ? queries.enemies.each().length === 0
-      : goal.kind === "survive" ? world >= goal.seconds
       : me !== undefined && me.x >= goal.x && me.x <= goal.x + goal.w && me.y >= goal.y && me.y <= goal.y + goal.h
     if (!done) {
       resources.run.set({ ...run, world })
       return
     }
-    // A survive room's score is the stretch it asked for: the last tick's overshoot is not time you took.
-    const scored = goal.kind === "survive" ? Math.min(world, goal.seconds) : world
+    const scored = world
     const result: RoomResult = { stars: starsFor(run.hits, scored, room.par), world: scored }
     const was = run.best[run.room] ?? null
     const best = was === null ? result : { stars: Math.max(was.stars, result.stars), world: Math.min(was.world, result.world) }

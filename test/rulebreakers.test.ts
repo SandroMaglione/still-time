@@ -92,7 +92,7 @@ test("the stalker strikes from just past your cut if you stand still; rushing it
 
 test("a belt carries you while time stays frozen", () => {
   const { fight } = fightIn("Conveyor")
-  placePlayer(fight, 6, 24)
+  placePlayer(fight, 2, 24)
   runUntil(fight, 60, () => fight.view().flow !== "playing")
   const me = fight.view().player
   assert.ok(me !== null)

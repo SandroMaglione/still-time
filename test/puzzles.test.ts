@@ -88,7 +88,7 @@ test("blades turn in world time, and take whoever they touch", () => {
 })
 
 test("a blade takes an enemy too", () => {
-  const { fight } = fightIn("Hold Out")
+  const { fight } = fightIn("Grinder")
   const before = fight.view().enemies.length
   const pivot = fight.view().hazards[0]
   assert.ok(pivot !== undefined)
@@ -125,21 +125,6 @@ test("a laser gate takes you only while it is on, and warns before", () => {
   crossAt()
   fight.tick()
   assert.equal(fight.view().flow, "dead")
-})
-
-test("a survive room clears once enough world time has passed, and only time you move counts", () => {
-  const { fight, thumb } = fightIn("Hold Out")
-  const goal = fight.view().room.goal
-  assert.ok(goal.kind === "survive")
-  // Skip ahead: the attempt is 0.2 world s short.
-  edit(fight, (v) => ({ ...v, resources: { ...v.resources, "Slap/Run": { ...v.resources["Slap/Run"], world: goal.seconds - 0.2 } } }))
-  runUntil(fight, 120, () => false)
-  assert.equal(fight.view().flow, "playing", "standing still, the clock barely moves")
-  runUntil(fight, 120, () => fight.view().flow !== "playing", jiggle(thumb))
-  assert.equal(fight.view().flow, "cleared")
-  // Surviving exactly the stretch is the score: the last tick's overshoot never costs the par star.
-  assert.equal(fight.view().result?.world, goal.seconds)
-  assert.equal(fight.view().result?.stars, 3, "a no-hit survive meets its par")
 })
 
 test("the Mill can be crossed by timing: wait in the lane, dash to the pocket between the blades, dash out", () => {
