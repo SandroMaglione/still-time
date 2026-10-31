@@ -16,7 +16,7 @@ import { Menu } from "./menu.ts"
 import { Progress, layer as progressLayer } from "./progress.ts"
 import { storageLayer } from "./storage.ts"
 import { loadArt } from "./art.ts"
-import { Presentation } from "./fx.ts"
+import { Presentation, VANISH_LIFE } from "./fx.ts"
 import { Replay } from "./replay.ts"
 import { Hud, messages } from "./hud.ts"
 import { Guide } from "./guide.ts"
@@ -395,16 +395,18 @@ class Attract {
   }
 }
 const attract = new Attract()
-/** Over the replay: a small blinking mark in the corner, so it reads as a playback. */
+/** Over the replay: a small blinking mark, centred at the top, so it reads as a playback. */
 const replayLabel = (ctx: CanvasRenderingContext2D, cw: number, now: number): void => {
   const u = Math.max(1, Math.round(cw / 360))
   ctx.save()
   ctx.font = `${8 * u}px Silkscreen, monospace`
   ctx.textBaseline = "top"
-  const x = Math.round(cw - 74 * u), y = Math.round(ctx.canvas.height * 0.13)
-  if (Math.floor(now * 2) % 2 === 0) { ctx.fillStyle = "#ce4655"; ctx.fillRect(x, y + u, 6 * u, 6 * u) }
-  ctx.fillStyle = "#171c2e"; ctx.fillText("replay", x + 10 * u + u, y + u)
-  ctx.fillStyle = "#f4efda"; ctx.fillText("replay", x + 10 * u, y)
+  // The mark and the word, centred together: a 6 u square, a 4 u gap, the word.
+  const word = ctx.measureText("replay").width, mark = 6 * u, gap = 4 * u
+  const x = Math.round((cw - (mark + gap + word)) / 2), y = Math.round(ctx.canvas.height * 0.13)
+  if (Math.floor(now * 2) % 2 === 0) { ctx.fillStyle = "#ce4655"; ctx.fillRect(x, y + u, mark, mark) }
+  ctx.fillStyle = "#171c2e"; ctx.fillText("replay", x + mark + gap + u, y + u)
+  ctx.fillStyle = "#f4efda"; ctx.fillText("replay", x + mark + gap, y)
   ctx.restore()
 }
 /** How many steps (of 1/60 s) the world holds still when your cut lands, and how many are left of the current one. */
@@ -473,8 +475,8 @@ FixedLoop.start({
     const dirs = [...held].filter((key) => DIRS[key] !== undefined)
     const guideInput = { stick: pixelStick, keys: usingKeys, down: usingKeys ? dirs.length > 0 : stick !== null && !consumed }
     guide.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, guideInput)
-    // A clear: your run, replayed at full speed behind the clear card.
-    const played = view.flow === "cleared" || view.flow === "won" ? replay.frame(frame.elapsedSeconds) : null
+    // A clear: once you have vanished from the room, your run, replayed at full speed behind the clear card.
+    const played = (view.flow === "cleared" || view.flow === "won") && presentation.clearAge >= VANISH_LIFE ? replay.frame(frame.elapsedSeconds) : null
     if (played !== null) {
       draw(ctx, canvas.width, canvas.height, played.view, null, played.camera, played.presentation, lit, false)
       replayLabel(ctx, canvas.width, presentation.now)
