@@ -24,7 +24,7 @@ const SEEK = 1200
 /** How far below you (m) the replay's camera looks: the clear card covers the bottom of the screen. */
 const FRAME_BELOW = 2.5
 /** How many times faster than the world ran the replay plays: brisk, so a whole run plays in a moment. */
-const SPEED = 1.6
+const SPEED = 1.2
 /** World speed below which you count as standing still. */
 const STILL = 0.05
 
