@@ -395,6 +395,8 @@ class Attract {
   }
 }
 const attract = new Attract()
+/** Real seconds after you vanish before the replay starts, how long it takes to fade in from dark, and the live room's dip to dark before it. */
+const REPLAY_WAIT = 0.5, REPLAY_FADE = 0.4, REPLAY_FADE_OUT = 0.25
 /** Over the replay: a small blinking mark, centred at the top, so it reads as a playback. */
 const replayLabel = (ctx: CanvasRenderingContext2D, cw: number, now: number): void => {
   const u = Math.max(1, Math.round(cw / 360))
@@ -475,10 +477,13 @@ FixedLoop.start({
     const dirs = [...held].filter((key) => DIRS[key] !== undefined)
     const guideInput = { stick: pixelStick, keys: usingKeys, down: usingKeys ? dirs.length > 0 : stick !== null && !consumed }
     guide.update(menu.isOpen ? 0 : frame.elapsedSeconds, view, guideInput)
-    // A clear: once you have vanished from the room, your run, replayed at full speed behind the clear card.
-    const played = (view.flow === "cleared" || view.flow === "won") && presentation.clearAge >= VANISH_LIFE ? replay.frame(frame.elapsedSeconds) : null
+    // A clear: once you have vanished from the room and a beat has passed, your run, replayed at full speed behind the
+    // clear card, fading in from dark.
+    const since = presentation.clearAge - VANISH_LIFE - REPLAY_WAIT
+    const played = (view.flow === "cleared" || view.flow === "won") && since >= 0 ? replay.frame(frame.elapsedSeconds) : null
     if (played !== null) {
       draw(ctx, canvas.width, canvas.height, played.view, null, played.camera, played.presentation, lit, false)
+      if (since < REPLAY_FADE) { ctx.fillStyle = `rgba(11,13,18,${(1 - since / REPLAY_FADE).toFixed(3)})`; ctx.fillRect(0, 0, canvas.width, canvas.height) }
       replayLabel(ctx, canvas.width, presentation.now)
       // The clear card is the live room's (the replay's own view is still playing).
       messages(ctx, view, presentation)
@@ -488,6 +493,11 @@ FixedLoop.start({
     // The first rooms' guide, over everything; a cutscene's letterbox and words instead.
     if (view.room.scene) letterbox(ctx, canvas.width, canvas.height, scene.cue, scene.age, drawn.P, presentation.now, view.flow === "playing", scene.opened)
     else guide.draw(ctx, canvas.width, canvas.height, view, drawn.P, guideInput)
+    // The beat before the replay ends in a dip to dark, which the replay fades up from.
+    if ((view.flow === "cleared" || view.flow === "won") && since > -REPLAY_FADE_OUT && since < 0 && replay.ready) {
+      ctx.fillStyle = `rgba(11,13,18,${((since + REPLAY_FADE_OUT) / REPLAY_FADE_OUT).toFixed(3)})`
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
   },
   onFailure: (failure) => {
     console.error("Slap loop stopped", failure)

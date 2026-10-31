@@ -35,6 +35,9 @@ export class Replay {
   /** The playback, while one shows. */
   private play: { fight: Fight; next: number; presentation: Presentation; camera: Camera; hold: number; view: FightView } | null = null
 
+  /** Whether a playback is ready to show (a clear was recorded). */
+  get ready(): boolean { return this.play !== null }
+
   /** Real seconds of the attempt standing still, and moving (the world's own seconds are on the view). */
   get still(): number { return this.stillSteps / 60 }
   get moving(): number { return this.movingSteps / 60 }
