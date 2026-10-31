@@ -79,7 +79,7 @@ export const cuesBetween = (old: FightView, view: FightView): Array<Cue> => {
   if (crateHit && struck !== undefined) cues.push(cue("crate.hit", "world", struck))
   else if (struck !== undefined) cues.push(cue("shot.impact", "world", struck))
 
-  // Enemies' tells: the sniper's laser, a melee wind-up and swing.
+  // Enemies' tells: the sniper's laser, a melee wind-up and swing, the clockwork's hand nearing twelve (its own time).
   const earlier = new Map(old.enemies.map(e => [e.id, e]))
   for (const enemy of view.enemies) {
     const was = earlier.get(enemy.id)
@@ -87,9 +87,9 @@ export const cuesBetween = (old: FightView, view: FightView): Array<Cue> => {
     if (enemy.laser !== null && was.laser === null) cues.push(cue("sniper.charge", "world", enemy))
     if (enemy.laser?.locked === true && was.laser?.locked !== true) cues.push(cue("sniper.lock", "world", enemy))
     const phase = enemy.melee?.phase, before = was.melee?.phase
-    const clockwork = enemy.kind === "clockwork"
-    if (phase === "windup" && before !== "windup") cues.push(cue(clockwork ? "clockwork.windup" : "brute.windup", clockwork ? "real" : "world", enemy))
-    if (phase === "swing" && before !== "swing") cues.push(cue("brute.swing", clockwork ? "real" : "world", enemy))
+    if (phase === "windup" && before !== "windup") cues.push(cue("brute.windup", "world", enemy))
+    if (phase === "swing" && before !== "swing") cues.push(cue("brute.swing", "world", enemy))
+    if (enemy.kind === "clockwork" && was.charge < 0.75 && enemy.charge >= 0.75) cues.push(cue("clockwork.windup", "real", enemy))
   }
 
   // Bombs: thrown, landed, the fuse burning (ten sputters over its burn), the blast.

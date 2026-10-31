@@ -21,6 +21,24 @@ const BODIES = {
 export const bodyName = (kind: Death["kind"]): Sprite => BODIES[kind]
 
 /** A compact rig: grip and cuff meet the torso, with the weapon layered around the hands. */
+/**
+ * The clockwork's dial, floating over it: twelve ticks and a hand sweeping round as its next burst charges (`charge`
+ * 0 to 1), on its own real-time clock; the face reddens as the hand comes round to twelve. Centred on (x, y).
+ */
+const clockFace = (ctx: CanvasRenderingContext2D, x: number, y: number, charge: number): void => {
+  const cx = Math.round(x), cy = Math.round(y), hot = charge > 0.8
+  pixelArc(ctx, { x: cx, y: cy }, 7, 7, 0, Math.PI * 2, INK, 3)
+  pixelArc(ctx, { x: cx, y: cy }, 6, 6, 0, Math.PI * 2, hot ? "#ff4055" : GOLD, 1)
+  for (let r = 5; r > 0; r--) pixelArc(ctx, { x: cx, y: cy }, r, r, 0, Math.PI * 2, hot ? "#f4c3b8" : IVORY, 1)
+  for (let i = 0; i < 12; i += 3) {
+    const a = (i / 12) * Math.PI * 2
+    rect(ctx, cx + Math.round(Math.cos(a) * 4), cy + Math.round(Math.sin(a) * 4), 1, 1, INK)
+  }
+  const a = -Math.PI / 2 + Math.max(0, Math.min(1, charge)) * Math.PI * 2
+  pixelLine(ctx, { x: cx, y: cy }, { x: cx + Math.cos(a) * 4, y: cy + Math.sin(a) * 4 }, hot ? "#ce4655" : INK, 1)
+  rect(ctx, cx, cy, 1, 1, INK)
+}
+
 export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, ground: Point, fired: number): void => {
   const m = enemy.melee
   const flip = Math.cos(enemy.aim) < 0, side = flip ? -1 : 1
@@ -44,6 +62,7 @@ export const combatActor = (ctx: CanvasRenderingContext2D, enemy: EnemyView, gro
   }
   const weapon = (): void => {
     if (enemy.kind === "runner" || enemy.kind === "stalker") return
+    if (enemy.kind === "clockwork") { clockFace(ctx, ground.x, ground.y - 30, enemy.charge); return }
     if (m !== null && spear) {
       // A long spear along its facing: drawn back in the wind-up, driven forward in the thrust, eased back after.
       // The load: drawn far back (easing in, so it settles back and holds there); the thrust: snapping out past full

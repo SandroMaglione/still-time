@@ -25,9 +25,9 @@ export const TUNING = {
   slashSteps: 21
 } as const
 
-export const SHOOTER_KINDS = ["gunner", "archer", "thrower", "sniper", "grenadier"] as const
+export const SHOOTER_KINDS = ["gunner", "archer", "thrower", "sniper", "grenadier", "clockwork"] as const
 export type ShooterKind = (typeof SHOOTER_KINDS)[number]
-export const MELEE_KINDS = ["brute", "shield", "clockwork"] as const
+export const MELEE_KINDS = ["brute", "shield"] as const
 export type MeleeKind = (typeof MELEE_KINDS)[number]
 export const ENEMY_KINDS = [...SHOOTER_KINDS, ...MELEE_KINDS, "runner", "stalker"] as const
 export type EnemyKind = (typeof ENEMY_KINDS)[number]
@@ -40,19 +40,31 @@ export const isMelee = (kind: EnemyKind): kind is MeleeKind => (MELEE_KINDS as R
  * of angle offsets, how far it sees, and whether it creeps after you. A
  * `scoped` shooter charges only while it sees you (hiding resets it), aims a
  * laser at you, and for the last `lock` world seconds stops tracking: the
- * moment to step out of the line.
+ * moment to step out of the line. Its reload runs on the world `clock`
+ * (stopped with the world), or real time; a `blind` shooter fires whether or
+ * not it sees you.
  */
 export const SHOOTERS = {
   /** Steady bullets. */
-  gunner: { radius: 0.38, period: 0.85, shot: "bullet", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 },
+  gunner: { radius: 0.38, period: 0.85, shot: "bullet", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0, clock: "world", blind: false },
   /** Fast arrows, slower reload. */
-  archer: { radius: 0.36, period: 1.3, shot: "arrow", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 },
+  archer: { radius: 0.36, period: 1.3, shot: "arrow", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0, clock: "world", blind: false },
   /** A fan of three knives, and a slow reload: time to see the fan coming and step out of it. */
-  thrower: { radius: 0.38, period: 1.8, shot: "knife", spread: [-0.3, 0, 0.3], sight: 13, creeps: true, scoped: false, lock: 0 },
+  thrower: { radius: 0.38, period: 1.8, shot: "knife", spread: [-0.3, 0, 0.3], sight: 13, creeps: true, scoped: false, lock: 0, clock: "world", blind: false },
   /** Sees across the room and holds still; a laser charges on you, locks, then one very fast slug. */
-  sniper: { radius: 0.36, period: 1.5, shot: "slug", spread: [0], sight: 24, creeps: false, scoped: true, lock: 0.4 },
+  sniper: { radius: 0.36, period: 1.5, shot: "slug", spread: [0], sight: 24, creeps: false, scoped: true, lock: 0.4, clock: "world", blind: false },
   /** Lobs a bomb where your walk is taking you (over allies: it does not care who the blast takes). */
-  grenadier: { radius: 0.4, period: 2, shot: "bomb", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 }
+  grenadier: { radius: 0.4, period: 2, shot: "bomb", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0, clock: "world", blind: false },
+  /**
+   * A brass clock tower: it never moves, and its clock keeps real time, so standing still does not stop it. Each time
+   * it comes round it fires a ring of eight bullets, seen or not, the ring turned half a step from the last. Its
+   * bullets fly in world time, like all of them: wait, and every burst you waited through sits at the tower, filling
+   * the last one's gaps, and flies at you together once you move. Walk in between bursts and cut it.
+   */
+  clockwork: {
+    radius: 0.46, period: 2.4, shot: "bullet", spread: [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, (-3 * Math.PI) / 4, -Math.PI / 2, -Math.PI / 4],
+    sight: 14, creeps: false, scoped: false, lock: 0, clock: "real", blind: true
+  }
 } as const satisfies Record<ShooterKind, {
   radius: number
   period: number
@@ -62,6 +74,8 @@ export const SHOOTERS = {
   creeps: boolean
   scoped: boolean
   lock: number
+  clock: "world" | "real"
+  blind: boolean
 }>
 
 /**
@@ -78,10 +92,6 @@ export const SHOOTERS = {
  *   head-on covers too little ground (time runs only as you move: about
  *   `TUNING.player.speed` metres per world second) to reach it before the
  *   thrust lands. Step off the narrow line, then cut in while it recovers.
- * - clockwork: a slow brass brute whose `clock` is real time: it walks,
- *   winds up and swings at its own pace however still you stand, and its
- *   blow takes you only if you are standing still (`still`). Unguarded:
- *   keep moving, walk in, cut it. Stopping near it is what kills you.
  * - shield-bearer: slow and slow to turn (circling it within 3 m at full
  *   speed outpaces its turn), its shield always up: go round it.
  */
@@ -109,20 +119,11 @@ export const MELEE = {
     close: 2.9,
     step: 0,
     swing: 0.1,
-    recover: 0.8,
-    /** World time (slowed with the world) or real time (never slowed). */
-    clock: "world",
-    /** How still you must be (0 moving, 1 frozen) for its blow to take you: 0, any blow does. */
-    still: 0
+    recover: 0.8
   },
   shield: {
     radius: 0.5, speed: 2.6, turn: 1.5, trigger: 2.0, reach: 1.7, arc: 0.8, guard: "always", guardArc: 1.25,
-    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9, clock: "world", still: 0
-  },
-  /** Keeps real time, so it walks and swings while you stand still; but its blow only takes you standing still. Unguarded: keep moving and cut it. */
-  clockwork: {
-    radius: 0.46, speed: 1.6, turn: 3, trigger: 2.2, reach: 1.8, arc: 0.9, guard: "none", guardArc: 0,
-    windup: 0.8, lock: 0.45, close: 1.4, step: 0.5, swing: 0.12, recover: 1, clock: "real", still: 0.5
+    windup: 0.55, lock: 0.35, close: 1.3, step: 0.6, swing: 0.1, recover: 0.9
   }
 } as const satisfies Record<MeleeKind, {
   radius: number
@@ -139,8 +140,6 @@ export const MELEE = {
   step: number
   swing: number
   recover: number
-  clock: "world" | "real"
-  still: number
 }>
 
 /**

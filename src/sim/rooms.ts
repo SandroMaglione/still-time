@@ -496,10 +496,11 @@ export const ROOMS: ReadonlyArray<Room> = [
     start: { x: 7, y: 20 },
     pillars: [crate(3.5, 13), crate(10.5, 13), crate(3.5, 7), crate(10.5, 7)],
     doors: [],
-    enemies: [{ kind: "clockwork", x: 7, y: 4, delay: 0 }],
+    // A clock tower at the far end, firing rings of bullets on its own (real-time) clock; the crates break the rings.
+    enemies: [{ kind: "clockwork", x: 7, y: 4, delay: 1.2 }],
     goal: CLEAR,
     par: 5,
-    tip: "it keeps its own time: stand still near it and it takes you. keep moving"
+    tip: "its clock never stops: every burst you wait through flies at you at once"
   },
   {
     name: "Stalker",

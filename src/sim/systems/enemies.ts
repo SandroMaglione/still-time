@@ -74,10 +74,12 @@ export const ShootersSystem = Game.System(
       const sees = canSee(at.x, at.y, me.x, me.y, spec.sight, eye)
       const reload = data.reload.get()
       // A scoped shooter's aim stops following you for the last `lock` of its charge.
-      const aim = spec.scoped && reload.left <= spec.lock ? reload.aim : Ops.atan2(me.y - at.y, me.x - at.x)
+      // (A blind shooter does not aim: its ring turns by itself, see below.)
+      const aim = spec.blind || (spec.scoped && reload.left <= spec.lock) ? reload.aim : Ops.atan2(me.y - at.y, me.x - at.x)
       // Would any of its shots (each knife of a fan) pass through an ally first?
       const reach = Ops.hypot(me.x - at.x, me.y - at.y)
-      const blocked = sees && shot !== null && spec.spread.some((offset) => {
+      // (A blind shooter sprays: it never minds an ally in the way.)
+      const blocked = !spec.blind && sees && shot !== null && spec.spread.some((offset) => {
         const ex = at.x + Ops.cos(aim + offset) * reach, ey = at.y + Ops.sin(aim + offset) * reach
         return allies.some((a) => a.id !== entity.id && segmentDistance(a.at.x, a.at.y, at.x, at.y, ex, ey) < a.radius + shot.radius + SHOOTER_MOVE.allyGap)
       })
@@ -101,16 +103,19 @@ export const ShootersSystem = Game.System(
       data.post.set({ hx: post.hx, hy: post.hy, seen, strafe, arriving: false })
       // Reload runs always; a shot needs sight and a clear line, and a short reaction after you step out of cover.
       // A scoped shooter charges only while it sees you with a clear line (an ally in the way holds it): losing sight of you starts it over.
+      // A blind shooter fires on its clock alone, and a real-time clock does not stop with the world.
       // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion: no whole step to end on
-      const counted = reload.left - dt
-      const left = sees && !blocked ? counted
+      const counted = reload.left - (spec.clock === "real" ? resources.time.get().dt : dt)
+      const left = spec.blind || (sees && !blocked) ? counted
         : spec.scoped ? (sees ? reload.left : spec.period)
         : Math.max(TUNING.reaction, counted)
       if (left > 0) {
         data.reload.set({ left, aim })
         continue
       }
-      data.reload.set({ left: left + spec.period, aim })
+      // A blind shooter's ring turns half a step each burst: bursts you wait through fill each other's gaps.
+      const gap = spec.spread.length > 1 ? (Math.PI * 2) / spec.spread.length / 2 : 0
+      data.reload.set({ left: left + spec.period, aim: spec.blind ? aim + gap : aim })
       if (fires === "bomb" || shot === null) {
         // Where you will be when it goes off: your heading, walked on through its flight and half its fuse (in world
         // time, which runs as you walk: any walk covers about your top speed per world second), `BOMB.lead` at most;
@@ -148,8 +153,6 @@ export const MeleeSystem = Game.System(
     const room = roomOf(resources.run.get().room)
     const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const dt = worldDt(resources.time.get(), resources.pace.get())
-    // How still you stand: 0 at a full push, 1 frozen (a clockwork's blow takes only the still).
-    const still = 1 - Math.max(0, Math.min(1, (resources.pace.get().scale - TUNING.slow) / (1 - TUNING.slow)))
     const r = TUNING.player.radius
     const allies = [
       ...queries.shooters.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: radiusOf(m.data.enemy.get().kind) })),
@@ -157,13 +160,10 @@ export const MeleeSystem = Game.System(
       ...queries.runners.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: RUNNER.radius })),
       ...queries.stalkers.each().map((m) => ({ id: m.entity.id, at: m.data.body.get(), radius: STALKER.radius }))
     ]
-    const worldStep = dt
     for (const { entity, data } of queries.melee.each()) {
       const kind = data.enemy.get().kind
       if (!isMelee(kind)) continue
       const spec = MELEE[kind]
-      // A clockwork enemy keeps real time: standing still does not slow it.
-      const dt = spec.clock === "real" ? resources.time.get().dt : worldStep
       const at = data.body.get()
       const { facing, pace } = data.melee.get()
       const blade = data.blade.get()
@@ -223,12 +223,12 @@ export const MeleeSystem = Game.System(
           else {
             data.blade.transition({ from: "windup", to: "swing", data: { left: spec.swing } })
             // The strike lands the step it starts: a rush that would reach your cut this step meets the blade first.
-            if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc && still >= spec.still) events.hit.emit({ by: "swing" })
+            if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
           }
           break
         }
         case "swing": {
-          if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc && still >= spec.still) events.hit.emit({ by: "swing" })
+          if (dist <= spec.reach + r && Math.abs(angleDiff(toYou, facing)) <= spec.arc) events.hit.emit({ by: "swing" })
           // oxlint-disable-next-line ritmo/no-float-timers -- world time, scaled by the slow motion
           const left = blade.left - dt
           if (left > 0) data.blade.update({ state: "swing", data: () => ({ left }) })

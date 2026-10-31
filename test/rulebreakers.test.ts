@@ -7,7 +7,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import type { Fight } from "../src/sim/simulation.ts"
-import { BELT, MELEE_KINDS, STALKER, TUNING } from "../src/sim/tuning.ts"
+import { BELT, MELEE_KINDS, SHOOTERS, STALKER, TUNING } from "../src/sim/tuning.ts"
 import { blow } from "../src/sim/systems/blows.ts"
 import type { EnemyView } from "../src/sim/view.ts"
 import { fightIn, placePlayer, pushToward, runUntil, type ScriptedThumb } from "./helpers.ts"
@@ -24,53 +24,38 @@ const jiggle = (thumb: ScriptedThumb): (() => void) => {
   return () => { flip = -flip; thumb.push = { x: flip, y: 0 } }
 }
 
-test("the clockwork keeps real time: it closes in while you stand still, where a brute would wait", () => {
-  const { fight } = fightIn("Clockworks")
-  placePlayer(fight, 5, 12)
-  const before = distance(fight, find(fight, "clockwork"))
-  runUntil(fight, 60, () => fight.view().flow !== "playing")
-  const after = distance(fight, find(fight, "clockwork"))
-  assert.ok(before - after > 1, `closed ${(before - after).toFixed(2)} m in a still second`)
+test("the clockwork's clock keeps real time: standing still, its bursts keep coming and hang at the tower, each ring turned", () => {
+  const { fight, thumb } = fightIn("Clockworks")
+  const tower = find(fight, "clockwork")
+  assert.ok(tower !== undefined)
+  // Four and a half still seconds: no world time passes, but its clock does (a burst at 1.2 s, the next 2.4 s on).
+  runUntil(fight, 270, () => fight.view().flow !== "playing")
+  const shots = fight.view().shots
+  assert.ok(shots.length >= 2 * SHOOTERS.clockwork.spread.length, `${shots.length} shots after four still seconds`)
+  assert.ok(shots.every((s) => Math.hypot(s.x - tower.x, s.y - tower.y) < 1.2), "frozen at the tower: they fly only when you move")
+  // Two rings, turned half a step: twice as many directions as one ring has.
+  const ways = new Set(shots.map((s) => Math.round(((Math.atan2(s.vy, s.vx) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 8)) % 16))
+  assert.ok(ways.size >= 2 * SHOOTERS.clockwork.spread.length, `${ways.size} directions`)
+  assert.equal(fight.view().flow, "playing")
 
-  const duel = fightIn("Duel").fight
-  const b0 = distance(duel, find(duel, "brute"))
-  runUntil(duel, 60, () => false)
-  assert.ok(b0 - distance(duel, find(duel, "brute")) < 0.3, "a brute barely moves in the same still second")
+  // Move, and they all fly.
+  const before = fight.view().shots.map((s) => Math.hypot(s.x - tower.x, s.y - tower.y))
+  runUntil(fight, 20, () => false, jiggle(thumb))
+  const after = fight.view().shots.map((s) => Math.hypot(s.x - tower.x, s.y - tower.y))
+  assert.ok(Math.max(...after) > Math.max(...before) + 1, "moving, the waiting bursts fly out")
+  const now = find(fight, "clockwork")
+  assert.deepEqual([now?.x, now?.y], [tower.x, tower.y], "the tower never moves")
 })
 
-test("the clockwork has no guard: rush it head-on and one cut downs it, its swing never landing", () => {
+test("the clockwork never moves and has no guard: walk up to it and one cut downs it", () => {
   const { fight, thumb } = fightIn("Clockworks")
-  runUntil(fight, 4000, () => fight.view().flow !== "playing", () => {
-    const c = find(fight, "clockwork")
-    if (c !== undefined) thumb.push = pushToward(fight, c.x, c.y)
-  })
+  const tower = find(fight, "clockwork")
+  assert.ok(tower !== undefined)
+  // Up close, between bursts (its first comes after a beat).
+  placePlayer(fight, tower.x + 1.6, tower.y)
+  runUntil(fight, 120, () => fight.view().flow !== "playing", () => { thumb.push = pushToward(fight, tower.x, tower.y) })
   assert.equal(fight.view().flow, "cleared")
   assert.equal(fight.view().hits, 0)
-})
-
-test("the clockwork's swing takes you only if you stand still: keep moving through it and you live", () => {
-  // Standing still in its reach: its blade, on its own clock, comes down on you.
-  const still = fightIn("Clockworks")
-  const c0 = find(still.fight, "clockwork")
-  assert.ok(c0 !== undefined)
-  placePlayer(still.fight, c0.x, c0.y + 1.6)
-  runUntil(still.fight, 600, () => still.fight.view().flow !== "playing")
-  assert.equal(still.fight.view().flow, "dead")
-  assert.deepEqual(still.fight.view().death, { by: "swing" })
-
-  // Moving in its reach (side to side at a full push, out of your cut's range) through its whole swing: no hit.
-  const moving = fightIn("Clockworks")
-  const c1 = find(moving.fight, "clockwork")
-  assert.ok(c1 !== undefined)
-  placePlayer(moving.fight, c1.x, c1.y + 1.6)
-  let swung = false
-  const wait = jiggle(moving.thumb)
-  runUntil(moving.fight, 600, () => moving.fight.view().flow !== "playing" || (swung && find(moving.fight, "clockwork")?.melee?.phase === "recover"), () => {
-    if (find(moving.fight, "clockwork")?.melee?.phase === "swing") swung = true
-    wait()
-  })
-  assert.ok(swung, "it swung")
-  assert.equal(moving.fight.view().flow, "playing")
 })
 
 test("the stalker moves only while you stand still", () => {
