@@ -13,7 +13,7 @@ import { attackWave, bodyName, bombActor, combatActor, crateBurst, crateWreck, d
 import { APPEAR_LIFE, GHOST_LIFE, SPLINTER_LIFE, STOP_LIFE, VANISH_LIFE, VANISH_POP, speedOf, type Presentation } from "./fx.ts"
 import { messages } from "./hud.ts"
 import { decorationHash, pixelArc, pixelLine, pixelSector } from "./pixels.ts"
-import { conveyorBelt, laserPost, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
+import { conveyorBelt, laserPost, plateBeacon, pressurePlate, raisedBlock, roomFloor, roomWalls, spinningBlade, type Material } from "./room-art.ts"
 import { applyLighting, discardLights, emitLight, type Rgb } from "./lighting.ts"
 import { feelSettings } from "./feel.ts"
 import { DANGER, PATH, THREAT, pathArrow, reloadArc, shotPath, threatArc, threatLine } from "./threats.ts"
@@ -606,8 +606,6 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   }
   // Conveyor belts: a dark tread whose chevrons run in real time, the way it carries you.
   for (const belt of view.belts) conveyorBelt(ctx, P, belt)
-  // Pressure plates: a raised slab with a teal rim, sunk and lit once pressed; an ordered lock's plates carry their number.
-  for (const plate of view.plates) pressurePlate(ctx, P, plate)
   // Keys on the floor: a ring that pulls the eye.
   for (const k of view.keys) {
     if (k.state !== "floor") continue
@@ -618,6 +616,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   // Ground decals: where shots will pass, what each enemy covers, your reach.
   // Drawn on the glow layer: copied onto the scene, and kept at full light as threats.
   const glow = glowLayer(ctx)
+  // Pressure plates, at full light, with the line to the gate each opens (see `pressurePlate`).
+  for (const plate of view.plates) pressurePlate(glow, ctx, P, plate, view.doors[plate.door] ?? null, presentation?.now ?? view.world)
   // Burst crates leave their broken planks on the floor (at full light, so the room's shadow does not swallow them).
   for (const splinter of presentation?.splinters ?? []) crateWreck(glow, P, splinter)
   if (view.flow === "playing") {
@@ -1046,6 +1046,13 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
   motes(ctx, view, P)
   // The exit is a beacon: a column of light and a bouncing arrow over the pad.
   if (view.room.goal.kind === "exit" && view.flow === "playing") exitBeacon(ctx, view.room.goal, P, erx, presentation?.now ?? view.world)
+  // Plates call you over: the next one to press has an arrow, and a press ripples.
+  if (view.flow === "playing") {
+    view.plates.forEach((plate, i) => {
+      const next = !plate.down && view.plates.every((o) => o.door !== plate.door || o.down || o.order === null || plate.order === null || o.order >= plate.order)
+      plateBeacon(ctx, P, plate, next, presentation?.pressAge(i) ?? -1, erx, presentation?.now ?? view.world)
+    })
+  }
 
   // Frozen time closes in: a cold vignette, as strong as the world is still.
   if (view.flow === "playing") {

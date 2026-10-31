@@ -302,10 +302,12 @@ export const ROOMS: ReadonlyArray<Room> = [
     w: 14,
     h: 22,
     start: { x: 7, y: 20 },
-    pillars: [...switchyard.walls, crate(7, 12), crate(4, 16)],
+    // The plate and its guard on one side, so the eye goes to one place: a gunner stands over the plate, and a crate
+    // hides you from it at the start. Reach the plate (the line on the floor runs from it to the gate), then the gate.
+    pillars: [...switchyard.walls, crate(9.6, 14), crate(4.5, 10.5)],
     doors: [switchyard.door],
-    plates: [{ x: 11.5, y: 14 }],
-    enemies: [{ kind: "gunner", x: 3, y: 9.5, delay: 0.5 }],
+    plates: [{ x: 10.5, y: 10 }],
+    enemies: [{ kind: "gunner", x: 12, y: 8.3, delay: 0.5 }],
     goal: { kind: "exit", x: 5.5, y: 1, w: 3, h: 2.4 },
     par: 7,
     tip: "step on the plate to open the gate"

@@ -3,7 +3,7 @@ import type { FightView, PlateView } from "../sim/view.ts"
 import { panel, sprite, spriteImage, texture, tile } from "./art.ts"
 import { torchFire } from "./combat-art.ts"
 import { emitLight } from "./lighting.ts"
-import { decorationHash, pixelLine, type Point } from "./pixels.ts"
+import { decorationHash, pixelArc, pixelLine, type Point } from "./pixels.ts"
 
 export type Projection = (x: number, y: number, z?: number) => Point
 const FLOORS = ["floor-0", "floor-1", "floor-2", "floor-3", "floor-4", "floor-5"] as const
@@ -12,23 +12,88 @@ const CAPS = ["cap", "cover-cap-1", "cover-cap-2"] as const
 
 const DIGITS = ["111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001", "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"] as const
 
-/** Native floor plate: a raised gold rim, recessed teal latch, or red failed press. */
-export const pressurePlate = (ctx: CanvasRenderingContext2D, P: Projection, plate: PlateView): void => {
-  const at = P(plate.x, plate.y), state = plate.missed ? "missed" : plate.down ? "down" : "up"
-  tile(ctx, `plate-${state}`, at.x - 12, at.y - 12)
-  if (plate.order !== null) {
-    const x = Math.round(at.x), y = Math.round(at.y) + (plate.down ? 1 : -1)
-    ctx.fillStyle = "#171c2e"; ctx.fillRect(x - 3, y - 3, 7, 7)
-    ctx.fillStyle = plate.missed ? "#ce4655" : plate.down ? "#64b6b3" : "#f4efda"
-    const bits = DIGITS[plate.order % 10] ?? DIGITS[0]
-    for (let i = 0; i < bits.length; i++) if (bits[i] === "1") ctx.fillRect(x - 1 + i % 3, y - 2 + Math.floor(i / 3), 1, 1)
+const PLATE_INK = "#171c2e", PLATE_GOLD = "#edc66c", PLATE_TEAL = "#64b6b3", PLATE_RED = "#ce4655"
+const plateColour = (plate: PlateView): string => (plate.missed ? PLATE_RED : plate.down ? PLATE_TEAL : PLATE_GOLD)
+
+/**
+ * A pressure plate, the size of where it presses (its radius): a raised stone slab with a gold rim and a gold
+ * diamond while it waits, sunk flush and lit teal once pressed, red on a wrong press; an ordered lock's plates carry
+ * their number. A dotted line on the floor runs from it to the gate it opens: dim gold, with a spark running to the
+ * gate, while it waits; teal once pressed. Painted on `ctx` (the full-light layer, so the room's shadow never hides
+ * it); its light is cast on `lit`, the scene.
+ */
+export const pressurePlate = (ctx: CanvasRenderingContext2D, lit: CanvasRenderingContext2D, P: Projection, plate: PlateView, door: Pillar | null, now: number): void => {
+  const colour = plateColour(plate)
+  if (door !== null) {
+    const from = P(plate.x, plate.y), to = P(door.x + door.w / 2, door.y + door.h)
+    pixelLine(ctx, from, to, plate.down ? "#3c7c7a" : "#6b5a35", 1, 3)
+    if (!plate.down) {
+      const t = (now * 0.8) % 1, at = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }
+      ctx.fillStyle = PLATE_INK; ctx.fillRect(Math.round(at.x) - 2, Math.round(at.y) - 2, 4, 4)
+      ctx.fillStyle = PLATE_GOLD; ctx.fillRect(Math.round(at.x) - 1, Math.round(at.y) - 1, 2, 2)
+    }
   }
-  emitLight(ctx, {
-    x: at.x, y: at.y, radius: plate.down ? 1.4 : 0.9,
+  const r = plate.radius, a = P(plate.x - r, plate.y - r), b = P(plate.x + r, plate.y + r)
+  const x = Math.round(a.x), y = Math.round(a.y), w = Math.round(b.x) - x, h = Math.round(b.y) - y
+  // Raised: a front lip under the top; pressed: sunk flush with the floor.
+  const lip = plate.down ? 0 : 3, top = y - lip
+  ctx.fillStyle = PLATE_INK; ctx.fillRect(x - 1, top - 1, w + 2, h + lip + 2)
+  if (lip > 0) { ctx.fillStyle = "#465477"; ctx.fillRect(x, top + h, w, lip) }
+  ctx.fillStyle = plate.down ? "#29334b" : "#8996b0"; ctx.fillRect(x, top, w, h)
+  // The rim, two pixels in.
+  ctx.fillStyle = colour
+  ctx.fillRect(x + 2, top + 2, w - 4, 1); ctx.fillRect(x + 2, top + h - 3, w - 4, 1)
+  ctx.fillRect(x + 2, top + 2, 1, h - 4); ctx.fillRect(x + w - 3, top + 2, 1, h - 4)
+  const cx = Math.round(x + w / 2), cy = Math.round(top + h / 2)
+  if (plate.order !== null) {
+    ctx.fillStyle = PLATE_INK; ctx.fillRect(cx - 4, cy - 4, 9, 9)
+    ctx.fillStyle = plate.missed ? PLATE_RED : plate.down ? PLATE_TEAL : "#f4efda"
+    const bits = DIGITS[plate.order % 10] ?? DIGITS[0]
+    for (let i = 0; i < bits.length; i++) if (bits[i] === "1") ctx.fillRect(cx - 1 + i % 3, cy - 2 + Math.floor(i / 3), 1, 1)
+  } else {
+    // A diamond: hollow while it waits, filled once pressed.
+    for (let d = -3; d <= 3; d++) {
+      const span = 3 - Math.abs(d)
+      ctx.fillStyle = colour
+      if (plate.down) ctx.fillRect(cx - span, cy + d, span * 2 + 1, 1)
+      else { ctx.fillRect(cx - span, cy + d, 1, 1); ctx.fillRect(cx + span, cy + d, 1, 1) }
+    }
+  }
+  emitLight(lit, {
+    x: cx, y: cy, radius: plate.down ? 1.6 : 1.3,
     colour: plate.missed ? [255, 86, 106] : plate.down ? [100, 182, 179] : [237, 198, 108],
-    intensity: plate.down ? 0.6 : 0.28, shadows: false
+    intensity: plate.down ? 0.7 : 0.45 + 0.15 * Math.sin(now * 4), shadows: false
   })
 }
+
+/** Over the lit scene: a waiting plate breathes a gold ring, and the one to press next has an arrow bobbing over it; a press sends out a teal ripple. */
+export const plateBeacon = (ctx: CanvasRenderingContext2D, P: Projection, plate: PlateView, next: boolean, pressAge: number, unit: number, now: number): void => {
+  const centre = P(plate.x, plate.y), rx = plate.radius * unit, ry = rx * 0.78
+  if (!plate.down) {
+    const t = (now * 0.9) % 1
+    ctx.save(); ctx.globalAlpha = 0.85 * (1 - t)
+    pixelArc(ctx, centre, rx * (1.15 + t * 0.6), ry * (1.15 + t * 0.6), 0, Math.PI * 2, PLATE_GOLD, 1, true)
+    ctx.restore()
+    if (next) {
+      const bounce = Math.round(Math.abs(Math.sin(now * 4)) * 4)
+      const top = P(plate.x, plate.y, 1.1)
+      for (const [j, row] of PLATE_ARROW.entries()) {
+        for (let i = 0; i < row.length; i++) {
+          const c = row[i] === "o" ? PLATE_INK : row[i] === "g" ? PLATE_GOLD : null
+          if (c === null) continue
+          ctx.fillStyle = c; ctx.fillRect(Math.round(top.x) - 7 + i * 2, Math.round(top.y) - 10 + bounce + j * 2, 2, 2)
+        }
+      }
+    }
+  }
+  if (pressAge >= 0 && pressAge < 0.5) {
+    const t = pressAge / 0.5
+    ctx.save(); ctx.globalAlpha = 1 - t
+    pixelArc(ctx, centre, rx * (1 + t * 2.4), ry * (1 + t * 2.4), 0, Math.PI * 2, PLATE_TEAL, 2)
+    ctx.restore()
+  }
+}
+const PLATE_ARROW = ["ooooooo", "ogggggo", "oogggoo", ".ogggo.", ".oogoo.", "..ogo..", "...o..."] as const
 
 /** Repeating slats move in real time; fixed side rails and end rollers frame the belt. */
 export const conveyorBelt = (ctx: CanvasRenderingContext2D, P: Projection, belt: FightView["belts"][number]): void => {
@@ -197,7 +262,8 @@ export const roomFloor = (ctx: CanvasRenderingContext2D, cw: number, ch: number,
   ctx.save()
   ctx.beginPath(); ctx.rect(ox, oy, Math.round(b.x) - ox, Math.round(b.y) - oy); ctx.clip()
   const u = (b.x - a.x) / view.room.w, v = (b.y - a.y) / view.room.h
-  const drain = roomDrain(view, u, v)
+  // (No drain where there are plates: a dark slab on the floor reads as one more.)
+  const drain = view.plates.length > 0 ? null : roomDrain(view, u, v)
   for (let row = Math.max(0, rows[0]); row < Math.min(rows[1], Math.ceil((b.y - a.y) / 24)); row++) {
     for (let col = Math.max(0, cols[0]); col < Math.min(cols[1], Math.ceil((b.x - a.x) / 24)); col++) {
       const hash = decorationHash(col, row, view.room.index), wx = (col + 0.5) * 24 / u, wy = (row + 0.5) * 24 / v

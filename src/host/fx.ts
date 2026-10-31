@@ -23,6 +23,8 @@ export interface Impact {
 export interface Splinter { readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly angle: number; readonly born: number; readonly seed: number }
 /** Real s a crate's burst plays; its broken planks stay on the floor until the attempt ends. */
 export const SPLINTER_LIFE = 0.75
+/** A plate pressed (by index), and when (real s). */
+export interface Press { readonly plate: number; readonly born: number }
 export interface Fire { readonly born: number; readonly aim: number }
 /** An afterimage of the player: where it stood, which way it faced, and how fast the world ran then (0 to 1). */
 export interface Ghost { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number; readonly strength: number }
@@ -61,6 +63,8 @@ export class Presentation {
   stops: Array<Stop> = []
   /** Crates that burst this attempt (the burst plays for SPLINTER_LIFE; the planks stay). */
   splinters: Array<Splinter> = []
+  /** Plates pressed this attempt, for their ripple. */
+  presses: Array<Press> = []
   /** Where you were when the room was cleared: you vanish from there, ninja-style. */
   vanish: { readonly x: number; readonly y: number; readonly flip: boolean; readonly born: number } | null = null
   /** How many of your cuts have landed (the page holds the world still for a beat on each: the hit-stop). */
@@ -93,6 +97,11 @@ export class Presentation {
     const last = this.splinters[this.splinters.length - 1]
     return last === undefined ? -1 : this.now - last.born
   }
+  /** Real s since plate `i` was last pressed, or -1. */
+  pressAge(i: number): number {
+    const press = this.presses.findLast(p => p.plate === i)
+    return press === undefined ? -1 : this.now - press.born
+  }
   get playerDeathAge(): number { return this.deadAt === null ? -1 : this.now - this.deadAt }
   get clearAge(): number { return this.clearedAt === null ? -1 : this.now - this.clearedAt }
   /** Real s since your last cut landed, or -1. */
@@ -120,7 +129,7 @@ export class Presentation {
   observe(view: FightView): void {
     const old = this.previous
     if (old === null || old.room.index !== view.room.index || old.player?.id !== view.player?.id || view.step < old.step || view.world < old.world || (old.flow !== "playing" && view.flow === "playing")) {
-      this.deaths = []; this.impacts = []; this.ghosts = []; this.enemyGhosts = []; this.stops = []; this.splinters = []; this.fire.clear()
+      this.deaths = []; this.impacts = []; this.ghosts = []; this.enemyGhosts = []; this.stops = []; this.splinters = []; this.presses = []; this.fire.clear()
       this.running = false; this.runFrom = -1
       // A new attempt (a room entered, a retry, a restart) teaches the move again.
       this.deadAt = null; this.clearedAt = null; this.vanish = null; this.cutAt = null
@@ -202,6 +211,7 @@ export class Presentation {
       this.splinters.push({ x: c.x, y: c.y, w: c.w, h: c.h, angle, born: this.now, seed: Math.round(c.x * 97 + c.y * 31) })
       this.pulses.push("crate")
     }
+    view.plates.forEach((plate, i) => { if (plate.down && old.plates[i]?.down === false) this.presses.push({ plate: i, born: this.now }) })
     if (old.flow === "playing" && view.flow === "dead" && view.player !== null) {
       this.deadAt = this.now
       this.pulses.push("hit")
