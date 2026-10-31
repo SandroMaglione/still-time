@@ -8,7 +8,7 @@ Time moves only when you move: read a frozen room full of bullets and blades, th
 
 **Still Time** is a one-hit, one-cut assassin game where time nearly stops while you stand still (×0.04) and runs as fast as you move. Every room is a puzzle you read from a frozen frame: bullets hanging in the air, a brute's blade raised, a sniper's laser tracking you. Then you move, and the whole world speeds up with you.
 
-Speed is the choice you make, not a stat: push hard and you dash through the gaps at full speed, ease off and the world crawls so you can thread a bullet by a pixel. Across 28 torch-lit dungeon rooms you face gunners, archers, knife throwers, snipers whose lasers lock before they fire, spearmen who outreach your blade, shield-bearers, grenadiers, a clockwork enemy that ignores the freeze and a stalker that moves only while you're still. Alongside them come plates, laser gates, spinning blades and conveyor belts. The music and sound slow down and go muffled whenever time freezes.
+Speed is the choice you make, not a stat: push hard and you dash through the gaps at full speed, ease off and the world crawls so you can thread a bullet by a pixel. Across 30 torch-lit dungeon rooms you face gunners, archers, knife throwers, snipers whose lasers lock before they fire, spearmen who outreach your blade, shield-bearers, grenadiers, a clockwork enemy that ignores the freeze and a stalker that moves only while you're still. Alongside them come plates, laser gates, spinning blades and conveyor belts. The music and sound slow down and go muffled whenever time freezes.
 
 Made for phones in portrait (720×1280) and playable in the browser with touch or keyboard.
 
@@ -48,6 +48,6 @@ Suggested itch theme settings: dark background `#0b0d12`, page background `#171c
 ## Upload checklist
 
 - Cover image: `cover.png` (630×500).
-- Screenshots, in order: `screenshot-1-title.png` … `screenshot-6-sniper-lock.png` (720×1280).
-- In the description, at the top: `still-time.gif` (360×554, about 4.3 s).
+- Screenshots, in order: `screenshot-1-prologue-stop.png` … `screenshot-5-clear-replay.png` (720×1280).
+- In the description, at the top: `still-time.gif` (the whole Prologue, 240×427, about 20.7 s, looping).
 - Embed: portrait 720×1280 (or scaled, e.g. 405×720), mobile-friendly on, fullscreen button on.
