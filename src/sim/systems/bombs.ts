@@ -6,14 +6,10 @@
  */
 import { Ops } from "@typeonce/ritmo"
 
-import { clearLine, insidePillar } from "../geometry.ts"
+import { clearLine, distanceTo, insidePillar } from "../geometry.ts"
 import { Blasts, Bomb, Doors, Enemy, Flow, Game, Pace, PlayerHit, Run, Time, Wear } from "../schema.ts"
 import { BOMB } from "../tuning.ts"
 import { BombQuery, EnemyRead, PlayerRead, roomOf, wallsOf } from "./queries.ts"
-
-/** The nearest distance from a point to a rectangle (0 inside it). */
-const distanceTo = (x: number, y: number, p: { readonly x: number; readonly y: number; readonly w: number; readonly h: number }): number =>
-  Ops.hypot(x - Math.max(p.x, Math.min(x, p.x + p.w)), y - Math.max(p.y, Math.min(y, p.y + p.h)))
 
 export const BombsSystem = Game.System(
   "Slap/Bombs",

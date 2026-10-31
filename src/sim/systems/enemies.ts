@@ -11,7 +11,7 @@
  */
 import { Ops } from "@typeonce/ritmo"
 
-import { angleDiff, canSee, segmentDistance, settle, turnToward } from "../geometry.ts"
+import { angleDiff, canSee, distanceTo, segmentDistance, settle, turnToward } from "../geometry.ts"
 import { Body, Bomb, Doors, Flow, Game, Pace, PlayerHit, RoomScope, Run, Shot, Time, Wear } from "../schema.ts"
 import { CROWD, GIVE, MELEE, RUNNER, STALKER, SHOOTER_MOVE, SHOOTERS, SHOTS, TUNING, isMelee, isShooter, radiusOf } from "../tuning.ts"
 import { MeleeQuery, MeleeRead, PlayerRead, RunnerQuery, RunnerRead, ShooterQuery, ShooterRead, StalkerQuery, StalkerRead, roomOf, sightWalls, wallsOf } from "./queries.ts"
@@ -236,9 +236,11 @@ export const MeleeSystem = Game.System(
 )
 
 /**
- * Runners: while one sees you it weighs `RUNNER.ways` directions and runs
- * the one whose landing point is furthest from you, with a pull to keep its
- * heading (so it does not dither). Out of sight it stands still.
+ * Runners: while one sees you it weighs `RUNNER.ways` directions, each by where a run that way lands
+ * (`RUNNER.look` ahead, and `RUNNER.plan` further, to see a dead end coming): far from you, out in the open
+ * (walls and corners cost it), and best of all out of your sight, behind cover. It will not run past close to
+ * you, and it breaks to one side of straight-away, a side that changes every few world seconds, so it zig-zags
+ * instead of backing into a corner. Out of sight it stands still: you sneak up round the cover.
  */
 export const RunnersSystem = Game.System(
   "Slap/Runners",
@@ -253,15 +255,29 @@ export const RunnersSystem = Game.System(
     const room = roomOf(resources.run.get().room)
     const walls = wallsOf(room, resources.doors.get(), resources.wear.get())
     const step = RUNNER.speed * worldDt(resources.time.get(), resources.pace.get())
-    for (const { data } of queries.runners.each()) {
+    const world = resources.run.get().world
+    /** How much open floor round a point: its distance to the nearest wall or cover, up to `RUNNER.open`. */
+    const open = (x: number, y: number): number =>
+      Math.min(RUNNER.open, x, room.w - x, y, room.h - y, ...walls.map((p) => distanceTo(x, y, p)))
+    for (const { entity, data } of queries.runners.each()) {
       const at = data.body.get()
       if (!canSee(at.x, at.y, me.x, me.y, TUNING.sight, walls)) continue
       const away = Ops.atan2(at.y - me.y, at.x - me.x)
-      let best = away, score = -1
+      const side = Ops.sin(world * RUNNER.sway + entity.id) >= 0 ? 1 : -1
+      let best = away, score = -Infinity
       for (let i = 0; i < RUNNER.ways; i++) {
         const a = away + (i / RUNNER.ways) * Math.PI * 2
         const land = settle(at.x + Ops.cos(a) * RUNNER.look, at.y + Ops.sin(a) * RUNNER.look, RUNNER.radius, room.w, room.h, walls)
-        const s = Ops.hypot(land.x - me.x, land.y - me.y) + 0.4 * Ops.cos(angleDiff(a, away))
+        const far = settle(at.x + Ops.cos(a) * RUNNER.plan, at.y + Ops.sin(a) * RUNNER.plan, RUNNER.radius, room.w, room.h, walls)
+        // (A way it cannot take now, into a wall's face, is no way out, however open it looks beyond.)
+        const free = Ops.hypot(land.x - at.x, land.y - at.y) / RUNNER.look
+        const s = Ops.hypot(land.x - me.x, land.y - me.y)
+          + 0.5 * Ops.hypot(far.x - at.x, far.y - at.y)
+          - (free < 0.6 ? RUNNER.hide * 2 : 0)
+          + open(far.x, far.y)
+          + (canSee(far.x, far.y, me.x, me.y, TUNING.sight, walls) ? 0 : RUNNER.hide)
+          + (segmentDistance(me.x, me.y, at.x, at.y, far.x, far.y) < RUNNER.past ? -RUNNER.hide : 0)
+          + 0.6 * side * Ops.sin(angleDiff(a, away))
         if (s > score) { score = s; best = a }
       }
       data.body.set(settle(at.x + Ops.cos(best) * step, at.y + Ops.sin(best) * step, RUNNER.radius, room.w, room.h, walls))

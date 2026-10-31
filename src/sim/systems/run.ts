@@ -5,6 +5,7 @@
  */
 import { Clock, Ops } from "@typeonce/ritmo"
 
+import { distanceTo } from "../geometry.ts"
 import { unlocked } from "../progress.ts"
 import { ROOMS, roomAt, type Lock, type Pillar } from "../rooms.ts"
 import { Blade, Blasts, Body, Carry, Doors, Enemy, EnterRoom, Flow, Game, Input, IntentEvent, Keys, Melee, Pace, Player, PlayerHit, Post, Reload, RoomScope, Run, Shot, Slashes, Stalk, STEP, Time, type Key, type RoomResult, Plates, Wear } from "../schema.ts"
@@ -126,10 +127,6 @@ export const FadeSlashesSystem = Game.System(
     if (blasts.some((b) => now - b.born >= BOMB.showSteps)) resources.blasts.set(blasts.filter((b) => now - b.born < BOMB.showSteps))
   }
 )
-
-/** The nearest distance from a point to a rectangle (0 inside it). */
-const distanceTo = (x: number, y: number, p: Pillar): number =>
-  Ops.hypot(x - Math.max(p.x, Math.min(x, p.x + p.w)), y - Math.max(p.y, Math.min(y, p.y + p.h)))
 
 /**
  * Keys follow their runner; a runner gone (cut or shot) leaves its key on

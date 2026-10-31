@@ -85,7 +85,7 @@ export class Camera {
 }
 
 /** Each key and its door share a colour. */
-const KEY_COLOURS = ["#5fd4ff", "#c18cff", "#7dff9a"] as const
+const KEY_COLOURS = ["#64b6b3", "#c18cff", "#7dff9a"] as const
 export const keyColour = (key: number): string => KEY_COLOURS[key % KEY_COLOURS.length] ?? "#5fd4ff"
 
 const PLATE = "#64b6b3"
@@ -96,20 +96,8 @@ const lockColour = (lock: Lock): string => (lock.kind === "clear" ? "#9fb4d8" : 
 
 const EXIT = "#7dff9a"
 
-/** A key glyph in screen pixels: a ring, a shaft, two teeth. */
-const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number, s: number, colour: string): void => {
-  const cx = Math.round(x - s * 0.55), cy = Math.round(y), r = Math.max(2, Math.round(s * 0.42))
-  ctx.fillStyle = "#171c2e"; ctx.fillRect(cx - r - 1, cy - r - 1, r * 2 + 3, r * 2 + 3)
-  ctx.fillStyle = colour; ctx.fillRect(cx - r, cy - r, r * 2 + 1, r * 2 + 1)
-  ctx.fillStyle = "#171c2e"; ctx.fillRect(cx - r + 1, cy - r + 1, r * 2 - 1, r * 2 - 1)
-  const end = Math.round(x + s)
-  pixelLine(ctx, { x: cx + r + 1, y: cy }, { x: end, y: cy }, "#171c2e", 4)
-  pixelLine(ctx, { x: cx + r + 1, y: cy }, { x: end, y: cy }, colour, 2)
-  for (const xx of [end - 3, end]) {
-    pixelLine(ctx, { x: xx, y: cy }, { x: xx, y: cy + 3 }, "#171c2e", 3)
-    pixelLine(ctx, { x: xx, y: cy }, { x: xx, y: cy + 3 }, colour)
-  }
-}
+/** A key (art: `key`), centred on (x, y). */
+const keyGlyph = (ctx: CanvasRenderingContext2D, x: number, y: number): void => sprite(ctx, "key", x, y + 8)
 
 /** One enemy a chamber door still waits on: a red square, on the door and over the enemy's head. Centred on (x, y). */
 const doorPip = (ctx: CanvasRenderingContext2D, x: number, y: number): void => {
@@ -988,7 +976,8 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     actors.push({
       x: k.x, y: k.y + 0.01, paint: () => {
         const p = P(k.x, k.y, z + (k.state === "floor" ? 0.08 * Math.sin(view.world * 5) : 0))
-        keyGlyph(ctx, p.x - u * 0.12, p.y, u * 0.22, keyColour(k.key))
+        // The room's prize: at full colour (on the glow layer too), even while frozen time greys the rest.
+        for (const c of [ctx, glow]) keyGlyph(c, p.x, p.y)
       }
     })
   }
@@ -997,7 +986,7 @@ export const draw = (ctx: CanvasRenderingContext2D, cw: number, ch: number, view
     if (d.open) return []
     const colour = lockColour(d.lock)
     const emblem = (x: number, y: number): void => {
-      if (d.lock.kind === "key") keyGlyph(ctx, x - u * 0.14, y, u * 0.26, colour)
+      if (d.lock.kind === "key") keyGlyph(ctx, x, y)
       else if (d.lock.kind === "captain") crownGlyph(ctx, x, y + u * 0.14)
       else if (d.lock.kind === "time") {
         // (Its timer is drawn over the lit scene, see `doorTimer`, so a frozen world does not grey it out.)

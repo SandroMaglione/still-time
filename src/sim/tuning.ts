@@ -195,17 +195,25 @@ export const HAZARD = { width: 0.12, warn: 0.45 } as const
 
 /**
  * The runner (a thief): it never attacks, carries a key, and runs from you
- * while it can see you. Out of sight it stands still, so you can sneak up
- * behind cover. Wherever it falls (your cut or a stray shot), it drops its key.
+ * while it can see you, for open floor and for cover (see `RunnersSystem`).
+ * Out of sight it stands still, so you can sneak up behind cover. Wherever it falls (your cut or a stray shot), it drops its key.
  */
 export const RUNNER = {
   radius: 0.34,
-  /** Metres per world second: slower than you, so you catch it in the open, but it reaches corners first. */
-  speed: 3.6,
-  /** How far ahead it weighs each way out, in metres. */
+  /** Metres per world second: slower than you (5), so you catch it in the open, but quick enough to make for cover. */
+  speed: 4.3,
+  /** How far ahead it weighs each way out, in metres, and how far it plans (to see a dead end coming). */
   look: 1.6,
+  plan: 3.5,
   /** How many ways out it weighs. */
-  ways: 16
+  ways: 16,
+  /** Open floor round a landing counts up to this many metres (walls and corners cost it). */
+  open: 2,
+  /** What getting out of your sight is worth, in metres of distance; and running past you this close costs as much. */
+  hide: 3,
+  past: 1.6,
+  /** How fast (per world second) its favoured side to break toward swings: it zig-zags, never dithers. */
+  sway: 0.8
 } as const
 
 /** Keys, doors and plates. */

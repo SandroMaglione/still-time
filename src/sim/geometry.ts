@@ -49,6 +49,10 @@ export const clearLine = (ax: number, ay: number, bx: number, by: number, pillar
   return true
 }
 
+/** The nearest distance from a point to a rectangle (0 inside it). */
+export const distanceTo = (x: number, y: number, p: Pillar): number =>
+  Ops.hypot(x - Math.max(p.x, Math.min(x, p.x + p.w)), y - Math.max(p.y, Math.min(y, p.y + p.h)))
+
 /** Whether an enemy at (ex, ey) can see a target at (x, y): in range, nothing in the way. */
 export const canSee = (ex: number, ey: number, x: number, y: number, sight: number, pillars: ReadonlyArray<Pillar>): boolean =>
   Ops.hypot(x - ex, y - ey) <= sight && clearLine(ex, ey, x, y, pillars)

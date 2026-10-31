@@ -6,7 +6,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { insidePillar } from "../src/sim/geometry.ts"
+import { distanceTo, insidePillar } from "../src/sim/geometry.ts"
 import { ROOMS } from "../src/sim/rooms.ts"
 import type { Fight } from "../src/sim/simulation.ts"
 import { starsFor } from "../src/sim/systems/run.ts"
@@ -146,6 +146,32 @@ test("a runner flees while it can see you, and stands still when it cannot", () 
   const start = dist()
   runUntil(fight, 30, () => fight.view().flow !== "playing", jiggle(thumb))
   assert.ok(dist() > start + 1, `ran from ${start.toFixed(2)} m to ${dist().toFixed(2)} m`)
+})
+
+test("a chased runner keeps to open floor and cover, not pinned against walls and crates", () => {
+  // A chaser that runs at it, stops to look now and then, and sidesteps when cover stops it.
+  const pinned = (from: readonly [number, number]): number => {
+    const { fight, thumb } = fightIn("Thief")
+    placePlayer(fight, from[0], from[1])
+    const room = ROOMS[roomIndex("Thief")]!
+    let seen = 0, pin = 0, stuck = 0, steps = 0, last = { x: 0, y: 0 }
+    runUntil(fight, 60 * 20, () => !fight.view().enemies.some((e) => e.kind === "runner") || fight.view().flow !== "playing", () => {
+      const v = fight.view(), r = v.enemies.find((e) => e.kind === "runner"), me = v.player
+      if (r === undefined || me === null) return
+      const clear = Math.min(r.x, room.w - r.x, r.y, room.h - r.y, ...room.pillars.map((p) => distanceTo(r.x, r.y, p)))
+      seen++
+      if (clear < 0.5) pin++
+      stuck = Math.hypot(me.x - last.x, me.y - last.y) < 0.01 ? stuck + 1 : Math.max(0, stuck - 1)
+      last = { x: me.x, y: me.y }
+      const p = pushToward(fight, r.x, r.y)
+      thumb.push = steps++ % 90 < 20 ? { x: 0, y: 0 } : stuck > 3 ? { x: p.y, y: -p.x } : p
+    })
+    return pin / Math.max(1, seen)
+  }
+  const shares = ([[3, 13], [13, 13], [3, 17], [13, 17], [8, 18]] as const).map(pinned)
+  const mean = shares.reduce((a, b) => a + b, 0) / shares.length
+  // (Backing straight away from you, it spent over half of each chase against a wall or a crate.)
+  assert.ok(mean < 0.25, `pinned for ${(mean * 100).toFixed(0)}% of the chase: ${shares.map((x) => x.toFixed(2)).join(", ")}`)
 })
 
 test("a fallen runner drops its key; carried to its door, the key opens it", () => {
