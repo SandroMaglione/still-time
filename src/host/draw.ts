@@ -316,6 +316,12 @@ export type Project = (x: number, y: number, z?: number) => { x: number; y: numb
 const motes = (ctx: CanvasRenderingContext2D, view: FightView, P: Project): void => {
   const { w, h, index } = view.room
   const count = Math.round(w * h / 7)
+  // Only over open floor: a lone pixel drifting over a block or a wall, rounded apart from it, reads as a glitch.
+  const solid = [...view.cover, ...view.doors.filter((d) => !d.open)].map((b) => {
+    const top = P(b.x, b.y, PILLAR_HEIGHT), bottom = P(b.x + b.w, b.y + b.h)
+    return { x0: Math.floor(top.x) - 1, y0: Math.floor(top.y) - 1, x1: Math.ceil(bottom.x) + 1, y1: Math.ceil(bottom.y) + 1 }
+  })
+  const backWall = P(0, 0).y
   for (let i = 0; i < count; i++) {
     const seed = decorationHash(i, 31, index)
     const vx = (((seed >>> 4) % 21) - 10) / 50, vy = -0.12 - ((seed >>> 9) % 10) / 60
@@ -323,8 +329,10 @@ const motes = (ctx: CanvasRenderingContext2D, view: FightView, P: Project): void
     const y = (((((seed >>> 12) % 991) / 991) * h + vy * view.world) % h + h) % h
     const z = 0.3 + ((seed >>> 20) % 12) / 10
     const at = P(x, y, z)
+    const sx = Math.round(at.x), sy = Math.round(at.y)
+    if (sy < backWall || solid.some((r) => sx >= r.x0 && sx <= r.x1 && sy >= r.y0 && sy <= r.y1)) continue
     ctx.fillStyle = (seed >>> 24) % 3 === 0 ? "rgba(255,214,150,0.55)" : "rgba(232,236,244,0.35)"
-    ctx.fillRect(Math.round(at.x), Math.round(at.y), 1, 1)
+    ctx.fillRect(sx, sy, 1, 1)
   }
 }
 

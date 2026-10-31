@@ -23,6 +23,8 @@ const HOLD = 0.9
 const SEEK = 1200
 /** How far below you (m) the replay's camera looks: the clear card covers the bottom of the screen. */
 const FRAME_BELOW = 2.5
+/** How many times faster than the world ran the replay plays: brisk, so a whole run plays in a moment. */
+const SPEED = 1.6
 /** World speed below which you count as standing still. */
 const STILL = 0.05
 
@@ -33,7 +35,7 @@ export class Replay {
   private stillSteps = 0
   private movingSteps = 0
   /** The playback, while one shows. */
-  private play: { fight: Fight; next: number; presentation: Presentation; camera: Camera; hold: number; view: FightView } | null = null
+  private play: { fight: Fight; next: number; presentation: Presentation; camera: Camera; hold: number; budget: number; view: FightView } | null = null
 
   /** Whether a playback is ready to show (a clear was recorded). */
   get ready(): boolean { return this.play !== null }
@@ -75,7 +77,7 @@ export class Replay {
     const presentation = new Presentation()
     presentation.observe(fight.view())
     const camera = new Camera()
-    this.play = { fight, next: 0, presentation, camera, hold: 0, view: fight.view() }
+    this.play = { fight, next: 0, presentation, camera, hold: 0, budget: 0, view: fight.view() }
     // (Reset the read position whenever playback restarts: see `restart`.)
     this.rewind = () => { i = 0 }
   }
@@ -97,19 +99,24 @@ export class Replay {
       if (p.hold <= 0) this.restart()
       return { view: p.view, camera: p.camera, presentation: p.presentation }
     }
-    // Step until something moves (the world, or you on a belt), or the run ends: frozen stretches cost no frames.
-    const before = p.view
-    for (let n = 0; n < SEEK; n++) {
-      if (p.next >= this.inputs.length) { p.hold = HOLD; break }
-      p.fight.tick()
-      p.next++
-      const view = p.fight.view()
-      p.presentation.observe(view)
-      p.view = view
-      const me = view.player, was = before.player
-      const moved = view.world > before.world || (me !== null && was !== null && (me.x !== was.x || me.y !== was.y))
-      if (view.flow !== "playing") { p.hold = HOLD; break }
-      if (moved) break
+    // `SPEED` moving steps a frame's worth of time (fractions carried over); each one steps on until something moves
+    // (the world, or you on a belt) or the run ends, so frozen stretches cost no frames.
+    p.budget += dt * 60 * SPEED
+    while (p.budget >= 1 && p.hold <= 0) {
+      p.budget -= 1
+      const before = p.view
+      for (let n = 0; n < SEEK; n++) {
+        if (p.next >= this.inputs.length) { p.hold = HOLD; break }
+        p.fight.tick()
+        p.next++
+        const view = p.fight.view()
+        p.presentation.observe(view)
+        p.view = view
+        const me = view.player, was = before.player
+        const moved = view.world > before.world || (me !== null && was !== null && (me.x !== was.x || me.y !== was.y))
+        if (view.flow !== "playing") { p.hold = HOLD; break }
+        if (moved) break
+      }
     }
     // Framed a little below you, so you play out above the clear card that covers the bottom of the screen.
     const me = p.view.player
@@ -124,7 +131,7 @@ export class Replay {
     this.rewind()
     const presentation = new Presentation()
     presentation.observe(this.play.fight.view())
-    this.play = { ...this.play, next: 0, presentation, hold: 0, view: this.play.fight.view() }
+    this.play = { ...this.play, next: 0, presentation, hold: 0, budget: 0, view: this.play.fight.view() }
     this.play.camera.reset()
   }
 }

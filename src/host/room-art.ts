@@ -298,7 +298,10 @@ export const raisedBlock = (ctx: CanvasRenderingContext2D, b: Pillar, P: Project
     texture(ctx, material === "gate" ? "iron" : "masonry", x, y + depth, width, faceHeight)
     panel(ctx, material === "gate" ? "cap" : CAPS[hash % 3]!, x, y, width, depth)
     if (material === "stone" && width >= 20 && depth >= 18 && hash % 3 !== 0) {
-      tile(ctx, "cover-chip", x + 2 + hash % Math.max(1, width - 20), y + 2 + (hash >>> 10) % Math.max(1, depth - 18))
+      // A fixed fraction of the block, not the hash modulo its on-screen size: that size wavers by a pixel as the
+      // camera moves, and a modulo of it threw the chip across the cap at every step.
+      const fx = (hash % 997) / 997, fy = ((hash >>> 10) % 991) / 991
+      tile(ctx, "cover-chip", x + 2 + Math.round(fx * (width - 20)), y + 2 + Math.round(fy * (depth - 18)))
     }
     pixelLine(ctx, { x, y: y + depth }, { x, y: Math.round(ground.y) }, "#171c2e")
     pixelLine(ctx, { x: x + width - 1, y: y + depth }, { x: x + width - 1, y: Math.round(ground.y) }, "#171c2e")
