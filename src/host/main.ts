@@ -416,6 +416,9 @@ const HIT_STOP_STEPS = 4
 let hitStop = 0
 let cutsSeen = 0
 await loadArt()
+// Loaded: the HUD may show (see `.loading` in index.html), and the music and sounds may come down.
+document.body.classList.remove("loading")
+audio.preload()
 FixedLoop.start({
   source: BrowserTickSource.make(window),
   step: STEP,

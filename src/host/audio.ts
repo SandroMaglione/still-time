@@ -153,10 +153,13 @@ class GameAudio {
   /** When a button was last clicked (ms): a menu closed by a click already ticked. */
   private clickedAt = -Infinity
 
-  constructor() {
-    // Fetch now, decode once there is a context.
-    for (const name of Object.keys(SOUNDS)) this.fetch(`sfx/${name}.wav`)
+  /**
+   * Fetches the music and the sounds (decoded once there is a context). Called once the art has loaded, so the songs
+   * (most of the game's bytes) never hold up the first picture; a sound wanted sooner is fetched on the spot.
+   */
+  preload(): void {
     for (const name of SONGS) this.fetch(`music/${name}.wav`)
+    for (const name of Object.keys(SOUNDS)) this.fetch(`sfx/${name}.wav`)
   }
 
   /** Starts (or resumes) the sound on the first press or key, as browsers require; clicks on buttons tick. */
@@ -221,6 +224,7 @@ class GameAudio {
   }
 
   private fetch(path: string): void {
+    if (this.bytes.has(path)) return
     this.bytes.set(path, fetch(url(path)).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null))
   }
 
@@ -261,6 +265,7 @@ class GameAudio {
 
   private async decode(ctx: AudioContext): Promise<void> {
     const one = async (path: string): Promise<AudioBuffer | null> => {
+      this.fetch(path)
       const bytes = await this.bytes.get(path)
       if (bytes === null || bytes === undefined) return null
       return ctx.decodeAudioData(bytes.slice(0)).catch(() => null)

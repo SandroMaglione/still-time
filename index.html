@@ -105,6 +105,10 @@
       .tip-room { color: var(--dim); }
       .tip-hint { color: var(--dim); font-size: var(--t0); line-height: var(--l0); }
 
+      /* While the game loads, its HUD (written in this page, so up before anything else) stays hidden: an empty frame of
+         panels with no room under it reads as broken. */
+      .loading .hud { visibility: hidden; }
+
       /* Messages: a hit, a clear and its stars, the run's end. */
       .message {
         position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + var(--u) * 8); transform: translateX(-50%);
@@ -250,7 +254,7 @@
       .room-card.locked .room-name { color: #4d566e; }
     </style>
   </head>
-  <body>
+  <body class="loading">
     <canvas id="view"></canvas>
     <div id="hud" class="hud">
       <div class="hud-top">
