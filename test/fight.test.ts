@@ -61,16 +61,16 @@ test("shooters fire only when they can see you", () => {
 })
 
 test("a shooter steps aside instead of shooting through an ally", () => {
-  // Friendly Fire lines a thrower and two gunners up; from (6.5, 17) the middle one's line runs past the front one.
+  // Friendly Fire lines a thrower up behind a gunner; from (6.5, 14.5) the thrower's line runs past the gunner.
   const { fight, thumb } = fightIn("Friendly Fire")
-  placePlayer(fight, 6.5, 17)
-  const middle = () => fight.view().enemies.find((e) => e.kind === "gunner" && e.y > 4 && e.y < 7.5)
-  const startX = middle()?.x ?? 0
+  placePlayer(fight, 6.5, 14.5)
+  const thrower = () => fight.view().enemies.find((e) => e.kind === "thrower")
+  const startX = thrower()?.x ?? 0
   // Push into a wall-free spot back and forth so time runs while you stay put.
   let flip = 1
   runUntil(fight, 240, () => fight.view().flow !== "playing", () => { flip = -flip; thumb.push = { x: flip, y: 0 } })
-  assert.ok(Math.abs((middle()?.x ?? startX) - startX) > 0.2, "the middle gunner should sidestep its ally")
-  assert.equal(fight.view().enemies.filter((e) => e.kind === "gunner").length, 2, "no gunner shot another")
+  assert.ok(Math.abs((thrower()?.x ?? startX) - startX) > 0.2, "the thrower should sidestep its ally")
+  assert.equal(fight.view().enemies.filter((e) => e.kind === "gunner").length, 1, "the thrower did not knife the gunner")
 })
 
 test("a spearman's thrust kills you if you rush it head-on: its reach is past your cut", () => {

@@ -47,8 +47,8 @@ export const SHOOTERS = {
   gunner: { radius: 0.38, period: 0.85, shot: "bullet", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 },
   /** Fast arrows, slower reload. */
   archer: { radius: 0.36, period: 1.3, shot: "arrow", spread: [0], sight: 13, creeps: true, scoped: false, lock: 0 },
-  /** A fan of three knives. */
-  thrower: { radius: 0.38, period: 1.1, shot: "knife", spread: [-0.3, 0, 0.3], sight: 13, creeps: true, scoped: false, lock: 0 },
+  /** A fan of three knives, and a slow reload: time to see the fan coming and step out of it. */
+  thrower: { radius: 0.38, period: 1.8, shot: "knife", spread: [-0.3, 0, 0.3], sight: 13, creeps: true, scoped: false, lock: 0 },
   /** Sees across the room and holds still; a laser charges on you, locks, then one very fast slug. */
   sniper: { radius: 0.36, period: 1.5, shot: "slug", spread: [0], sight: 24, creeps: false, scoped: true, lock: 0.4 },
   /** Lobs a bomb at where you stand (over allies: it does not care who the blast takes). */

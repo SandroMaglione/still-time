@@ -337,10 +337,9 @@ export const ROOMS: ReadonlyArray<Room> = [
     pillars: [crate(4, 19), crate(12, 19), crate(8, 15, 1.4), { x: 1, y: 9, w: 3, h: 0.8 }, { x: 12, y: 9, w: 3, h: 0.8 }],
     doors: [],
     enemies: [
-      // Lined up: make the thrower at the back shoot the gunners in front of it.
-      { kind: "thrower", x: 8, y: 2, delay: 0.6 },
-      { kind: "gunner", x: 8, y: 5.5, delay: 0.7 },
-      { kind: "gunner", x: 8, y: 9, delay: 0.5 }
+      // Lined up: make the thrower at the back shoot the gunner in front of it.
+      { kind: "thrower", x: 8, y: 2.5, delay: 0.9 },
+      { kind: "gunner", x: 8, y: 7, delay: 0.6 }
     ],
     goal: CLEAR,
     par: 7,
