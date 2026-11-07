@@ -4,7 +4,7 @@
 
 A one-hit assassin game in 30 dungeon rooms. Stand still and the world stops; move and it runs as fast as you do.
 
-**[Play it on itch.io](https://sandromaglione.itch.io/still-time)** in a browser, on phone or desktop. Made for [Slapjam AI #2](https://itch.io/jam/slapjam-ai-2) ([our entry](https://itch.io/jam/slapjam-ai-2/rate/5270540)) and built on [Ritmo](https://www.npmjs.com/package/@typeonce/ritmo).
+**[Play it at still-time.typeonce.games](https://still-time.typeonce.games)** in a browser, on phone or desktop. Made for [Slapjam AI #2](https://itch.io/jam/slapjam-ai-2) ([our entry](https://itch.io/jam/slapjam-ai-2/rate/5270540); the jam build stays [on itch.io](https://sandromaglione.itch.io/still-time)) and built on [Ritmo](https://www.npmjs.com/package/@typeonce/ritmo).
 
 ![Gameplay: a warm run, the cold freeze when the assassin stops, then the cut.](docs/jam/still-time.gif)
 
@@ -85,3 +85,26 @@ pnpm dev   # http://localhost:5301
 
 - Phone: drag to move, let go and time stops, tap to continue.
 - Desktop: arrows or WASD to move, space to continue, R to restart, M or Escape for the rooms.
+
+## Release
+
+The game is deployed with [Alchemy](https://alchemy.run/) as a Cloudflare Worker serving the Vite build as static files; saves stay in the player's browser. The separate `deploy/` package keeps its dependencies out of the game, and Cloudflare stores the deployment state.
+
+```sh
+pnpm --dir deploy install --frozen-lockfile
+pnpm --dir deploy exec alchemy plan --stage prod --profile admin --no-input
+pnpm release --profile admin --yes --no-input
+```
+
+Release from an up-to-date `main`. `pnpm release` runs `pnpm check` and the deploy typecheck, then builds and deploys the game to <https://still-time.typeonce.games>, creating its DNS record and certificate in the `typeonce.games` zone. Releases run locally; pushing to GitHub does not deploy.
+
+`admin` is the local Alchemy Cloudflare profile. On another machine, use your own profile or set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` and omit `--profile admin`.
+
+A temporary preview on workers.dev, and its removal:
+
+```sh
+pnpm --dir deploy exec alchemy deploy --stage preview --profile admin
+pnpm --dir deploy exec alchemy destroy --stage preview --profile admin
+```
+
+`pnpm package` still builds the itch.io zip.
