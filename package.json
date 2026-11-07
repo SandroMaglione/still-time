@@ -20,7 +20,8 @@
     "shots:art": "node scripts/art-shots.ts",
     "record:fx": "node scripts/fx-record.ts",
     "perf": "node scripts/perf.ts",
-    "package": "pnpm build && mkdir -p output && rm -f output/still-time-itch.zip && cd dist && zip -qr ../output/still-time-itch.zip . && cd .. && ls -la output/still-time-itch.zip"
+    "package": "pnpm build && mkdir -p output && rm -f output/still-time-itch.zip && cd dist && zip -qr ../output/still-time-itch.zip . && cd .. && ls -la output/still-time-itch.zip",
+    "release": "pnpm --dir deploy release"
   },
   "dependencies": {
     "@effect/platform-browser": "4.0.4",
