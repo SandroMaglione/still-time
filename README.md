@@ -1,24 +1,87 @@
 # Still Time
 
-A [Slapjam AI #2](https://itch.io/jam/slapjam-ai-2) entry (theme: Speed): top-down rooms where time stops while you stand still and runs while you move. Built on [`@typeonce/ritmo`](https://www.npmjs.com/package/@typeonce/ritmo). Design and rules: [`docs/design.md`](docs/design.md).
+![Still Time: time moves only when you move.](assets/itch/banner.png)
 
-**Play it:** [sandromaglione.itch.io/still-time](https://sandromaglione.itch.io/still-time) (browser, phone or desktop). **Jam entry:** [itch.io/jam/slapjam-ai-2/rate/5270540](https://itch.io/jam/slapjam-ai-2/rate/5270540), submitted 31 October 2026 at about 10:59 UTC, four hours before the deadline.
+A one-hit assassin game in 30 dungeon rooms. Stand still and the world stops; move and it runs as fast as you do.
+
+**[Play it on itch.io](https://sandromaglione.itch.io/still-time)** in a browser, on phone or desktop. Made for [Slapjam AI #2](https://itch.io/jam/slapjam-ai-2) ([our entry](https://itch.io/jam/slapjam-ai-2/rate/5270540)) and built on [Ritmo](https://www.npmjs.com/package/@typeonce/ritmo).
+
+![Gameplay: a warm run, the cold freeze when the assassin stops, then the cut.](docs/jam/still-time.gif)
+
+## Result
+
+**41st of 211** ranked entries in Slapjam AI #2 (29 to 31 October 2026, theme Speed, 217 entries). It got 3 ratings ([results](https://itch.io/jam/slapjam-ai-2/results), 7 November 2026).
+
+| Criterion | Average stars (of 5) | Rank |
+| --- | --: | --: |
+| Fun | 3.333 | 28th |
+| Visual Appeal | 3.333 | 39th |
+| Theme Following | 3.667 | 63rd |
+| Overall | 3.444 | 41st |
+
+## Lessons for the next jam
+
+A panel of about four judges scored Fun, Visual Appeal and Theme Following with equal weight.
+
+The [one comment](https://itch.io/jam/slapjam-ai-2/rate/5270540) on Still Time:
+
+> enemies always shoot at where you were, this becomes boring as the outplay is too easy, maybe shoot-ahead enemies could break the monotony. Sound is a bit too synthetic, would benefit greatly from good sound design.
+
+What the judges wrote about other entries:
+
+| Praised | Marked down |
+| --- | --- |
+| "the speed is feelable" | "absolutely contradictory to the speed design... boring" (on slow-motion sections) |
+| "felt really speedy" | "the game does not make clear what to do... so the fun can begin in the first 20 seconds instead of after 3-5 fails" |
+| | "feels a bit too repetitive and easy in the long run once you understood" |
+| | "this game is soo hard" |
+
+### 1. Put the surprise in the first minute
+
+**Show the one surprising feature, and the first threat your trick does not beat, in the first 60 seconds; treat everything past room 5 as unjudged.**
+
+- The judge was right: every shooter except the grenadier aims where you are when it fires. Keep moving and the shot is always behind you.
+- The threats that break this rhythm (lock-on snipers, the stalker, the clockwork tower) are in later rooms a two-minute judge never reaches.
+- Both judge comments on the winner, Speed Slash, named one feature: load your own MP3 and the game builds a level from it.
+
+### 2. Make the theme felt, and show it
+
+**Read the theme as the judges will feel it, and put it on screen as a number.**
+
+Still Time's take on Speed is a world that stops when you stop, and Theme Following was its lowest rank (63rd). The top games show speed as a number (a km/s meter, an m/s meter), where Still Time had only a thin bar under the clock.
+
+![Escape Velocity's screen, with a big 587 km/s meter and "BLAZING!", beside a Still Time room: small sprites on a dark floor, a clock and a goal.](docs/jam/speed-on-screen.jpg)
+
+*Escape Velocity (left) and Still Time (right), screenshots from their itch pages.*
+
+### 3. Design the cover for the grid
+
+**Design the cover for a 315×250 thumbnail among 200+ entries: bright, a big title, a face.**
+
+The top covers are bright and saturated, and most have a big title and a character's face; Still Time's is dark and muted, with small type. Inside the game too, 5 of the top 6 are 3D or illustrated, and judges at the first Slapjam AI also marked down dark screens.
+
+![The itch.io covers of the top 12 entries, four per row, all bright and saturated, with Still Time's dark cover alone on the last row.](docs/jam/covers.jpg)
+
+*The top 12 covers in final order, Still Time's alone on the last row: [Speed Slash](https://megumih.itch.io/speed-slash), [Escape Velocity](https://behlulakdag.itch.io/escape-velocity), [Shrinestone](https://innollia.itch.io/shrinestone), [Snailracer](https://oskariolli.itch.io/snailracer-fast-as-shell), [DragonRacers](https://jeremieagee.itch.io/dragonracers), [TRAILBLADE](https://wakkin.itch.io/trailblade), [Umbrella](https://logheimer.itch.io/umbrella), [Turbo Sloth](https://ragnar18.itch.io/turbo-sloth), [Inkerial](https://erathul.itch.io/inkerial), [Live fast](https://johnhdeleon.itch.io/live-fast), [Breakfast Rush](https://yunhai1.itch.io/breakfast-rush), [Pier Pressure](https://catboxx-studio.itch.io/pier-pressure). Each cover belongs to its game's developers, shown for comparison only.*
+
+### 4. Use real music and designed sound
+
+The judge's second point was "Sound is a bit too synthetic". Still Time's music and sounds were made with ritmo-tools.
+
+### 5. Invisible polish does not score
+
+**Spend jam hours on what a judge sees and feels in two minutes; invisible polish buys nothing.**
+
+Tests, fuzzing, saves, accessibility toggles, keyboard support and the itch page made no difference to the score. The winner's page had one image and 286 words; Still Time's had a GIF, 8 screenshots and a controls strip.
+
+## Run it locally
+
+Built on [Ritmo](https://www.npmjs.com/package/@typeonce/ritmo) (`@typeonce/ritmo`), with pixel art, sound and music made with ritmo-tools. The rules and every room are in [`docs/design.md`](docs/design.md).
 
 ```sh
 pnpm install
-pnpm dev      # http://localhost:5301 (also on the LAN, for a phone)
-pnpm check    # typecheck, oxlint, ritmo-devtools lint, tests (rules + fuzzing)
-pnpm shots    # phone-size screenshots into output/ (with pnpm dev running)
+pnpm dev   # http://localhost:5301
 ```
 
-Controls: drag anywhere to move; let go and time stops; tap to continue. ☰ opens the rooms. On desktop: arrows or WASD, space to continue, R to restart, M or Escape for the rooms, 1–9 and 0 to jump to rooms 1–10, `[` and `]` for the previous and next room (open rooms only).
-
-Every room is open from the start (PLAY continues at the first one not cleared); progress (each room's best stars and time) is saved in the browser's local storage under `still-time/`. For testing: `?room=N` opens a room straight away (skipping the title).
-
-`pnpm build` writes `dist/` with relative paths. `pnpm package` builds and zips it into `output/still-time-itch.zip` (`index.html` at the zip's root): upload that to itch.io as an HTML game, viewport 720×1280, mobile friendly, with the fullscreen button.
-
-## Layout
-
-- `src/sim`: the simulation, headless. `schema.ts` (the world, as Effect schemas through `codec.ts`), `tuning.ts` (every number), `rooms.ts` (the rooms: walls, doors and their locks, goals, pars), `progress.ts` (which rooms are open), `geometry.ts`, `systems/` (one file per concern), `view.ts` (what the page reads), `simulation.ts` (runtime and schedules).
-- `src/host`: the page. `main.ts` (thumb, keys, loop), `draw.ts` (the canvas renderer), `menu.ts` (title and room select), and the save through Effect: `storage.ts` (local storage as a `KeyValueStore`), `persisted.ts` (read and write a value through its schema, never losing a save), `progress.ts` (the `Progress` service and its versioned format).
-- `test`: rule tests (`fight`, `locks`, `blades`, `progress`), room-data checks (`rooms`: locks can be met, every room can be finished), invariants, and fuzzing over every room.
+- Phone: drag to move, let go and time stops, tap to continue.
+- Desktop: arrows or WASD to move, space to continue, R to restart, M or Escape for the rooms.
