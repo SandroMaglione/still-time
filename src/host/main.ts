@@ -23,6 +23,7 @@ import { Guide } from "./guide.ts"
 import { Director, letterbox, onSkip, type Cue } from "./intro.ts"
 import { createAudio, setMusicEnabled, setSoundEnabled, soundSettings } from "./audio.ts"
 import { feelSettings, pulse, setFeel } from "./feel.ts"
+import { Signup } from "./signup.ts"
 
 declare global {
   interface Window {
@@ -124,6 +125,9 @@ const menu = new Menu(document.body, {
 if (asked === null) menu.show("title", fight.view())
 
 
+// The email sign-up on the run's end card (see `signup.ts`); the keys and taps below leave it alone.
+const signup = new Signup()
+
 el("restart").addEventListener("click", () => fight.send({ kind: "restart" }))
 el("pause").addEventListener("click", () => menu.show("pause", fight.view()))
 el("rooms-after").addEventListener("click", () => menu.show("rooms", fight.view()))
@@ -141,6 +145,12 @@ let consumed = false
 
 canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId)
+  // A tap on the game while the sign-up's field has focus only leaves the field (on a phone, closes the keyboard).
+  if (signup.focused()) {
+    signup.leave()
+    consumed = true
+    return
+  }
   // A cutscene plays itself: a press moves it on a beat, or skips it from the top bar.
   if (fight.view().room.scene) {
     if (onSkip(e.clientY / cssPerPixel, canvas.height)) scene.skip()
@@ -203,6 +213,14 @@ const keyPush = (): void => {
   thumb.setScreenPush(x, y, x === 0 && y === 0 ? 0 : 1)
 }
 window.addEventListener("keydown", (e) => {
+  // Typing in the sign-up is typing, not playing: Escape leaves the field, Enter submits it, every other key stays in it.
+  if (signup.owns(e.target)) {
+    if (e.key === "Escape") {
+      signup.leave()
+      e.preventDefault()
+    }
+    return
+  }
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
   if (e.repeat) return
   // Escape or M pauses, and closes the pause or the room select (the title stays until you pick Play).
@@ -265,7 +283,7 @@ presentation.observe(fight.view())
 const audio = createAudio()
 audio.unlockOn(window)
 audio.observe(fight.view())
-const hud = new Hud(canvas)
+const hud = new Hud(canvas, signup)
 const guide = new Guide()
 
 /**

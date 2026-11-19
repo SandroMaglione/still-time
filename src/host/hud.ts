@@ -3,13 +3,15 @@
  * canvas draws): the clock against par, the pressing order of numbered
  * plates, the room's goal (live: how many are left to cut, or the exit), the
  * room's tip (its number and name, then its hint; it fades once you move),
- * and the messages (a hit, a clear with its stars, the run's end).
+ * and the messages (a hit, a clear with its stars, the run's end, which also offers the email sign-up: see
+ * `signup.ts`).
  * Every size is a whole number of UI pixels (`--u`), so the pixel font and
  * borders stay crisp.
  */
 import type { FightView, HitBy, PlateView, ResultView } from "../sim/view.ts"
 import { CLEAR_PANEL_AT, speedOf, starPopAt, type Presentation } from "./fx.ts"
 import { ICONS, fromHtml, pixelSvg, star } from "./ui-pixels.ts"
+import type { Signup } from "./signup.ts"
 
 /** Seconds a tip stays up at most, and the world seconds of moving that dismiss it. */
 const TIP_SECONDS = 7
@@ -111,8 +113,12 @@ export class Hud {
   /** The clear panel's time, counting up from zero to the time you took. */
   private countUp: { readonly node: HTMLElement; readonly to: number; readonly from: number } | null = null
 
-  constructor(canvas: HTMLCanvasElement) {
+  /** The email sign-up, offered on the run's end only. */
+  private readonly signup: Signup
+
+  constructor(canvas: HTMLCanvasElement, signup: Signup) {
     huds.set(canvas, this)
+    this.signup = signup
     byId("pause").replaceChildren(fromHtml(pixelSvg(ICONS.menu, { outline: true })))
     byId("restart").replaceChildren(fromHtml(pixelSvg(ICONS.restart, { outline: true })))
     const resize = (): void => {
@@ -208,6 +214,7 @@ export class Hud {
     const key = m.kind === "none" ? "none" : m.kind === "dead" ? `dead:${m.canRetry}:${m.by}` : `${m.kind}:${m.view.room.index}:${m.view.result?.stars}:${m.view.result?.world}`
     if (key === this.messageKey) return
     this.messageKey = key
+    this.signup.place(m.kind === "won")
     this.msg.className = `message panel ${m.kind}`
     this.msg.hidden = m.kind === "none"
     this.after.hidden = m.kind !== "cleared" && m.kind !== "won"

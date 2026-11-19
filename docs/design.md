@@ -52,6 +52,8 @@ Every room is open from the start: the jam build is judged in a few minutes per 
 
 Progress is saved on the device, in the browser's local storage (itch.io has no save API for HTML games): each room's best, by room name, so a build that adds or reorders rooms keeps it. itch.io serves every HTML game from one origin, so every key starts with `still-time/`. The format is versioned; a save that cannot be read is kept aside (`still-time/progress.unreadable`) and the game starts fresh; when the storage cannot be read at all, nothing is written over it. Saves are per browser and device (no sync), and a browser may clear them.
 
+The "all rooms clear" card ends with an email sign-up for Typeonce Games' next games (`src/host/signup.ts`): an address field, a close (×) and "Get new games", on the card's own surface past an engraved line (two columns past an upright line on a screen wider than tall). It shows on no other card, and only at a typeonce.games address: the studio's endpoint refuses every other origin, so the itch.io build never shows it (`vite dev` shows it and answers itself, sending nothing). Signing up hides it for good on the device, the close for a day (`still-time/signup.done`, `still-time/signup.closedAt`). While the field has focus the game's keys and taps leave it alone: Escape leaves the field, Enter submits, a tap on the game only closes the keyboard. `node scripts/signup-shots.ts` (with `pnpm dev` running) takes its pictures and checks those rules.
+
 ## Rooms
 
 Each room adds one thing, with few enemies, and the rooms grow from there:
