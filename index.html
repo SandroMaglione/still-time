@@ -284,6 +284,65 @@
       .room-card .next { color: var(--teal); }
       .room-card.locked { --f: #1d2233; --h: #262c40; --s: #161a28; color: var(--dim); cursor: default; }
       .room-card.locked .room-name { color: #4d566e; }
+
+      /* The email sign-up (src/host/signup.ts): the final card's last section, under Rooms and Home, on the card's own
+         surface past an engraved groove (the card's two edge colours): no panel of its own. Two rows: the field; the stone
+         close (a square, as tall as the gold button) and the gold button. Never wider than the card already is (width 0,
+         min-width 100%). Its space is there from the card's first frame; it comes in once, then takes taps. */
+      .signup {
+        position: relative; box-sizing: border-box; width: 0; min-width: 100%; margin-top: calc(var(--u) * 9);
+        display: flex; flex-direction: column; align-items: center; padding: calc(var(--u) * 14) 0 calc(var(--u) * 6); text-align: center;
+        pointer-events: none; animation: signup-in 0.36s steps(4) 0.85s both;
+      }
+      .signup::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: var(--u); background: var(--stone-lo); box-shadow: 0 var(--u) 0 var(--stone-hi); }
+      .signup.is-ready { pointer-events: auto; }
+      .signup:not(.is-ready) .btn { pointer-events: none; }
+      .signup.is-closed, .signup.is-closed * { visibility: hidden; pointer-events: none; }
+      @keyframes signup-in { from { opacity: 0; translate: 0 calc(var(--u) * 6); } to { opacity: 1; translate: 0 0; } }
+      @media (prefers-reduced-motion: reduce) { .signup { animation: none; } }
+      /* One rhythm of 12 UI pixels, as seen: Rooms/Home's drop to the groove (the card's 5 of gap and these 9 of margin,
+         less the buttons' 2 of drop), the groove to the field (14, less the groove's 2), and the buttons' drop to the card's
+         bottom shade (these 6 and the card's 9 of padding, less the 2 of drop and the 1 of shade). */
+      /* An error: one red line in the gap over the field, only while there is one (it adds no height). */
+      .signup-error {
+        display: none; position: absolute; left: 0; right: 0; bottom: calc(100% + var(--u) * 2); margin: 0;
+        font-size: var(--t0); line-height: var(--l0); color: var(--red); text-align: center; white-space: nowrap;
+      }
+      .signup.is-error .signup-error { display: block; }
+      .signup-body { position: relative; align-self: stretch; display: flex; flex-direction: column; gap: calc(var(--u) * 3); }
+      /* The game's text size (16 px on a phone, so iOS does not zoom in on it). */
+      .signup-field input {
+        box-sizing: border-box; display: block; width: 100%; min-height: max(44px, calc(var(--u) * 22)); margin: 0; border: 0; border-radius: 0;
+        padding: 0 calc(var(--u) * 5); font: inherit; font-size: max(16px, var(--t1)); text-transform: none; color: var(--light);
+        background: var(--ink); box-shadow: inset 0 0 0 var(--u) var(--stone-hi); outline: none; caret-color: var(--gold);
+        user-select: text; -webkit-user-select: text; touch-action: manipulation;
+      }
+      .signup-field input::placeholder { color: var(--dim); opacity: 1; }
+      .signup-field input:focus { box-shadow: inset 0 0 0 var(--u) var(--gold); }
+      .signup.is-error .signup-field input { box-shadow: inset 0 0 0 var(--u) var(--red); }
+      .signup-actions { display: flex; gap: calc(var(--u) * 3); }
+      .signup-close { flex: none; width: max(44px, calc(var(--u) * 22)); padding: 0; }
+      .signup-send { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; }
+      .signup.is-sending .signup-send { opacity: 0.6; }
+      /* Signed up: the line takes the field's and the buttons' place, so the card keeps its height. */
+      .signup-done { display: none; position: absolute; inset: 0; margin: 0; align-items: center; justify-content: center; text-align: center; color: var(--gold); font-weight: 700; }
+      .signup.is-done .signup-body > :not(.signup-done) { visibility: hidden; }
+      .signup.is-done .signup-done { display: flex; }
+      /* While the field has focus the card scrolls within the window, so the field stays in sight when a phone's keyboard
+         leaves little room (signup.ts scrolls it there). Only then: at rest nothing on the card is clipped. */
+      .message.won:has(.signup-field input:focus) {
+        max-height: calc(100% - var(--u) * 8 - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain;
+      }
+      /* A screen wider than tall (a phone held sideways, a desktop): stacked, the card would not fit the height (the UI pixel
+         grows with the shorter side), so it is two columns: the results on the left; on the right, past an upright groove as
+         tall as the results, the sign-up centred against them. 16 UI pixels on either side of the groove, and from the
+         sign-up to the card's edge (its 10 of padding and these 6). */
+      @media (orientation: landscape) {
+        .message.won:has(.signup:not([hidden])) { display: grid; grid-template-columns: auto auto; column-gap: calc(var(--u) * 16); align-items: center; justify-items: center; }
+        .message.won > :not(.signup) { grid-column: 1; }
+        .message.won > .signup { grid-column: 2; grid-row: 1 / span 4; align-self: stretch; justify-content: center; width: calc(var(--u) * 158); min-width: 0; margin: 0; padding: 0 calc(var(--u) * 6) 0 calc(var(--u) * 18); }
+        .message.won > .signup::before { left: 0; right: auto; top: 0; bottom: 0; width: var(--u); height: auto; box-shadow: var(--u) 0 0 var(--stone-hi); }
+      }
     </style>
   </head>
   <body class="loading">
@@ -322,6 +381,17 @@
           <span id="msg-cta" class="msg-cta"></span>
           <div id="msg-buttons" class="msg-buttons" hidden><button id="rooms-after" class="btn" type="button">Rooms</button><button id="title-after" class="btn" type="button">Home</button></div>
         </div>
+        <form id="signup" class="signup" novalidate hidden aria-label="New games from Typeonce Games, by email">
+          <div class="signup-body">
+            <p class="signup-error" aria-live="polite"></p>
+            <label class="signup-field"><span class="sr">Your email address</span><input name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="your@email.com" /></label>
+            <div class="signup-actions">
+              <button class="btn signup-close" type="button" aria-label="Not now (hides this for a day)"></button>
+              <button class="btn gold signup-send" type="submit">Get new games</button>
+            </div>
+            <p class="signup-done" aria-live="polite"></p>
+          </div>
+        </form>
       </div>
     </div>
     <div id="crash" class="crash" hidden>
